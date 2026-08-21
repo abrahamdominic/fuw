@@ -1,36 +1,181 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter, Link, Route, Routes, useNavigate, Navigate } from 'react-router-dom';
-import { BookOpen, Search, Menu, X, ArrowRight, Download, Eye, Bookmark, ChevronRight, GraduationCap, FileText, Users, Building2, LayoutDashboard, Upload, Settings, LogOut, Clock, Heart, BarChart3, ShieldCheck, Plus, Pencil, Trash2, Share2, Mail, HelpCircle } from 'lucide-react';
+import { BrowserRouter, Route, Routes, Navigate } from 'react-router-dom';
 import './styles.css';
-import { catalogue, materialTypes, levelsFor, facultyByName, departmentByName } from './data/catalogue';
-import { requireSupabase, supabase } from './lib/supabase';
 
-const faculties = catalogue.map(f=>[f.name,f.departments.map(d=>d.name)]);
-const materials = [
-  {title:'Principles of Microeconomics',course:'ECN 201',dept:'Economics',type:'Lecture Note',level:'200 Level',date:'May 12, 2026',downloads:'1,248',tone:'orange'},
-  {title:'Introduction to Programming',course:'CSC 201',dept:'Computer Science',type:'Textbook',level:'200 Level',date:'May 09, 2026',downloads:'982',tone:'blue'},
-  {title:'Organic Chemistry Past Questions',course:'CHM 302',dept:'Chemistry',type:'Past Questions',level:'300 Level',date:'May 02, 2026',downloads:'867',tone:'purple'}
-];
-function Logo(){return <img className="fuw-logo" src="/images/Fuw.png" alt="Federal University Wukari"/>}function Header(){const [open,setOpen]=useState(false); return <><header><Link className="brand" to="/"><Logo/><b>FUW</b> E-Library</Link><nav><Link to="/">Home</Link><Link to="/library">Library</Link><Link to="/faculties">Faculties</Link><Link to="/library">Courses</Link><Link to="/about">About</Link></nav><div className="nav-actions"><Link to="/login">Log in</Link><Link className="join" to="/register">Create account</Link></div><button className="menu" onClick={()=>setOpen(!open)}>{open?<X/>:<Menu/>}</button></header>{open&&<div className="mobile-nav"><Link to="/library">Library</Link><Link to="/faculties">Faculties</Link><Link to="/login">Log in</Link><Link to="/register">Create account</Link></div>}</>}
-function SearchBar(){const nav=useNavigate(); const [q,setQ]=useState(''); return <form className="search" onSubmit={e=>{e.preventDefault();nav('/library?q='+q)}}><Search size={21}/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search books, lecture notes, past questions, courses..."/><button>Search</button></form>}
-function Card({m}:{m:typeof materials[0]}){return <article className="material"><div className={'file '+m.tone}><FileText size={28}/></div><button className="save"><Bookmark size={18}/></button><p className="pill">{m.type}</p><h3>{m.title}</h3><p className="course">{m.course} · {m.dept}</p><p className="meta">{m.level} <i/> 2025/2026</p><div className="card-foot"><span><Download size={15}/>{m.downloads}</span><span>{m.date}</span></div><Link to="/materials/1">View material <ArrowRight size={16}/></Link></article>}
-function Home(){return <><section className="hero"><div className="eyebrow"><GraduationCap size={16}/> FEDERAL UNIVERSITY WUKARI</div><h1>Your gateway to<br/><em>academic knowledge.</em></h1><p>Discover trusted learning resources, from lecture notes to research papers, all curated for the FUW community.</p><SearchBar/><div className="quick"><span>Popular:</span><Link to="/library">Past questions</Link><Link to="/library">Computer Science</Link><Link to="/library">Lecture notes</Link></div></section><section className="stats">{[[FileText,'4,800+','Academic materials'],[Building2,'11','Faculties'],[GraduationCap,'52','Departments'],[Users,'8,200+','Registered students']].map(([I,n,l]:any)=><div><I/><b>{n}</b><span>{l}</span></div>)}</section><main><div className="section-head"><div><p className="kicker">EXPLORE THE COLLECTION</p><h2>Popular materials</h2></div><Link to="/library">View all materials <ChevronRight size={17}/></Link></div><div className="grid materials">{materials.map((m,i)=><Card key={i} m={m}/>)}</div><div className="section-head faculty-head"><div><p className="kicker">FIND YOUR SUBJECT</p><h2>Browse by faculty</h2></div><Link to="/faculties">All faculties <ChevronRight size={17}/></Link></div><div className="grid faculty-grid">{faculties.slice(0,6).map(([name,depts],i)=><Link className="faculty" to="/library" key={name as string}><span>{String(i+1).padStart(2,'0')}</span><h3>{name as string}</h3><p>{(depts as string[]).length} departments</p><ArrowRight size={18}/></Link>)}</div></main></>}
-function CatalogueFilters({compact=false}:{compact?:boolean}){const [faculty,setFaculty]=useState(''),[department,setDepartment]=useState(''),[level,setLevel]=useState(''),[semester,setSemester]=useState(''),[course,setCourse]=useState('');const currentFaculty=facultyByName(faculty), currentDepartment=departmentByName(faculty,department);return <div className={compact?'catalogue-form':'catalogue-filters'}><label>Faculty<select value={faculty} onChange={e=>{setFaculty(e.target.value);setDepartment('');setLevel('');setCourse('')}}><option value="">Select faculty</option>{catalogue.map(f=><option value={f.name}>{f.name}</option>)}</select></label><label>Department<select value={department} disabled={!faculty} onChange={e=>{setDepartment(e.target.value);setLevel('');setCourse('')}}><option value="">Select department</option>{currentFaculty?.departments.map(d=><option value={d.name}>{d.name}</option>)}</select></label><label>Course<select value={course} disabled={!department} onChange={e=>setCourse(e.target.value)}><option value="">Select course</option>{currentDepartment?.courses.map(c=><option value={c.code}>{c.code} — {c.name}</option>)}</select></label><label>Level<select value={level} disabled={!department} onChange={e=>setLevel(e.target.value)}><option value="">Select level</option>{levelsFor(currentDepartment?.duration).map(x=><option>{x}</option>)}</select></label><label>Semester<select value={semester} onChange={e=>setSemester(e.target.value)}><option value="">Select semester</option><option>First Semester</option><option>Second Semester</option></select></label><label>Material type<select><option value="">All material types</option>{materialTypes.map(x=><option>{x}</option>)}</select></label></div>}
-function Library(){return <main className="library"><div className="crumb">Home <ChevronRight size={14}/> Library</div><h1>Explore the library</h1><p className="subtitle">Find resources through the FUW academic structure.</p><SearchBar/><div className="library-body"><aside><b>FILTER MATERIALS</b><CatalogueFilters/></aside><section><div className="results"><b>1,284 materials found</b><select><option>Sort: Newest</option><option>Most downloaded</option><option>A–Z</option></select></div><div className="list">{[...materials,...materials].map((m,i)=><Card key={i} m={m}/>)}</div></section></div></main>}
-function Faculties(){return <main className="faculties"><div className="crumb">Home <ChevronRight size={14}/> Faculties</div><h1>Faculties & departments</h1><p className="subtitle">Browse learning materials by your faculty and department.</p><div className="faculty-list">{faculties.map(([f,d])=><section><h2>{f as string}</h2><div>{(d as string[]).map(x=><Link to={'/library?department='+x}>{x}<ChevronRight size={15}/></Link>)}</div></section>)}</div><section className="health"><p>COLLEGE OF HEALTH SCIENCES</p><h2>Health Sciences</h2><div>Basic Medical Sciences · Allied Health Sciences · Clinical Sciences · Basic Clinical Sciences</div></section></main>}
-function Auth({register=false,admin=false}){const [faculty,setFaculty]=useState(''),[department,setDepartment]=useState('');const deps=facultyByName(faculty)?.departments||[];return <main className="auth"><div className="auth-panel"><div className="brand"><Logo/><b>FUW</b> E-Library</div><p className="kicker">{admin?'ADMIN ACCESS':register?'WELCOME TO FUW':'WELCOME BACK'}</p><h1>{admin?'Admin sign in':register?'Create your account':'Sign in to your library'}</h1><p>{admin?'Use your authorised administrator account.':'Access a world of academic resources built for you.'}</p><form>{register?<><input required placeholder="Full name *"/><input required placeholder="Display name *"/><input required type="email" placeholder="Email address *"/><input required placeholder="Matric number *"/><label>Faculty *<select required value={faculty} onChange={e=>{setFaculty(e.target.value);setDepartment('')}}><option value="">Select faculty</option>{catalogue.map(f=><option value={f.name}>{f.name}</option>)}</select></label><label>Department *<select required disabled={!faculty} value={department} onChange={e=>setDepartment(e.target.value)}><option value="">Select department</option>{deps.map(d=><option value={d.name}>{d.name}</option>)}</select></label><input required type="password" placeholder="Password *"/><input required type="password" placeholder="Confirm password *"/></>:<><input required placeholder={admin?'Admin email or username':'Email or matric number'} /><input required type="password" placeholder="Password"/></>}<button>{admin?'Sign in as administrator':register?'Create account':'Sign in'}</button></form>{admin?<p><Link to="/forgot-password">Forgot password?</Link></p>:<p>{register?'Already have an account?':'New to FUW E-Library?'} <Link to={register?'/login':'/register'}>{register?'Log in':'Create an account'}</Link></p>}</div></main>}
-function OtpAuth({register=false}){const nav=useNavigate(),[email,setEmail]=useState(''),[code,setCode]=useState(''),[sent,setSent]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('');const send=async(e:React.FormEvent)=>{e.preventDefault();setBusy(true);setError('');try{const {error}=await requireSupabase().auth.signInWithOtp({email,options:{shouldCreateUser:register,emailRedirectTo:location.origin}});if(error)throw error;setSent(true)}catch{setError('Unable to send a verification code. Please try again.')}finally{setBusy(false)}};const verify=async(e:React.FormEvent)=>{e.preventDefault();setBusy(true);setError('');try{const {error}=await requireSupabase().auth.verifyOtp({email,token:code.replace(/\D/g,''),type:'email'});if(error)throw error;nav(register?'/complete-profile':'/student')}catch{setError('That code is invalid or expired. Request a new code and try again.')}finally{setBusy(false)}};return <main className="auth"><div className="auth-panel"><div className="brand"><Logo/><b>FUW</b> E-Library</div><p className="kicker">EMAIL VERIFICATION</p><h1>{sent?'Enter verification code':register?'Create your account':'Sign in to your library'}</h1><p>{sent?`We sent a 6-digit verification code to ${email}.`:'Use your university email to receive a secure one-time code.'}</p><form onSubmit={sent?verify:send}>{sent?<input autoFocus inputMode="numeric" maxLength={6} value={code} onChange={e=>setCode(e.target.value)} placeholder="6-digit code" required/>:<input type="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email address"/>}{error&&<p className="form-error">{error}</p>}<button disabled={busy}>{busy?'Please wait…':sent?'Verify email':'Send OTP'}</button></form>{sent&&<button className="text-button" onClick={()=>setSent(false)}>Resend OTP</button>}</div></main>}
-function AdminLogin(){const nav=useNavigate();return <main className="auth"><div className="auth-panel"><p className="kicker">ADMIN ACCESS</p><h1>Admin sign in</h1><p>Use your authorised administrator account.</p><form onSubmit={e=>{e.preventDefault();sessionStorage.setItem('fuw-admin','true');nav('/admin')}}><input required placeholder="Admin email or username"/><input required type="password" placeholder="Password"/><button>Sign in as administrator</button></form><p><Link to="/forgot-password">Forgot password?</Link></p></div></main>}
-const studentNav=[['Dashboard','/student',LayoutDashboard],['Saved materials','/student/saved',Heart],['Recently viewed','/student/recent',Clock],['Downloads','/student/downloads',Download],['Reading history','/student/reading',BookOpen],['My profile','/student/profile',Users]] as const;
-const adminNav=[['Overview','/admin',LayoutDashboard],['Materials','/admin/materials',FileText],['Upload material','/admin/upload',Upload],['Students & users','/admin/users',Users],['Faculties','/admin/faculties',Building2],['Departments','/admin/departments',Building2],['Courses & levels','/admin/courses',GraduationCap],['Categories & sessions','/admin/categories',Bookmark],['Audit logs','/admin/logs',ShieldCheck],['Settings','/admin/settings',Settings]] as const;
-function Sidebar({admin=false}){return <aside className="side"><Link className="brand" to="/"><Logo/><b>FUW</b> E-Library</Link><p>{admin?'ADMINISTRATION':'STUDENT PORTAL'}</p>{(admin?adminNav:studentNav).map(([n,u,I])=><Link to={u}><I size={17}/>{n}</Link>)}<Link to="/"><LogOut size={17}/>Log out</Link></aside>}
-function Detail(){const m=materials[0];return <main className="detail"><div className="crumb">Library <ChevronRight size={14}/> Materials <ChevronRight size={14}/> {m.title}</div><div className="detail-grid"><div><div className="pdf-preview"><FileText size={64}/><b>PDF document preview</b><span>Sign in to read this material online.</span></div><div className="detail-actions"><button><Eye/>Read online</button><button><Download/>Download</button><button><Bookmark/>Save</button><button><Share2/>Share</button></div></div><section><p className="pill">{m.type}</p><h1>{m.title}</h1><p className="subtitle">A curated academic resource for Federal University Wukari students.</p><dl><dt>Course</dt><dd>{m.course} · Introduction to Economics</dd><dt>Faculty</dt><dd>Faculty of Social Sciences</dd><dt>Department</dt><dd>{m.dept}</dd><dt>Level</dt><dd>{m.level}</dd><dt>Academic session</dt><dd>2025/2026</dd><dt>File size</dt><dd>2.4 MB PDF</dd><dt>Activity</dt><dd>2,851 views · {m.downloads} downloads</dd></dl></section></div></main>}
-function Student(){return <div className="portal"><Sidebar/><main className="portal-main"><div className="portal-top"><div><p className="kicker">WELCOME BACK</p><h1>Good morning, Aisha</h1><p className="subtitle">Continue your academic journey.</p></div><Link className="primary" to="/library"><Search size={16}/>Search library</Link></div><div className="portal-stats">{[[Heart,'12','Saved materials'],[Clock,'8','Recently viewed'],[Download,'19','Downloads'],[BookOpen,'14','Reading history']].map(([I,n,l]:any)=><section><I/><b>{n}</b><span>{l}</span></section>)}</div><div className="section-head"><div><p className="kicker">PICK UP WHERE YOU LEFT OFF</p><h2>Recently accessed</h2></div><Link to="/student/recent">View all <ChevronRight size={16}/></Link></div><div className="grid materials">{materials.map((m,i)=><Card m={m} key={i}/>)}</div></main></div>}
-type DashboardData={stats:{students:number;verified:number;pending:number;faculties:number;departments:number;courses:number;materials:number;monthly:number};recent:any[];activities:any[]};function Admin({page='Overview'}){const upload=page==='Upload material';const [data,setData]=useState<DashboardData>();useEffect(()=>{const token=localStorage.getItem('accessToken');fetch('/api/admin/dashboard',{headers:token?{Authorization:'Bearer '+token}:{}}).then(r=>r.ok?r.json():null).then(setData).catch(()=>setData(undefined))},[]);const s=data?.stats;return <div className="portal"><Sidebar admin/><main className="portal-main"><div className="portal-top"><div><p className="kicker">ADMINISTRATION</p><h1>{page==='Overview'?'Library overview':page}</h1><p className="subtitle">Live values are retrieved from the FUW E-Library database.</p></div><Link className="primary" to="/admin/upload"><Upload size={16}/>Upload material</Link></div>{upload?<UploadForm/>:<><div className="portal-stats">{[[Users,s?.students??0,'Students'],[ShieldCheck,s?.verified??0,'Verified students'],[FileText,s?.materials??0,'Materials'],[Building2,s?.faculties??0,'Faculties'],[GraduationCap,s?.departments??0,'Departments'],[BookOpen,s?.courses??0,'Courses'],[Clock,s?.pending??0,'Pending verification'],[Upload,s?.monthly??0,'Uploaded this month']].map(([I,n,l]:any)=><section><I/><b>{n}</b><span>{l}</span></section>)}</div><div className="manage-tools"><Search size={17}/><input placeholder={'Search '+page.toLowerCase()+'...'}/><button><Plus size={16}/>Add new</button></div><Records rows={page==='Overview'?data?.activities:[]}/></>}</main></div>}
-function Records({rows=[]}:{rows?:any[]}){return <div className="table"><div className="tr head"><span>Activity / record</span><span>Performed by</span><span>Entity</span><span>Timestamp</span><span>Status</span></div>{rows.length?rows.map(row=><div className="tr"><span><b>{row.action||row.title}</b><small>{row.id}</small></span><span>{row.user?.displayName||row.user?.fullName||'System'}</span><span>{row.entity||'—'}</span><span>{new Date(row.createdAt).toLocaleString()}</span><span><em>Recorded</em></span></div>):<div className="empty-state"><FileText size={28}/><b>No records found yet.</b><span>Records will appear here when activity occurs in the system.</span></div>}</div>}
-function UploadForm(){return <form className="upload-form"><label>Material title<input required placeholder="e.g. Principles of Microeconomics"/></label><label>Description<textarea required placeholder="What does this resource cover?"/></label><CatalogueFilters compact/><div className="drop"><Upload size={28}/><b>Drop an academic file here or browse</b><span>PDF, DOC/DOCX, PPT/PPTX, XLS/XLSX — max. 25 MB</span><button type="button">Choose file</button></div><button className="primary">Publish material</button></form>}
-function Info({contact=false}){return <main className="info"><p className="kicker">FUW E-LIBRARY</p><h1>{contact?'How can we help?':'Knowledge within reach.'}</h1><p className="subtitle">{contact?'Our library support team is here to help you discover and use academic resources.':'The digital gateway to quality academic resources for every Federal University Wukari student.'}</p><div className="info-grid">{(contact?[[Mail,'Email support','library@fuw.edu.ng'],[HelpCircle,'Library help desk','Visit the University Library'],[Clock,'Response time','Within one business day']]:[[BookOpen,'Built for learning','Notes, textbooks, research and past questions.'],[ShieldCheck,'Trusted resources','Managed by the library team.'],[Users,'For the FUW community','Organised around your course and level.']]).map(([I,h,p]:any)=><section><I/><h2>{h}</h2><p>{p}</p></section>)}</div></main>}
-function Recovery({reset=false}){return <main className="auth"><div className="auth-panel"><p className="kicker">ACCOUNT RECOVERY</p><h1>{reset?'Set a new password':'Forgot password?'}</h1><p>Enter your details and we will help you regain access.</p><form><input placeholder={reset?'New password':'Email address or matric number'} type={reset?'password':'text'}/>{reset&&<input placeholder="Confirm new password" type="password"/>}<button>{reset?'Reset password':'Send reset link'}</button></form></div></main>}
-function Public(){return <><Header/><Routes><Route path="/" element={<Home/>}/><Route path="/library" element={<Library/>}/><Route path="/faculties" element={<Faculties/>}/><Route path="/departments" element={<Faculties/>}/><Route path="/courses" element={<Library/>}/><Route path="/materials/:id" element={<Detail/>}/><Route path="/search" element={<Library/>}/><Route path="/login" element={<OtpAuth/>}/><Route path="/register" element={<OtpAuth register/>}/><Route path="/forgot-password" element={<Recovery/>}/><Route path="/reset-password" element={<Recovery reset/>}/><Route path="/about" element={<Info/>}/><Route path="/contact" element={<Info contact/>}/><Route path="*" element={<Library/>}/></Routes><footer><div className="brand"><Logo/><b>FUW</b> E-Library</div><p>Federal University Wukari · Your digital gateway to academic knowledge.</p></footer></>}
-function AdminGuard({children}:{children:React.ReactNode}){return sessionStorage.getItem('fuw-admin')?children:<Navigate to="/admin/login" replace/>}function App(){return <Routes><Route path="/student/*" element={<Student/>}/><Route path="/admin/login" element={<AdminLogin/>}/><Route path="/admin" element={<AdminGuard><Admin/></AdminGuard>}/><Route path="/admin/upload" element={<AdminGuard><Admin page="Upload material"/></AdminGuard>}/><Route path="/admin/:page" element={<AdminGuard><Admin page="Library management"/></AdminGuard>}/><Route path="/*" element={<Public/>}/></Routes>}; createRoot(document.getElementById('root')!).render(<BrowserRouter><App/></BrowserRouter>);
+import { MaterialItem } from './lib/store';
+import { Header } from './components/Header';
+import { Footer } from './components/Footer';
+import { ToastProvider } from './components/Toast';
+import { DocumentReaderModal } from './components/DocumentReaderModal';
+
+import {
+  HomePage,
+  LibraryPage,
+  FacultiesPage,
+  CoursesPage,
+  MaterialDetailPage,
+  AboutPage,
+  LoginPage,
+  AdminLoginPage
+} from './pages/PublicPages';
+
+import { StudentPortal } from './pages/StudentPortal';
+import { AdminPortal } from './pages/AdminPortal';
+
+function PublicLayout({
+  children,
+  onReadOnline
+}: {
+  children: React.ReactNode;
+  onReadOnline: (m: MaterialItem) => void;
+}) {
+  return (
+    <div className="site-wrapper">
+      <Header />
+      <div className="content-grow">{children}</div>
+      <Footer />
+    </div>
+  );
+}
+
+function App() {
+  const [readingMaterial, setReadingMaterial] = useState<MaterialItem | null>(null);
+
+  const handleReadOnline = (material: MaterialItem) => {
+    setReadingMaterial(material);
+  };
+
+  return (
+    <ToastProvider>
+      <Routes>
+        {/* Student Portal Routes */}
+        <Route
+          path="/student/*"
+          element={<StudentPortal onReadOnline={handleReadOnline} />}
+        />
+
+        {/* Admin Portal Routes */}
+        <Route
+          path="/admin/login"
+          element={<AdminLoginPage />}
+        />
+        <Route
+          path="/admin/*"
+          element={<AdminPortal onReadOnline={handleReadOnline} />}
+        />
+
+        {/* Public Pages Layout */}
+        <Route
+          path="/"
+          element={
+            <PublicLayout onReadOnline={handleReadOnline}>
+              <HomePage onReadOnline={handleReadOnline} />
+            </PublicLayout>
+          }
+        />
+        <Route
+          path="/library"
+          element={
+            <PublicLayout onReadOnline={handleReadOnline}>
+              <LibraryPage onReadOnline={handleReadOnline} />
+            </PublicLayout>
+          }
+        />
+        <Route
+          path="/faculties"
+          element={
+            <PublicLayout onReadOnline={handleReadOnline}>
+              <FacultiesPage />
+            </PublicLayout>
+          }
+        />
+        <Route
+          path="/departments"
+          element={
+            <PublicLayout onReadOnline={handleReadOnline}>
+              <FacultiesPage />
+            </PublicLayout>
+          }
+        />
+        <Route
+          path="/courses"
+          element={
+            <PublicLayout onReadOnline={handleReadOnline}>
+              <CoursesPage />
+            </PublicLayout>
+          }
+        />
+        <Route
+          path="/materials/:id"
+          element={
+            <PublicLayout onReadOnline={handleReadOnline}>
+              <MaterialDetailPage onReadOnline={handleReadOnline} />
+            </PublicLayout>
+          }
+        />
+        <Route
+          path="/about"
+          element={
+            <PublicLayout onReadOnline={handleReadOnline}>
+              <AboutPage />
+            </PublicLayout>
+          }
+        />
+        <Route
+          path="/contact"
+          element={
+            <PublicLayout onReadOnline={handleReadOnline}>
+              <AboutPage contact />
+            </PublicLayout>
+          }
+        />
+        <Route
+          path="/login"
+          element={
+            <PublicLayout onReadOnline={handleReadOnline}>
+              <LoginPage />
+            </PublicLayout>
+          }
+        />
+        <Route
+          path="/register"
+          element={
+            <PublicLayout onReadOnline={handleReadOnline}>
+              <LoginPage register />
+            </PublicLayout>
+          }
+        />
+        <Route
+          path="/forgot-password"
+          element={
+            <PublicLayout onReadOnline={handleReadOnline}>
+              <LoginPage />
+            </PublicLayout>
+          }
+        />
+        <Route
+          path="*"
+          element={<Navigate to="/library" replace />}
+        />
+      </Routes>
+
+      {/* Global Interactive Document Reader Modal */}
+      {readingMaterial && (
+        <DocumentReaderModal
+          material={readingMaterial}
+          onClose={() => setReadingMaterial(null)}
+        />
+      )}
+    </ToastProvider>
+  );
+}
+
+const rootEl = document.getElementById('root');
+if (rootEl) {
+  createRoot(rootEl).render(
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
+  );
+}
