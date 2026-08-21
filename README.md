@@ -1,6 +1,6 @@
 # FUW E-Library
 
-Full-stack foundation for Federal University Wukari's academic digital library.
+Full stack foundation for Federal University Wukari's academic digital library.
 
 ## Run locally
 
@@ -13,10 +13,10 @@ The frontend runs on `http://localhost:5173`; API defaults to port 4000.
 
 ## Included
 
-- Responsive university-branded public pages: home, library search/filtering, faculty/department explorer, login and registration.
-- Prisma/PostgreSQL model with relationships, indexes, cascade rules, academic sessions, audit log, bookmarks, downloads, views, and rotating-token storage.
+- Responsive university branded public pages: home, library search/filtering, faculty/department explorer, login and registration.
+- Prisma/PostgreSQL model with relationships, indexes, cascade rules, academic sessions, audit log, bookmarks, downloads, views, and rotating token storage.
 - Seed data for every supplied FUW faculty, department, and College of Health Sciences department.
-- REST API foundation with registration/login/me, catalogue discovery, pagination/filtering, material details, bookmark action, and admin-only material creation.
+- REST API foundation with registration/login/me, catalogue discovery, pagination/filtering, material details, bookmark action, and admin only material creation.
 - Server hardening through Helmet, restrictive CORS, JSON size limit, rate limiting, Zod input validation, Argon2 hashing, JWT checks, and role middleware.
 
 ## Next production integrations
