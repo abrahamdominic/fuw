@@ -1,7 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 
-const url = (import.meta as any).env?.VITE_SUPABASE_URL || 'https://lgxtiilvpnqgzuarzogb.supabase.co';
-const key = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || 'sb_publishable_h3EJz1E3rZDeZuDHDr1O3w_u9nJfYIe';
+// Credentials are supplied exclusively through Vite environment variables
+// (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY). Never hardcode keys here.
+const url = (import.meta as any).env?.VITE_SUPABASE_URL as string | undefined;
+const key = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY as string | undefined;
 
 export const supabase = url && key ? createClient(url, key, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } }) : null;
 export const requireSupabase = () => {

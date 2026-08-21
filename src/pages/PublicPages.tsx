@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   FileText,
@@ -23,16 +23,24 @@ import {
   Sparkles,
   SlidersHorizontal,
   Lock,
-  UserCheck
+  UserCheck,
+  AlertCircle,
+  RefreshCw,
+  ArrowLeft,
+  KeyRound,
+  ShieldAlert,
+  Edit3
 } from 'lucide-react';
 import { useStore } from '../lib/useStore';
 import { MaterialItem } from '../lib/store';
-import { catalogue, facultyByName } from '../data/catalogue';
+import { catalogue, facultyByName, departmentByName, levelsFor } from '../data/catalogue';
+import { useAuth } from '../lib/AuthContext';
 import { HeroSection } from '../components/HeroSection';
 import { MaterialCard } from '../components/MaterialCard';
 import { CatalogueFilters, FilterState } from '../components/CatalogueFilters';
 import { Logo } from '../components/Logo';
 import { useToast } from '../components/Toast';
+
 
 interface PublicPagesProps {
   onReadOnline: (material: MaterialItem) => void;
@@ -42,6 +50,15 @@ interface PublicPagesProps {
 export function HomePage({ onReadOnline }: PublicPagesProps) {
   const store = useStore();
   const approvedMaterials = store.getApprovedMaterials();
+  const userStats = store.getUserStats();
+
+  const departmentsCount = catalogue.reduce((acc, f) => acc + f.departments.length, 0);
+  const stats = [
+    [FileText, approvedMaterials.length.toLocaleString() + (approvedMaterials.length > 0 ? '+' : ''), 'Academic materials'],
+    [Building2, String(catalogue.length), 'Faculties'],
+    [GraduationCap, String(departmentsCount), 'Departments'],
+    [Users, userStats.studentsCount.toLocaleString() + '+', 'Registered students']
+  ];
 
   return (
     <>
@@ -49,12 +66,7 @@ export function HomePage({ onReadOnline }: PublicPagesProps) {
 
       {/* University Stats Bar */}
       <section className="stats" aria-label="FUW Statistics">
-        {[
-          [FileText, '4,800+', 'Academic materials'],
-          [Building2, '11', 'Faculties'],
-          [GraduationCap, '52', 'Departments'],
-          [Users, '8,200+', 'Registered students']
-        ].map(([Icon, num, label]: any, idx) => (
+        {stats.map(([Icon, num, label]: any, idx) => (
           <div key={idx}>
             <Icon size={24} />
             <b>{num}</b>
@@ -89,7 +101,7 @@ export function HomePage({ onReadOnline }: PublicPagesProps) {
             <h2>Browse by faculty</h2>
           </div>
           <Link to="/faculties" className="view-all-link">
-            All 11 faculties <ChevronRight size={17} />
+            All {catalogue.length} faculties <ChevronRight size={17} />
           </Link>
         </div>
 
@@ -391,7 +403,7 @@ export function FacultiesPage() {
 
       <h1>Faculties & accredited departments</h1>
       <p className="subtitle">
-        Explore academic materials organized systematically across Federal University Wukari's 11 faculties.
+        Explore academic materials organized systematically across Federal University Wukari's {catalogue.length} faculties.
       </p>
 
       <div className="faculty-list">
@@ -605,6 +617,8 @@ export function MaterialDetailPage({ onReadOnline }: PublicPagesProps) {
 
 // 6. ABOUT & CONTACT PAGES
 export function AboutPage({ contact = false }: { contact?: boolean }) {
+  const departmentsCount = catalogue.reduce((acc, f) => acc + f.departments.length, 0);
+
   return (
     <main className="info public-container">
       <p className="kicker">FEDERAL UNIVERSITY WUKARI</p>
@@ -625,7 +639,7 @@ export function AboutPage({ contact = false }: { contact?: boolean }) {
           : [
               [BookOpen, 'Curated Curriculum Notes', 'Verified lecture summaries, textbook references, and exam past questions.'],
               [ShieldCheck, 'Quality & Faculty Review', 'All student contributed materials are vetted by librarians before publication.'],
-              [Users, 'Inclusive Academic Access', 'Organized across 11 faculties, 52 departments, and 4,800+ resources.']
+              [Users, 'Inclusive Academic Access', `Organized across ${catalogue.length} faculties, ${departmentsCount} departments, and a growing verified collection.`]
             ]
         ).map(([Icon, heading, text]: any, idx) => (
           <section key={idx}>
@@ -639,33 +653,271 @@ export function AboutPage({ contact = false }: { contact?: boolean }) {
   );
 }
 
-// 7. AUTH PAGES (Login, Register, Admin Gateway with Demo Quick Jumps)
-export function LoginPage({ register = false }: { register?: boolean }) {
-  const navigate = useNavigate();
-  const store = useStore();
-  const { toast } = useToast();
-  const [identifier, setIdentifier] = useState('FUW/2022/CSC/0142');
-  const [fullName, setFullName] = useState('Aisha Bello');
-  const [displayName, setDisplayName] = useState('Aisha');
-  const [email, setEmail] = useState('aisha.bello@fuw.edu.ng');
+// Helper for 6-digit OTP input boxes with auto-advance and paste support
+function OtpDigitInput({
+  otp,
+  setOtp,
+  disabled
+}: {
+  otp: string[];
+  setOtp: (otp: string[]) => void;
+  disabled?: boolean;
+}) {
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  const handleStudentDemoLogin = () => {
-    store.loginStudent('FUW/2022/CSC/0142', 'Aisha Bello');
-    toast('Logged in as Aisha Bello (Student)', 'success');
-    navigate('/student');
+  const handleChange = (index: number, val: string) => {
+    const digitsOnly = val.replace(/\D/g, '');
+    if (!digitsOnly) {
+      const next = [...otp];
+      next[index] = '';
+      setOtp(next);
+      return;
+    }
+    const char = digitsOnly.slice(-1);
+    const next = [...otp];
+    next[index] = char;
+    setOtp(next);
+
+    // Auto-focus next input
+    if (index < 5 && char) {
+      inputRefs.current[index + 1]?.focus();
+    }
   };
 
-  const handleFormSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (register) {
-      store.loginStudent(email, fullName);
-      store.updateUserProfile({ displayName, email, matricNumber: identifier });
-      toast('Student account created and signed in!', 'success');
-    } else {
-      store.loginStudent(identifier);
-      toast('Signed in to Student Portal', 'success');
+  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace' && !otp[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
     }
-    navigate('/student');
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (pastedData) {
+      const next = ['', '', '', '', '', ''];
+      for (let i = 0; i < pastedData.length; i++) {
+        next[i] = pastedData[i];
+      }
+      setOtp(next);
+      const focusIndex = Math.min(pastedData.length, 5);
+      inputRefs.current[focusIndex]?.focus();
+    }
+  };
+
+  return (
+    <div className="otp-inputs-row" onPaste={handlePaste}>
+      {otp.map((digit, idx) => (
+        <input
+          key={idx}
+          ref={(el) => {
+            inputRefs.current[idx] = el;
+          }}
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength={1}
+          value={digit}
+          disabled={disabled}
+          onChange={(e) => handleChange(idx, e.target.value)}
+          onKeyDown={(e) => handleKeyDown(idx, e)}
+          className={`otp-digit-box ${digit ? 'filled' : ''}`}
+          aria-label={`Digit ${idx + 1}`}
+          autoFocus={idx === 0}
+        />
+      ))}
+    </div>
+  );
+}
+
+// 7. AUTH PAGES (Supabase Email OTP Authentication: Signup & Login)
+export function LoginPage({ register: initialRegister = false }: { register?: boolean }) {
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const { sendOtp, verifyOtp, completeProfile, isAuthenticated, isProfileComplete, user, profile } = useAuth();
+
+  const [isRegister, setIsRegister] = useState(initialRegister);
+  const [step, setStep] = useState<'email' | 'otp' | 'profile'>('email');
+  const [email, setEmail] = useState('');
+  const [otp, setOtp] = useState<string[]>(['', '', '', '', '', '']);
+  const [countdown, setCountdown] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  // Profile fields for Step 3
+  const [profileData, setProfileData] = useState({
+    fullName: '',
+    matricNumber: '',
+    faculty: catalogue[0]?.name || '',
+    department: catalogue[0]?.departments[0]?.name || '',
+    level: '100 Level',
+    bio: ''
+  });
+
+  // Calculate available departments and levels dynamically
+  const currentFaculty = facultyByName(profileData.faculty) || catalogue[0];
+  const currentDepartment = departmentByName(profileData.faculty, profileData.department) || currentFaculty.departments[0];
+  const availableLevels = levelsFor(currentDepartment?.duration || 4);
+
+  // Countdown timer effect
+  useEffect(() => {
+    let timer: any;
+    if (countdown > 0) {
+      timer = setInterval(() => {
+        setCountdown((c) => c - 1);
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [countdown]);
+
+  // If already authenticated with a completed profile, redirect to the right
+  // dashboard. Incomplete profiles stay here so the student finishes signup.
+  useEffect(() => {
+    if (isAuthenticated && isProfileComplete && step !== 'profile') {
+      if (profile?.role === 'admin') {
+        navigate('/admin', { replace: true });
+      } else {
+        navigate('/student', { replace: true });
+      }
+    }
+  }, [isAuthenticated, isProfileComplete, profile, navigate, step]);
+
+  // Faculty change handler -> updates departments and validates level
+  const handleFacultySelect = (facName: string) => {
+    const fac = facultyByName(facName) || catalogue[0];
+    const firstDept = fac.departments[0];
+    const deptLevels = levelsFor(firstDept.duration);
+    setProfileData((prev) => ({
+      ...prev,
+      faculty: facName,
+      department: firstDept.name,
+      level: deptLevels.includes(prev.level) ? prev.level : deptLevels[0]
+    }));
+  };
+
+  // Department change handler -> dynamically restricts levels to department duration (4, 5, or 6 years)
+  const handleDepartmentSelect = (deptName: string) => {
+    const dept = departmentByName(profileData.faculty, deptName);
+    const deptLevels = levelsFor(dept?.duration || 4);
+    setProfileData((prev) => ({
+      ...prev,
+      department: deptName,
+      level: deptLevels.includes(prev.level) ? prev.level : deptLevels[0]
+    }));
+  };
+
+  // Step 1: Send OTP
+  const handleSendOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+    setSuccessMsg(null);
+
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      setErrorMsg('Please enter a valid university or personal email address.');
+      return;
+    }
+
+    setBusy(true);
+    const res = await sendOtp(cleanEmail, isRegister);
+    setBusy(false);
+
+    if (res.error) {
+      setErrorMsg(res.error.message);
+    } else {
+      setSuccessMsg(res.message || `A 6-digit verification code was sent to ${cleanEmail}`);
+      toast('Verification code sent to your email', 'info');
+      setStep('otp');
+      setCountdown(60);
+      setOtp(['', '', '', '', '', '']);
+    }
+  };
+
+  // Step 2: Verify OTP
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+    setSuccessMsg(null);
+
+    const code = otp.join('').trim();
+    if (code.length !== 6) {
+      setErrorMsg('Please enter all 6 digits of the verification code.');
+      return;
+    }
+
+    setBusy(true);
+    const res = await verifyOtp(email, code);
+    setBusy(false);
+
+    if (res.error) {
+      setErrorMsg(res.error.message);
+    } else {
+      toast('Email verified successfully!', 'success');
+      if (res.isNewUser || isRegister) {
+        // Move to Step 3: Complete Profile
+        setStep('profile');
+      } else {
+        // Existing user -> redirect to dashboard
+        if (res.role === 'admin') {
+          navigate('/admin');
+        } else {
+          navigate('/student');
+        }
+      }
+    }
+  };
+
+  // Resend OTP
+  const handleResendOtp = async () => {
+    if (countdown > 0 || busy) return;
+    setErrorMsg(null);
+    setBusy(true);
+    const res = await sendOtp(email, isRegister);
+    setBusy(false);
+
+    if (res.error) {
+      setErrorMsg(res.error.message);
+    } else {
+      setSuccessMsg(`A new 6-digit code has been sent to ${email}`);
+      toast('New verification code sent', 'info');
+      setCountdown(60);
+      setOtp(['', '', '', '', '', '']);
+    }
+  };
+
+  // Step 3: Complete Profile
+  const handleCompleteProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+
+    if (!profileData.fullName.trim()) {
+      setErrorMsg('Full Name is required.');
+      return;
+    }
+    if (!profileData.matricNumber.trim()) {
+      setErrorMsg('Matriculation Number is required.');
+      return;
+    }
+
+    setBusy(true);
+    const res = await completeProfile({
+      fullName: profileData.fullName,
+      matricNumber: profileData.matricNumber,
+      faculty: profileData.faculty,
+      department: profileData.department,
+      level: profileData.level,
+      bio: profileData.bio
+    });
+    setBusy(false);
+
+    if (res.error) {
+      setErrorMsg(res.error.message);
+    } else {
+      toast('Student profile created successfully! Welcome to FUW E-Library.', 'success');
+      navigate('/student');
+    }
   };
 
   return (
@@ -675,62 +927,362 @@ export function LoginPage({ register = false }: { register?: boolean }) {
           <Logo size={36} />
           <b>FUW</b> E-Library
         </div>
-        <p className="kicker">{register ? 'CREATE STUDENT ACCOUNT' : 'STUDENT ACCESS'}</p>
-        <h1>{register ? 'Create your account' : 'Sign in to library'}</h1>
-        <p>Access verified learning resources and track your academic progress.</p>
 
-        {/* Quick Student Demo Button */}
-        <div className="demo-login-strip">
-          <span className="demo-label">Quick student login:</span>
-          <div className="demo-btns-row">
-            <button type="button" className="demo-login-btn student" style={{ gridColumn: 'span 2' }} onClick={handleStudentDemoLogin}>
-              <UserCheck size={14} /> Student Demo Access (Aisha Bello)
-            </button>
-          </div>
-        </div>
+        {/* STEP 1: Enter Email */}
+        {step === 'email' && (
+          <>
+            <p className="kicker">{isRegister ? 'STUDENT REGISTRATION' : 'SECURE STUDENT ACCESS'}</p>
+            <h1>{isRegister ? 'Create your account' : 'Sign in to library'}</h1>
+            <p>
+              {isRegister
+                ? 'Enter your email to receive a 6-digit Supabase authentication code.'
+                : 'Enter your registered email to receive a 6-digit one-time login code.'}
+            </p>
 
-        <form onSubmit={handleFormSubmit}>
-          {register ? (
-            <>
-              <input required placeholder="Full name *" value={fullName} onChange={(e) => setFullName(e.target.value)} />
-              <input required placeholder="Display name *" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
-              <input required type="email" placeholder="Email address *" value={email} onChange={(e) => setEmail(e.target.value)} />
-              <input required placeholder="Matric number *" value={identifier} onChange={(e) => setIdentifier(e.target.value)} />
-              <input required type="password" placeholder="Password *" defaultValue="password123" />
-            </>
-          ) : (
-            <>
-              <input required placeholder="Matriculation number or email" value={identifier} onChange={(e) => setIdentifier(e.target.value)} />
-              <input required type="password" placeholder="Password" defaultValue="password123" />
-            </>
-          )}
-          <button type="submit">{register ? 'Create Account & Open Portal' : 'Sign In to Student Portal'}</button>
-        </form>
+            {errorMsg && (
+              <div className="form-feedback-box error">
+                <AlertCircle size={17} />
+                <p>{errorMsg}</p>
+              </div>
+            )}
 
-        <p>
-          {register ? 'Already have an account?' : 'New to FUW E-Library?'}{' '}
-          <Link to={register ? '/login' : '/register'}>
-            {register ? 'Log in' : 'Create an account'}
-          </Link>
-        </p>
+            {successMsg && (
+              <div className="form-feedback-box success">
+                <CheckCircle2 size={17} />
+                <p>{successMsg}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleSendOtp} className="auth-flow-form">
+              <label className="auth-field-label">
+                <span>Email Address</span>
+                <input
+                  required
+                  type="email"
+                  placeholder="e.g. yourname@fuw.edu.ng or personal email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={busy}
+                  autoFocus
+                />
+              </label>
+
+              <button type="submit" className="primary auth-submit-btn" disabled={busy}>
+                {busy ? (
+                  <>
+                    <RefreshCw size={16} className="spin-icon" /> Sending OTP…
+                  </>
+                ) : (
+                  <>
+                    <KeyRound size={16} /> Send 6-Digit OTP
+                  </>
+                )}
+              </button>
+            </form>
+
+            <div className="auth-toggle-row">
+              <p>
+                {isRegister ? 'Already have an account?' : 'New student to FUW E-Library?'}{' '}
+                <button
+                  type="button"
+                  className="auth-link-btn"
+                  onClick={() => {
+                    setIsRegister(!isRegister);
+                    setErrorMsg(null);
+                    setSuccessMsg(null);
+                  }}
+                >
+                  {isRegister ? 'Log in with OTP' : 'Create an account'}
+                </button>
+              </p>
+            </div>
+          </>
+        )}
+
+        {/* STEP 2: Verify 6-digit OTP */}
+        {step === 'otp' && (
+          <>
+            <p className="kicker">TWO-FACTOR VERIFICATION</p>
+            <h1>Enter verification code</h1>
+            <div className="otp-email-badge">
+              <span>Code sent to: <b>{email}</b></span>
+              <button
+                type="button"
+                className="edit-email-btn"
+                onClick={() => {
+                  setStep('email');
+                  setErrorMsg(null);
+                }}
+              >
+                <Edit3 size={13} /> Change
+              </button>
+            </div>
+
+            {errorMsg && (
+              <div className="form-feedback-box error">
+                <AlertCircle size={17} />
+                <p>{errorMsg}</p>
+              </div>
+            )}
+
+            {successMsg && (
+              <div className="form-feedback-box success">
+                <CheckCircle2 size={17} />
+                <p>{successMsg}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleVerifyOtp} className="auth-flow-form">
+              <label className="auth-field-label">
+                <span>Enter 6-digit OTP Code</span>
+                <OtpDigitInput otp={otp} setOtp={setOtp} disabled={busy} />
+              </label>
+
+              <button
+                type="submit"
+                className="primary auth-submit-btn"
+                disabled={busy || otp.join('').length !== 6}
+              >
+                {busy ? (
+                  <>
+                    <RefreshCw size={16} className="spin-icon" /> Verifying…
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 size={16} /> {isRegister ? 'Verify Email & Continue' : 'Verify & Sign In'}
+                  </>
+                )}
+              </button>
+
+              <div className="otp-resend-container">
+                {countdown > 0 ? (
+                  <span className="otp-countdown-text">
+                    <Clock size={14} /> Resend OTP in <b>{countdown}s</b>
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    className="resend-otp-btn"
+                    onClick={handleResendOtp}
+                    disabled={busy}
+                  >
+                    <RefreshCw size={14} /> Didn't receive code? Resend OTP
+                  </button>
+                )}
+              </div>
+
+              <button
+                type="button"
+                className="back-step-btn"
+                onClick={() => {
+                  setStep('email');
+                  setErrorMsg(null);
+                }}
+              >
+                <ArrowLeft size={14} /> Back to email entry
+              </button>
+            </form>
+          </>
+        )}
+
+        {/* STEP 3: Complete Student Profile */}
+        {step === 'profile' && (
+          <>
+            <p className="kicker">FINAL STEP: PROFILE DETAILS</p>
+            <h1>Complete student profile</h1>
+            <p>Select your accredited FUW faculty, department, and academic level.</p>
+
+            {errorMsg && (
+              <div className="form-feedback-box error">
+                <AlertCircle size={17} />
+                <p>{errorMsg}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleCompleteProfile} className="auth-flow-form">
+              <label className="auth-field-label">
+                <span>Full Legal Name *</span>
+                <input
+                  required
+                  placeholder="e.g. Aisha Bello"
+                  value={profileData.fullName}
+                  onChange={(e) => setProfileData({ ...profileData, fullName: e.target.value })}
+                  disabled={busy}
+                />
+              </label>
+
+              <label className="auth-field-label">
+                <span>Verified Email Address</span>
+                <div className="input-with-badge">
+                  <input
+                    type="email"
+                    value={email || user?.email || ''}
+                    readOnly
+                    className="input-readonly"
+                    title="Email verified via Supabase Auth"
+                  />
+                  <span className="readonly-tag">
+                    <ShieldCheck size={12} /> Verified
+                  </span>
+                </div>
+              </label>
+
+              <label className="auth-field-label">
+                <span>Matriculation Number *</span>
+                <input
+                  required
+                  placeholder="e.g. FUW/2023/CSC/0142"
+                  value={profileData.matricNumber}
+                  onChange={(e) => setProfileData({ ...profileData, matricNumber: e.target.value.toUpperCase() })}
+                  disabled={busy}
+                />
+              </label>
+
+              <label className="auth-field-label">
+                <span>Faculty *</span>
+                <select
+                  value={profileData.faculty}
+                  onChange={(e) => handleFacultySelect(e.target.value)}
+                  disabled={busy}
+                  required
+                >
+                  {catalogue.map((f) => (
+                    <option key={f.name} value={f.name}>
+                      {f.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="auth-field-label">
+                <span>Department *</span>
+                <select
+                  value={profileData.department}
+                  onChange={(e) => handleDepartmentSelect(e.target.value)}
+                  disabled={busy}
+                  required
+                >
+                  {currentFaculty.departments.map((d) => (
+                    <option key={d.name} value={d.name}>
+                      {d.name} ({d.duration} Years)
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="auth-field-label">
+                <span>Level of Study * (Restricted to {currentDepartment?.duration || 4}-Year Curriculum)</span>
+                <select
+                  value={profileData.level}
+                  onChange={(e) => setProfileData({ ...profileData, level: e.target.value })}
+                  disabled={busy}
+                  required
+                >
+                  {availableLevels.map((lvl) => (
+                    <option key={lvl} value={lvl}>
+                      {lvl}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <button type="submit" className="primary auth-submit-btn" disabled={busy}>
+                {busy ? (
+                  <>
+                    <RefreshCw size={16} className="spin-icon" /> Saving Profile…
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 size={16} /> Complete & Open Student Dashboard
+                  </>
+                )}
+              </button>
+            </form>
+          </>
+        )}
       </div>
     </main>
   );
 }
 
-// 8. ADMIN LOGIN GATEWAY (Private Access)
+// 8. ADMIN LOGIN GATEWAY (Supabase Email OTP Authentication + Role Authorization)
 export function AdminLoginPage() {
   const navigate = useNavigate();
-  const store = useStore();
   const { toast } = useToast();
-  const [adminEmail, setAdminEmail] = useState('admin.library@fuw.edu.ng');
-  const [adminPassword, setAdminPassword] = useState('adminPass2026');
+  const { sendOtp, verifyOtp, profile, isAdmin } = useAuth();
 
-  const handleAdminSignIn = (e: React.FormEvent) => {
+  const [step, setStep] = useState<'email' | 'otp'>('email');
+  const [adminEmail, setAdminEmail] = useState('');
+  const [otp, setOtp] = useState<string[]>(['', '', '', '', '', '']);
+  const [countdown, setCountdown] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    let timer: any;
+    if (countdown > 0) {
+      timer = setInterval(() => setCountdown((c) => c - 1), 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [countdown]);
+
+  const handleSendAdminOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    store.loginAdmin(adminEmail);
-    toast('Authorized Administrator access granted', 'success');
-    navigate('/admin');
+    setErrorMsg(null);
+
+    const cleanEmail = adminEmail.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      setErrorMsg('Please enter a valid administrator email address.');
+      return;
+    }
+
+    setBusy(true);
+    const res = await sendOtp(cleanEmail, false);
+    setBusy(false);
+
+    if (res.error) {
+      setErrorMsg(res.error.message);
+    } else {
+      setSuccessMsg(`A 6-digit administrator verification code has been sent to ${cleanEmail}`);
+      toast('Admin OTP code sent to your email', 'info');
+      setStep('otp');
+      setCountdown(60);
+      setOtp(['', '', '', '', '', '']);
+    }
+  };
+
+  const handleVerifyAdminOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+
+    const code = otp.join('').trim();
+    if (code.length !== 6) {
+      setErrorMsg('Please enter the 6-digit admin code.');
+      return;
+    }
+
+    setBusy(true);
+    const res = await verifyOtp(adminEmail, code);
+    setBusy(false);
+
+    if (res.error) {
+      setErrorMsg(res.error.message);
+    } else {
+      if (res.role === 'admin') {
+        toast('Authorized Administrator access granted', 'success');
+        navigate('/admin');
+      } else {
+        // Account exists but is not an admin
+        setErrorMsg('Access Denied: Your account does not have administrator privileges. Redirecting to student portal...');
+        toast('Access Denied: Student account redirected to student portal', 'error');
+        setTimeout(() => {
+          navigate('/student');
+        }, 2000);
+      }
+    }
   };
 
   return (
@@ -744,27 +1296,121 @@ export function AdminLoginPage() {
         <h1>Admin sign in</h1>
         <p>Sign in to review student material submissions and manage library catalogues.</p>
 
-        <form onSubmit={handleAdminSignIn}>
-          <input
-            required
-            placeholder="Admin staff email or username"
-            value={adminEmail}
-            onChange={(e) => setAdminEmail(e.target.value)}
-          />
-          <input
-            required
-            type="password"
-            placeholder="Password"
-            value={adminPassword}
-            onChange={(e) => setAdminPassword(e.target.value)}
-          />
-          <button type="submit">Sign in as Administrator</button>
-        </form>
+        {errorMsg && (
+          <div className="form-feedback-box error">
+            <AlertCircle size={17} />
+            <p>{errorMsg}</p>
+          </div>
+        )}
 
-        <p>
-          <Link to="/">← Return to Public Library</Link>
-        </p>
+        {successMsg && (
+          <div className="form-feedback-box success">
+            <CheckCircle2 size={17} />
+            <p>{successMsg}</p>
+          </div>
+        )}
+
+        {step === 'email' ? (
+          <form onSubmit={handleSendAdminOtp} className="auth-flow-form">
+            <label className="auth-field-label">
+              <span>Admin Staff Email</span>
+              <input
+                required
+                type="email"
+                placeholder="e.g. admin.library@fuw.edu.ng"
+                value={adminEmail}
+                onChange={(e) => setAdminEmail(e.target.value)}
+                disabled={busy}
+                autoFocus
+              />
+            </label>
+
+            <button type="submit" className="primary auth-submit-btn" disabled={busy}>
+              {busy ? (
+                <>
+                  <RefreshCw size={16} className="spin-icon" /> Sending OTP…
+                </>
+              ) : (
+                <>
+                  <KeyRound size={16} /> Send Admin Access Code
+                </>
+              )}
+            </button>
+
+            <p className="auth-back-link">
+              <Link to="/">← Return to Public Library</Link>
+            </p>
+          </form>
+        ) : (
+          <form onSubmit={handleVerifyAdminOtp} className="auth-flow-form">
+            <div className="otp-email-badge">
+              <span>Admin Code sent to: <b>{adminEmail}</b></span>
+              <button
+                type="button"
+                className="edit-email-btn"
+                onClick={() => {
+                  setStep('email');
+                  setErrorMsg(null);
+                }}
+              >
+                <Edit3 size={13} /> Change
+              </button>
+            </div>
+
+            <label className="auth-field-label">
+              <span>Enter 6-digit Administrator OTP</span>
+              <OtpDigitInput otp={otp} setOtp={setOtp} disabled={busy} />
+            </label>
+
+            <button
+              type="submit"
+              className="primary auth-submit-btn"
+              disabled={busy || otp.join('').length !== 6}
+            >
+              {busy ? (
+                <>
+                  <RefreshCw size={16} className="spin-icon" /> Authorizing…
+                </>
+              ) : (
+                <>
+                  <ShieldCheck size={16} /> Verify & Access Admin Dashboard
+                </>
+              )}
+            </button>
+
+            <div className="otp-resend-container">
+              {countdown > 0 ? (
+                <span className="otp-countdown-text">
+                  <Clock size={14} /> Resend OTP in <b>{countdown}s</b>
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  className="resend-otp-btn"
+                  onClick={handleSendAdminOtp}
+                  disabled={busy}
+                >
+                  <RefreshCw size={14} /> Resend Admin OTP
+                </button>
+              )}
+            </div>
+
+            <p className="auth-back-link">
+              <button
+                type="button"
+                className="back-step-btn"
+                onClick={() => {
+                  setStep('email');
+                  setErrorMsg(null);
+                }}
+              >
+                <ArrowLeft size={14} /> Back to email
+              </button>
+            </p>
+          </form>
+        )}
       </div>
     </main>
   );
 }
+

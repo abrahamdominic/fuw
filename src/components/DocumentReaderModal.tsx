@@ -30,20 +30,35 @@ export function DocumentReaderModal({ material, onClose }: DocumentReaderModalPr
 
   const totalPages = 18;
 
+  // Render the REAL uploaded document whenever the browser can display it
+  // inline (PDF files). Other formats fall back to the metadata sheet view.
+  const source = material?.fileUrl || '';
+  const looksLikePdf =
+    /\.pdf(\?|#|$)/i.test(source) || /\.pdf(\?|#|$)/i.test(material?.fileName || '');
+  const [canEmbedFile, setCanEmbedFile] = useState(true);
+  useEffect(() => {
+    setCanEmbedFile(Boolean(source) && looksLikePdf);
+  }, [source, looksLikePdf]);
+
   useEffect(() => {
     if (material) {
       setPage(1);
       setZoom(100);
       store.recordView(material.id);
+      if (looksLikePdf) {
+        // Native PDF viewing is continuous - log the session as completed
+        store.saveReadingProgress(material.id, 1, 1);
+      }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [material]);
 
   // Update reading progress when page changes
   useEffect(() => {
-    if (material) {
+    if (material && !looksLikePdf) {
       store.saveReadingProgress(material.id, page, totalPages);
     }
-  }, [page, material]);
+  }, [page, material, looksLikePdf]);
 
   if (!material) return null;
 
@@ -99,25 +114,27 @@ export function DocumentReaderModal({ material, onClose }: DocumentReaderModalPr
           </div>
 
           <div className="reader-controls">
-            <div className="zoom-group">
-              <button
-                onClick={() => setZoom((z) => Math.max(75, z - 15))}
-                disabled={zoom <= 75}
-                title="Zoom out"
-                aria-label="Zoom out"
-              >
-                <ZoomOut size={16} />
-              </button>
-              <span>{zoom}%</span>
-              <button
-                onClick={() => setZoom((z) => Math.min(150, z + 15))}
-                disabled={zoom >= 150}
-                title="Zoom in"
-                aria-label="Zoom in"
-              >
-                <ZoomIn size={16} />
-              </button>
-            </div>
+            {!canEmbedFile && (
+              <div className="zoom-group">
+                <button
+                  onClick={() => setZoom((z) => Math.max(75, z - 15))}
+                  disabled={zoom <= 75}
+                  title="Zoom out"
+                  aria-label="Zoom out"
+                >
+                  <ZoomOut size={16} />
+                </button>
+                <span>{zoom}%</span>
+                <button
+                  onClick={() => setZoom((z) => Math.min(150, z + 15))}
+                  disabled={zoom >= 150}
+                  title="Zoom in"
+                  aria-label="Zoom in"
+                >
+                  <ZoomIn size={16} />
+                </button>
+              </div>
+            )}
 
             <button
               className={`control-btn ${isSaved ? 'active' : ''}`}
@@ -149,6 +166,21 @@ export function DocumentReaderModal({ material, onClose }: DocumentReaderModalPr
 
         {/* Reader Document Viewport */}
         <div className="reader-viewport">
+          {canEmbedFile ? (
+            /* Real uploaded document rendered straight from storage */
+            <iframe
+              src={source}
+              title={`${material.title} — full document`}
+              className="document-embed-frame"
+              style={{
+                width: '100%',
+                height: '100%',
+                minHeight: '60vh',
+                border: 0,
+                background: '#ffffff'
+              }}
+            />
+          ) : (
           <div
             className="document-page-sheet"
             style={{
@@ -239,10 +271,27 @@ export function DocumentReaderModal({ material, onClose }: DocumentReaderModalPr
               <span>Page {page} of {totalPages}</span>
             </div>
           </div>
+          )}
         </div>
 
         {/* Bottom Navigation & Progress Bar */}
         <footer className="reader-footer">
+          {canEmbedFile ? (
+            <>
+              <div className="reader-nav-buttons">
+                <span className="page-indicator">
+                  Viewing full document: <b>{material.fileName}</b>
+                </span>
+                <button className="page-nav-btn" onClick={handleDownload}>
+                  <Download size={16} /> Download copy
+                </button>
+              </div>
+              <div className="reader-progress-track">
+                <div className="reader-progress-fill" style={{ width: '100%' }} />
+              </div>
+            </>
+          ) : (
+          <>
           <div className="reader-nav-buttons">
             <button
               className="page-nav-btn"
@@ -269,6 +318,8 @@ export function DocumentReaderModal({ material, onClose }: DocumentReaderModalPr
               style={{ width: `${(page / totalPages) * 100}%` }}
             />
           </div>
+          </>
+          )}
         </footer>
       </div>
     </div>

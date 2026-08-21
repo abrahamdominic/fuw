@@ -141,7 +141,7 @@ export function CatalogueFilters({ filters, onChange, compact = false }: Catalog
           onChange={(e) => updateField('type', e.target.value)}
         >
           <option value="">All material types</option>
-          {['Lecture Note', 'Textbook', 'Past Questions', ...materialTypes].map((x) => (
+          {['Lecture Note', 'Textbook', ...materialTypes].map((x) => (
             <option key={x} value={x}>
               {x}
             </option>

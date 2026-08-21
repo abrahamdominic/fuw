@@ -13,6 +13,8 @@ import {
   VolumeX,
   Radio
 } from 'lucide-react';
+import { useStore } from '../lib/useStore';
+import { catalogue } from '../data/catalogue';
 
 export function HeroSection() {
   const [isPlaying, setIsPlaying] = useState(true);
@@ -22,6 +24,11 @@ export function HeroSection() {
   const [videoError, setVideoError] = useState(false);
   const [isInView, setIsInView] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Live repository statistics straight from the database
+  const store = useStore();
+  const approvedMaterials = store.getApprovedMaterials();
+  const departmentsCount = catalogue.reduce((acc, f) => acc + f.departments.length, 0);
 
   const heroRef = useRef<HTMLElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -301,17 +308,17 @@ export function HeroSection() {
 
               <div className="showcase-stats-row">
                 <div className="showcase-stat">
-                  <b>11</b>
+                  <b>{catalogue.length}</b>
                   <span>Faculties</span>
                 </div>
                 <div className="showcase-stat-sep" />
                 <div className="showcase-stat">
-                  <b>52</b>
+                  <b>{departmentsCount}</b>
                   <span>Departments</span>
                 </div>
                 <div className="showcase-stat-sep" />
                 <div className="showcase-stat">
-                  <b>4,800+</b>
+                  <b>{approvedMaterials.length.toLocaleString()}{approvedMaterials.length > 0 ? '+' : ''}</b>
                   <span>Materials</span>
                 </div>
               </div>

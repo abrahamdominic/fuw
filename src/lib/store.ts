@@ -1,10 +1,46 @@
 import { catalogue, materialTypes } from '../data/catalogue';
 import { supabase } from './supabase';
 
+// Timezone-aware helpers: the browser always reports the visitor's local
+// timezone, so formatting through Intl gives each student their real local time.
+export function getUserTimeZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Local Time';
+  } catch {
+    return 'Local Time';
+  }
+}
+
+export function formatUserTime(date: Date = new Date()): string {
+  try {
+    return new Intl.DateTimeFormat('en-US', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(date);
+  } catch {
+    return date.toLocaleString();
+  }
+}
+
+export function getTimeGreeting(name?: string, date: Date = new Date()): string {
+  const hour = date.getHours();
+  let greeting = 'Good morning';
+  if (hour >= 12 && hour < 17) {
+    greeting = 'Good afternoon';
+  } else if (hour >= 17) {
+    greeting = 'Good evening';
+  }
+  return name ? `${greeting}, ${name}` : greeting;
+}
+
 function safeSync(promiseLike: any) {
   if (!promiseLike) return;
   Promise.resolve(promiseLike).catch(() => {});
 }
+
 
 export interface StudentSettings {
   notifications: {
@@ -132,6 +168,7 @@ export interface MaterialItem {
   semester: string;
   session: string;
   date: string;
+  createdAt?: string;
   downloads: number;
   views: number;
   tone: 'orange' | 'blue' | 'purple' | 'green' | 'teal';
@@ -203,492 +240,155 @@ export interface ReadingProgressRecord {
   lastReadAt: string;
 }
 
-const INITIAL_MATERIALS: MaterialItem[] = [
-  {
-    id: 'mat-1',
-    title: 'Principles of Microeconomics',
-    course: 'ECN 201',
-    courseTitle: 'Principles of Microeconomics',
-    faculty: 'Faculty of Social Sciences',
-    department: 'Economics',
-    type: 'Lecture Note',
-    level: '200 Level',
-    semester: 'First Semester',
-    session: '2025/2026',
-    date: 'May 12, 2026',
-    downloads: 1248,
-    views: 3412,
-    tone: 'orange',
-    status: 'approved',
-    uploadedBy: {
-      id: 'admin-1',
-      name: 'Dr. K. Danladi (HOD Economics)',
-      role: 'admin'
-    },
-    fileUrl: '/docs/ECN201_Microeconomics.pdf',
-    fileName: 'ECN201_Principles_of_Microeconomics_Full_Notes.pdf',
-    fileSize: '3.4 MB',
-    description: 'Comprehensive lecture modules on consumer choice, demand elasticity, production theory, perfect competition, and monopoly dynamics in the Nigerian economic context.'
-  },
-  {
-    id: 'mat-2',
-    title: 'Introduction to Programming & Algorithms',
-    course: 'CSC 201',
-    courseTitle: 'Introduction to Programming',
-    faculty: 'Faculty of Computing & Information System',
-    department: 'Computer Science',
-    type: 'Textbook',
-    level: '200 Level',
-    semester: 'First Semester',
-    session: '2025/2026',
-    date: 'May 09, 2026',
-    downloads: 982,
-    views: 2890,
-    tone: 'blue',
-    status: 'approved',
-    uploadedBy: {
-      id: 'admin-1',
-      name: 'Prof. E. Ibrahim',
-      role: 'admin'
-    },
-    fileUrl: '/docs/CSC201_Programming.pdf',
-    fileName: 'CSC201_Algorithm_and_Python_Foundations.pdf',
-    fileSize: '4.8 MB',
-    description: 'Core concepts of algorithmic problem solving, structured programming, control flow, memory allocation, and data manipulation in modern software design.'
-  },
-  {
-    id: 'mat-3',
-    title: 'Organic Chemistry Past Questions & Solutions (2020-2025)',
-    course: 'CHM 302',
-    courseTitle: 'Organic Chemistry II',
-    faculty: 'Faculty of Physical Sciences',
-    department: 'Chemistry',
-    type: 'Exam Past Questions',
-    level: '300 Level',
-    semester: 'Second Semester',
-    session: '2025/2026',
-    date: 'May 02, 2026',
-    downloads: 867,
-    views: 2150,
-    tone: 'purple',
-    status: 'approved',
-    uploadedBy: {
-      id: 'admin-1',
-      name: 'Department of Chemistry',
-      role: 'admin'
-    },
-    fileUrl: '/docs/CHM302_PastQuestions.pdf',
-    fileName: 'CHM302_Organic_Chemistry_Past_Questions_Solved.pdf',
-    fileSize: '2.1 MB',
-    description: 'Past semester examination questions covering reaction mechanisms, stereochemistry, electrophilic aromatic substitution, and spectroscopy with detailed step-by-step solutions.'
-  },
-  {
-    id: 'mat-4',
-    title: 'General Biology & Cell Physiology',
-    course: 'BIO 201',
-    courseTitle: 'General Biology',
-    faculty: 'Faculty of Bio-Sciences',
-    department: 'Biology/Biological Sciences',
-    type: 'Handouts',
-    level: '200 Level',
-    semester: 'First Semester',
-    session: '2025/2026',
-    date: 'Apr 28, 2026',
-    downloads: 745,
-    views: 1980,
-    tone: 'green',
-    status: 'approved',
-    uploadedBy: {
-      id: 'admin-2',
-      name: 'FUW Library Repository',
-      role: 'admin'
-    },
-    fileUrl: '/docs/BIO201_Cell_Physiology.pdf',
-    fileName: 'BIO201_Cell_Structure_and_Genetics.pdf',
-    fileSize: '5.2 MB',
-    description: 'Fundamental biological principles, ultrastructure of plant and animal cells, cellular respiration, enzyme kinetics, and Mendelian inheritance.'
-  },
-  {
-    id: 'mat-5',
-    title: 'Engineering Mathematics III & Differential Equations',
-    course: 'ENG 201',
-    courseTitle: 'Engineering Mathematics',
-    faculty: 'Faculty of Engineering',
-    department: 'Mechanical Engineering',
-    type: 'Lecture Note',
-    level: '200 Level',
-    semester: 'First Semester',
-    session: '2025/2026',
-    date: 'Apr 20, 2026',
-    downloads: 1120,
-    views: 3105,
-    tone: 'teal',
-    status: 'approved',
-    uploadedBy: {
-      id: 'admin-1',
-      name: 'Faculty of Engineering',
-      role: 'admin'
-    },
-    fileUrl: '/docs/ENG201_Maths.pdf',
-    fileName: 'ENG201_Engineering_Mathematics_Modules.pdf',
-    fileSize: '3.9 MB',
-    description: 'Differential equations, Laplace transforms, Fourier series, and vector calculus applications for engineering undergraduates at Federal University Wukari.'
-  },
-  {
-    id: 'mat-6',
-    title: 'Constitutional Law of Nigeria: Cases & Materials',
-    course: 'LAW 201',
-    courseTitle: 'Constitutional Law',
-    faculty: 'Faculty of Law',
-    department: 'Public & International Law',
-    type: 'Textbook',
-    level: '200 Level',
-    semester: 'First Semester',
-    session: '2025/2026',
-    date: 'Apr 14, 2026',
-    downloads: 654,
-    views: 1840,
-    tone: 'orange',
-    status: 'approved',
-    uploadedBy: {
-      id: 'admin-2',
-      name: 'Faculty of Law Library',
-      role: 'admin'
-    },
-    fileUrl: '/docs/LAW201_Constitutional_Law.pdf',
-    fileName: 'LAW201_Constitutional_Law_Compendium.pdf',
-    fileSize: '6.7 MB',
-    description: 'Detailed analysis of the 1999 Constitution of the Federal Republic of Nigeria, separation of powers, fundamental human rights, judicial review, and landmark Supreme Court decisions.'
-  },
-  {
-    id: 'mat-7',
-    title: 'Clinical Anatomy & Neuroanatomy Atlas',
-    course: 'ANA 201',
-    courseTitle: 'Human Anatomy',
-    faculty: 'College of Health Sciences',
-    department: 'Human Anatomy',
-    type: 'Lecture Note',
-    level: '200 Level',
-    semester: 'First Semester',
-    session: '2025/2026',
-    date: 'Apr 08, 2026',
-    downloads: 890,
-    views: 2420,
-    tone: 'purple',
-    status: 'approved',
-    uploadedBy: {
-      id: 'admin-1',
-      name: 'College of Health Sciences',
-      role: 'admin'
-    },
-    fileUrl: '/docs/ANA201_Human_Anatomy.pdf',
-    fileName: 'ANA201_Gross_Anatomy_and_Histology.pdf',
-    fileSize: '8.4 MB',
-    description: 'Comprehensive gross anatomy of the thorax, abdomen, pelvis, limbs, and central nervous system with clinical correlates for medical and allied health students.'
-  },
-  {
-    id: 'mat-student-1',
-    title: 'Data Structures and Algorithms Study Guide & Lab Solutions',
-    course: 'CSC 301',
-    courseTitle: 'Data Structures',
-    faculty: 'Faculty of Computing & Information System',
-    department: 'Computer Science',
-    type: 'Handouts',
-    level: '300 Level',
-    semester: 'First Semester',
-    session: '2025/2026',
-    date: 'May 18, 2026',
-    downloads: 0,
-    views: 12,
-    tone: 'blue',
-    status: 'pending',
-    uploadedBy: {
-      id: 'student-1',
-      name: 'Aisha Bello',
-      role: 'student',
-      matricNumber: 'FUW/2022/CSC/0142'
-    },
-    fileUrl: '/docs/CSC301_DataStructures_Guide.pdf',
-    fileName: 'CSC301_Trees_Graphs_and_Sorting_Algorithms.pdf',
-    fileSize: '2.8 MB',
-    description: 'Comprehensive student review notes with visual binary tree diagrams, Dijkstra shortest path implementations, and hash table collision resolution techniques.'
-  },
-  {
-    id: 'mat-student-2',
-    title: 'Agricultural Economics Farm Management Project Report',
-    course: 'AGR 402',
-    courseTitle: 'Agricultural Economics',
-    faculty: 'Faculty of Agriculture & Life Sciences',
-    department: 'Agricultural Economics & Extension',
-    type: 'Projects',
-    level: '400 Level',
-    semester: 'Second Semester',
-    session: '2025/2026',
-    date: 'May 16, 2026',
-    downloads: 0,
-    views: 6,
-    tone: 'green',
-    status: 'pending',
-    uploadedBy: {
-      id: 'student-2',
-      name: 'Emmanuel Tarfa',
-      role: 'student',
-      matricNumber: 'FUW/2021/AGR/0088'
-    },
-    fileUrl: '/docs/AGR402_Farm_Management.pdf',
-    fileName: 'AGR402_Taraba_Rice_Farming_Economic_Analysis.pdf',
-    fileSize: '3.1 MB',
-    description: 'Empirical research report on farm budgeting, input-output efficiency, and credit access for smallholder rice farmers in southern Taraba State.'
-  }
-];
+// Materials are loaded live from the Supabase `materials` table.
+// No mock/seed materials: the library only ever shows real database records.
+const INITIAL_MATERIALS: MaterialItem[] = [];
 
-const DEFAULT_USER: UserProfile = {
-  id: 'student-1',
-  fullName: 'Aisha Bello',
-  displayName: 'Aisha',
-  email: 'aisha.bello@fuw.edu.ng',
-  matricNumber: 'FUW/2022/CSC/0142',
+// Guest placeholder used only while nobody is signed in. All identity fields
+// are empty; real profile data always comes from the Supabase `profiles` table.
+export const GUEST_USER: UserProfile = {
+  id: '',
+  fullName: '',
+  displayName: '',
+  email: '',
+  matricNumber: '',
   role: 'STUDENT',
-  faculty: 'Faculty of Computing & Information System',
-  department: 'Computer Science',
-  level: '300 Level',
-  bio: 'Passionate 300 Level Computer Science student focusing on software engineering and algorithms. Active member of FUW Tech Club.',
+  faculty: '',
+  department: '',
+  level: '',
+  bio: '',
   avatarUrl: '',
-  isVerified: true,
-  verificationStatus: 'VERIFIED',
-  joinedDate: 'November 2022'
+  isVerified: false,
+  verificationStatus: 'PENDING',
+  joinedDate: ''
 };
 
-const DEFAULT_ADMIN: UserProfile = {
-  id: 'admin-1',
-  fullName: 'Dr. Yakubu G. Audu',
-  displayName: 'Dr. Yakubu (Admin)',
-  email: 'admin.library@fuw.edu.ng',
-  matricNumber: 'ADMIN/LIB/001',
-  role: 'ADMIN',
-  faculty: 'Faculty of Computing & Information System',
-  department: 'Computer Science',
-  level: 'Faculty Staff',
-  bio: 'Chief Librarian and Academic Repository Director at Federal University Wukari.',
-  avatarUrl: '',
-  isVerified: true,
-  verificationStatus: 'VERIFIED',
-  joinedDate: 'October 2018'
-};
-
-const INITIAL_AUDIT_LOGS: AuditLogItem[] = [
-  {
-    id: 'log-1',
-    action: 'MATERIAL_PUBLISHED',
-    performedBy: 'Dr. Yakubu G. Audu (Admin)',
-    entity: 'Principles of Microeconomics (ECN 201)',
-    timestamp: new Date(Date.now() - 3600000 * 2).toISOString(),
-    details: 'Admin direct publication'
-  },
-  {
-    id: 'log-2',
-    action: 'STUDENT_MATERIAL_SUBMISSION',
-    performedBy: 'Aisha Bello (FUW/2022/CSC/0142)',
-    entity: 'Data Structures and Algorithms Study Guide',
-    timestamp: new Date(Date.now() - 3600000 * 5).toISOString(),
-    details: 'Submitted for administrator approval'
-  },
-  {
-    id: 'log-3',
-    action: 'USER_VERIFIED',
-    performedBy: 'System Verification Desk',
-    entity: 'Aisha Bello (FUW/2022/CSC/0142)',
-    timestamp: new Date(Date.now() - 3600000 * 24).toISOString(),
-    details: 'Student ID card matched university matriculation records'
-  }
-];
+// Audit logs are recorded from real actions and start empty.
+const INITIAL_AUDIT_LOGS: AuditLogItem[] = [];
 
 class MaterialsStore {
   private materials: MaterialItem[] = [];
-  private currentUser: UserProfile = DEFAULT_USER;
+  private currentUser: UserProfile = GUEST_USER;
   private isStudentAuthenticated: boolean = false;
   private isAdminAuthenticated: boolean = false;
-  private bookmarks: string[] = ['mat-1', 'mat-2'];
-  private downloadHistory: DownloadRecord[] = [
-    {
-      id: 'dl-1',
-      materialId: 'mat-1',
-      materialTitle: 'Principles of Microeconomics',
-      course: 'ECN 201',
-      fileSize: '3.4 MB',
-      downloadedAt: 'Yesterday, 4:15 PM'
-    },
-    {
-      id: 'dl-2',
-      materialId: 'mat-2',
-      materialTitle: 'Introduction to Programming & Algorithms',
-      course: 'CSC 201',
-      fileSize: '4.8 MB',
-      downloadedAt: '3 days ago'
-    }
-  ];
-  private recentViews: RecentViewRecord[] = [
-    { id: 'view-1', materialId: 'mat-1', viewedAt: 'Today, 10:20 AM' },
-    { id: 'view-2', materialId: 'mat-2', viewedAt: 'Yesterday, 3:45 PM' },
-    { id: 'view-3', materialId: 'mat-3', viewedAt: 'May 14, 2026' }
-  ];
-  private readingHistory: ReadingProgressRecord[] = [
-    {
-      id: 'read-1',
-      materialId: 'mat-1',
-      materialTitle: 'Principles of Microeconomics',
-      course: 'ECN 201',
-      currentPage: 24,
-      totalPages: 68,
-      percentage: 35,
-      lastReadAt: 'Today, 10:45 AM'
-    },
-    {
-      id: 'read-2',
-      materialId: 'mat-2',
-      materialTitle: 'Introduction to Programming & Algorithms',
-      course: 'CSC 201',
-      currentPage: 52,
-      totalPages: 110,
-      percentage: 47,
-      lastReadAt: 'Yesterday, 4:00 PM'
-    }
-  ];
+  // Personal activity (bookmarks, downloads, views, reading progress) starts
+  // empty per student and grows from real interactions only.
+  private bookmarks: string[] = [];
+  private downloadHistory: DownloadRecord[] = [];
+  private recentViews: RecentViewRecord[] = [];
+  private readingHistory: ReadingProgressRecord[] = [];
   private auditLogs: AuditLogItem[] = INITIAL_AUDIT_LOGS;
+  private userStats: { studentsCount: number; verifiedStudents: number } = {
+    studentsCount: 0,
+    verifiedStudents: 0
+  };
   private studentSettings: StudentSettings = { ...DEFAULT_STUDENT_SETTINGS };
   private adminSettings: AdminSettings = { ...DEFAULT_ADMIN_SETTINGS };
   private listeners: Set<() => void> = new Set();
 
   constructor() {
     this.loadFromStorage();
+    this.syncMaterialsFromSupabase();
+    this.fetchUserStats();
   }
 
-  private loadFromStorage() {
+  public async syncMaterialsFromSupabase() {
+    if (!supabase) return;
     try {
-      const storedMaterials = localStorage.getItem('fuw_materials');
-      if (storedMaterials) {
-        this.materials = JSON.parse(storedMaterials);
-      } else {
-        this.materials = [...INITIAL_MATERIALS];
+      const { data, error } = await supabase.from('materials').select('*').order('created_at', { ascending: false });
+      if (!error && data) {
+        const toneList: MaterialItem['tone'][] = ['orange', 'blue', 'purple', 'green', 'teal'];
+        const mapped: MaterialItem[] = data.map((row: any, i: number) => ({
+          id: row.id,
+          title: row.title,
+          course: row.course_code || 'GEN 101',
+          courseTitle: row.course_title || row.title,
+          faculty: row.faculty,
+          department: row.department,
+          type: row.material_type || 'Lecture Note',
+          level: row.level || '100 Level',
+          semester: row.semester || 'First Semester',
+          session: row.academic_session || row.session || '2025/2026',
+          date: row.created_at ? new Date(row.created_at).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }) : '',
+          createdAt: row.created_at || undefined,
+          downloads: row.downloads || 0,
+          views: row.views || 0,
+          tone: toneList[i % toneList.length],
+          status: row.status || 'approved',
+          rejectionReason: row.rejection_reason,
+          uploadedBy: {
+            id: row.uploaded_by || 'system',
+            name: row.uploaded_by_name || 'FUW Repository',
+            role: 'student'
+          },
+          fileUrl: row.file_url || '/docs/sample.pdf',
+          fileName: row.file_name || `${row.title}.pdf`,
+          fileSize: row.file_size || '3.5 MB',
+          description: row.description || ''
+        }));
+        this.materials = mapped;
         this.saveMaterials();
-      }
-
-      const storedUser = localStorage.getItem('fuw_current_user');
-      if (storedUser) {
-        this.currentUser = JSON.parse(storedUser);
-      }
-
-      const studentSession = localStorage.getItem('fuw_student_session');
-      this.isStudentAuthenticated = studentSession === 'true';
-
-      const adminSession = sessionStorage.getItem('fuw-admin');
-      this.isAdminAuthenticated = adminSession === 'true';
-
-      const storedBookmarks = localStorage.getItem('fuw_bookmarks');
-      if (storedBookmarks) {
-        this.bookmarks = JSON.parse(storedBookmarks);
-      }
-
-      const storedDownloads = localStorage.getItem('fuw_downloads');
-      if (storedDownloads) {
-        this.downloadHistory = JSON.parse(storedDownloads);
-      }
-
-      const storedRecent = localStorage.getItem('fuw_recent_views');
-      if (storedRecent) {
-        this.recentViews = JSON.parse(storedRecent);
-      }
-
-      const storedReading = localStorage.getItem('fuw_reading_history');
-      if (storedReading) {
-        this.readingHistory = JSON.parse(storedReading);
-      }
-
-      const storedAudit = localStorage.getItem('fuw_audit_logs');
-      if (storedAudit) {
-        this.auditLogs = JSON.parse(storedAudit);
-      }
-
-      const storedStudentSettings = localStorage.getItem('fuw_student_settings');
-      if (storedStudentSettings) {
-        this.studentSettings = JSON.parse(storedStudentSettings);
-      }
-
-      const storedAdminSettings = localStorage.getItem('fuw_admin_settings');
-      if (storedAdminSettings) {
-        this.adminSettings = JSON.parse(storedAdminSettings);
+        this.notify();
       }
     } catch {
-      this.materials = [...INITIAL_MATERIALS];
+      // Keep local cached materials
     }
   }
 
-  private saveMaterials() {
+  /**
+   * Live aggregate user counts from the Supabase `profiles` table through the
+   * SECURITY DEFINER RPC `get_public_stats()` so anonymous visitors can see
+   * real registration numbers without exposing any personal profile rows.
+   */
+  public async fetchUserStats() {
+    if (!supabase) return;
     try {
-      localStorage.setItem('fuw_materials', JSON.stringify(this.materials));
-    } catch {}
+      const { data, error } = await supabase.rpc('get_public_stats');
+      if (!error && data && data.length > 0) {
+        this.userStats = {
+          studentsCount: Number(data[0].students) || 0,
+          verifiedStudents: Number(data[0].verified_students) || 0
+        };
+        this.notify();
+      }
+    } catch {
+      // Stats remain at zero until the database responds
+    }
   }
 
-  private saveBookmarks() {
-    try {
-      localStorage.setItem('fuw_bookmarks', JSON.stringify(this.bookmarks));
-    } catch {}
+  public getUserStats() {
+    return { ...this.userStats };
   }
 
-  private saveDownloads() {
-    try {
-      localStorage.setItem('fuw_downloads', JSON.stringify(this.downloadHistory));
-    } catch {}
+  public setAuthenticatedStudent(user: UserProfile) {
+    this.isStudentAuthenticated = true;
+    this.isAdminAuthenticated = false;
+    this.currentUser = user;
+    localStorage.setItem('fuw_student_session', 'true');
+    sessionStorage.removeItem('fuw-admin');
+    this.saveUser();
+    this.notify();
   }
 
-  private saveRecent() {
-    try {
-      localStorage.setItem('fuw_recent_views', JSON.stringify(this.recentViews));
-    } catch {}
+  public setAuthenticatedAdmin(user: UserProfile) {
+    this.isAdminAuthenticated = true;
+    this.isStudentAuthenticated = true;
+    this.currentUser = user;
+    sessionStorage.setItem('fuw-admin', 'true');
+    localStorage.setItem('fuw_student_session', 'true');
+    this.saveUser();
+    this.notify();
   }
 
-  private saveReading() {
-    try {
-      localStorage.setItem('fuw_reading_history', JSON.stringify(this.readingHistory));
-    } catch {}
+  public clearAuthentication() {
+    this.isStudentAuthenticated = false;
+    this.isAdminAuthenticated = false;
+    this.currentUser = GUEST_USER;
+    localStorage.removeItem('fuw_student_session');
+    localStorage.removeItem('fuw_user_profile');
+    sessionStorage.removeItem('fuw-admin');
+    this.notify();
   }
-
-  private saveUser() {
-    try {
-      localStorage.setItem('fuw_current_user', JSON.stringify(this.currentUser));
-    } catch {}
-  }
-
-  private saveAudit() {
-    try {
-      localStorage.setItem('fuw_audit_logs', JSON.stringify(this.auditLogs));
-    } catch {}
-  }
-
-  private saveStudentSettings() {
-    try {
-      localStorage.setItem('fuw_student_settings', JSON.stringify(this.studentSettings));
-    } catch {}
-  }
-
-  private saveAdminSettings() {
-    try {
-      localStorage.setItem('fuw_admin_settings', JSON.stringify(this.adminSettings));
-    } catch {}
-  }
-
-  private notify() {
-    this.listeners.forEach((listener) => listener());
-  }
-
-  public subscribe(listener: () => void) {
-    this.listeners.add(listener);
-    return () => {
-      this.listeners.delete(listener);
-    };
-  }
-
-  // --- Auth Guards & Login / Logout Methods ---
 
   public isLoggedInStudent(): boolean {
     return this.isStudentAuthenticated;
@@ -698,34 +398,9 @@ class MaterialsStore {
     return this.isAdminAuthenticated || sessionStorage.getItem('fuw-admin') === 'true';
   }
 
-  public loginStudent(emailOrMatric: string, customName?: string): UserProfile {
-    this.isStudentAuthenticated = true;
-    localStorage.setItem('fuw_student_session', 'true');
-    this.currentUser = {
-      ...DEFAULT_USER,
-      matricNumber: emailOrMatric.includes('/') ? emailOrMatric : DEFAULT_USER.matricNumber,
-      email: emailOrMatric.includes('@') ? emailOrMatric : DEFAULT_USER.email,
-      fullName: customName || DEFAULT_USER.fullName,
-      displayName: customName?.split(' ')[0] || DEFAULT_USER.displayName,
-      role: 'STUDENT'
-    };
-    this.saveUser();
-    this.notify();
-    return this.currentUser;
-  }
-
-  public loginAdmin(email: string = 'admin.library@fuw.edu.ng'): UserProfile {
-    this.isAdminAuthenticated = true;
-    sessionStorage.setItem('fuw-admin', 'true');
-    this.currentUser = {
-      ...DEFAULT_ADMIN,
-      email,
-      role: 'ADMIN'
-    };
-    this.saveUser();
-    this.notify();
-    return this.currentUser;
-  }
+  // NOTE: All sign-in / sign-out flows are handled exclusively through
+  // Supabase Email OTP authentication (see src/lib/AuthContext.tsx).
+  // The former mock loginStudent()/loginAdmin() helpers have been removed.
 
   public logoutStudent(): void {
     this.isStudentAuthenticated = false;
@@ -798,6 +473,7 @@ class MaterialsStore {
       semester: input.semester || 'First Semester',
       session: '2025/2026',
       date: new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
+      createdAt: new Date().toISOString(),
       downloads: 0,
       views: 1,
       tone,
@@ -880,6 +556,7 @@ class MaterialsStore {
       semester: input.semester || 'First Semester',
       session: '2025/2026',
       date: new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
+      createdAt: new Date().toISOString(),
       downloads: 0,
       views: 0,
       tone,
@@ -1274,12 +951,143 @@ class MaterialsStore {
       pendingApprovals: pending.length,
       facultiesCount: catalogue.length,
       departmentsCount: catalogue.reduce((acc, f) => acc + f.departments.length, 0),
-      studentsCount: 8240,
-      verifiedStudents: 7890,
+      studentsCount: this.userStats.studentsCount,
+      verifiedStudents: this.userStats.verifiedStudents,
       totalDownloads: this.materials.reduce((acc, m) => acc + m.downloads, 0),
       totalViews: this.materials.reduce((acc, m) => acc + m.views, 0)
     };
   }
+
+  // --- Reactive Subscriptions & Persistence ---
+
+  public subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  private notify(): void {
+    this.listeners.forEach((l) => {
+      try {
+        l();
+      } catch {
+        // Ignore subscriber listener errors
+      }
+    });
+  }
+
+  private saveMaterials(): void {
+    try {
+      localStorage.setItem('fuw_materials_v2', JSON.stringify(this.materials));
+    } catch {}
+  }
+
+  private saveBookmarks(): void {
+    try {
+      localStorage.setItem('fuw_bookmarks_v2', JSON.stringify(this.bookmarks));
+    } catch {}
+  }
+
+  private saveDownloads(): void {
+    try {
+      localStorage.setItem('fuw_downloads_v2', JSON.stringify(this.downloadHistory));
+    } catch {}
+  }
+
+  private saveRecent(): void {
+    try {
+      localStorage.setItem('fuw_recent_v2', JSON.stringify(this.recentViews));
+    } catch {}
+  }
+
+  private saveReading(): void {
+    try {
+      localStorage.setItem('fuw_reading_v2', JSON.stringify(this.readingHistory));
+    } catch {}
+  }
+
+  private saveUser(): void {
+    try {
+      localStorage.setItem('fuw_user_profile_v2', JSON.stringify(this.currentUser));
+    } catch {}
+  }
+
+  private saveStudentSettings(): void {
+    try {
+      localStorage.setItem('fuw_student_settings_v2', JSON.stringify(this.studentSettings));
+    } catch {}
+  }
+
+  private saveAdminSettings(): void {
+    try {
+      localStorage.setItem('fuw_admin_settings_v2', JSON.stringify(this.adminSettings));
+    } catch {}
+  }
+
+  private saveAudit(): void {
+    try {
+      localStorage.setItem('fuw_audit_logs_v2', JSON.stringify(this.auditLogs));
+    } catch {}
+  }
+
+  private loadFromStorage(): void {
+    // Purge any legacy cached mock records from previous versions
+    const legacyKeys = [
+      'fuw_materials',
+      'fuw_bookmarks',
+      'fuw_downloads',
+      'fuw_recent',
+      'fuw_reading',
+      'fuw_user_profile',
+      'fuw_student_settings',
+      'fuw_admin_settings',
+      'fuw_audit_logs'
+    ];
+    legacyKeys.forEach((k) => {
+      try {
+        localStorage.removeItem(k);
+      } catch {}
+    });
+
+    try {
+      const mats = localStorage.getItem('fuw_materials_v2');
+      if (mats) {
+        this.materials = JSON.parse(mats);
+      } else {
+        this.materials = [...INITIAL_MATERIALS];
+      }
+      const bmarks = localStorage.getItem('fuw_bookmarks_v2');
+      if (bmarks) this.bookmarks = JSON.parse(bmarks);
+      const dls = localStorage.getItem('fuw_downloads_v2');
+      if (dls) this.downloadHistory = JSON.parse(dls);
+      const recs = localStorage.getItem('fuw_recent_v2');
+      if (recs) this.recentViews = JSON.parse(recs);
+      const reads = localStorage.getItem('fuw_reading_v2');
+      if (reads) this.readingHistory = JSON.parse(reads);
+      const u = localStorage.getItem('fuw_user_profile_v2');
+      if (u) {
+        this.currentUser = JSON.parse(u);
+      } else {
+        this.currentUser = GUEST_USER;
+      }
+      const sSets = localStorage.getItem('fuw_student_settings_v2');
+      if (sSets) this.studentSettings = JSON.parse(sSets);
+      const aSets = localStorage.getItem('fuw_admin_settings_v2');
+      if (aSets) this.adminSettings = JSON.parse(aSets);
+      const aLogs = localStorage.getItem('fuw_audit_logs_v2');
+      if (aLogs) this.auditLogs = JSON.parse(aLogs);
+      this.isStudentAuthenticated = localStorage.getItem('fuw_student_session') === 'true';
+      this.isAdminAuthenticated = sessionStorage.getItem('fuw-admin') === 'true';
+      if (!this.isStudentAuthenticated && !this.isAdminAuthenticated && !u) {
+        this.currentUser = GUEST_USER;
+      }
+    } catch {
+      this.materials = [...INITIAL_MATERIALS];
+      this.currentUser = GUEST_USER;
+    }
+  }
 }
 
 export const store = new MaterialsStore();
+

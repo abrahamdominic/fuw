@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { Menu, X, LayoutDashboard, LogIn, UserPlus, LogOut, User } from 'lucide-react';
+import { Menu, X, LayoutDashboard, LogIn, UserPlus, LogOut, ShieldCheck, User } from 'lucide-react';
 import { Logo } from './Logo';
 import { useStore } from '../lib/useStore';
+import { useAuth } from '../lib/AuthContext';
 import { useToast } from './Toast';
 
 export function Header() {
@@ -11,20 +12,22 @@ export function Header() {
   const navigate = useNavigate();
   const store = useStore();
   const { toast } = useToast();
+  const { isAuthenticated, isAdmin, profile, user, signOut } = useAuth();
 
-  const isStudent = store.isLoggedInStudent();
   const currentUser = store.getCurrentUser();
+  const displayName = profile?.displayName || profile?.fullName?.split(' ')[0] || currentUser.displayName || currentUser.fullName?.split(' ')[0] || 'Student';
 
   // Close mobile drawer upon route change
   useEffect(() => {
     setOpen(false);
   }, [location.pathname]);
 
-  const handleLogout = () => {
-    store.logoutStudent();
+  const handleLogout = async () => {
+    await signOut();
     toast('Logged out successfully', 'info');
     navigate('/login');
   };
+
 
   return (
     <>
@@ -58,13 +61,20 @@ export function Header() {
         </nav>
 
         <div className="nav-actions">
-          {isStudent ? (
+          {isAuthenticated ? (
             <>
-              <Link className="portal-pill-link" to="/student" title="Student Learning Dashboard">
-                <LayoutDashboard size={14} />
-                <span>Dashboard ({currentUser.displayName || currentUser.fullName.split(' ')[0]})</span>
-              </Link>
-              <button className="nav-logout-btn" onClick={handleLogout} title="Sign out of student portal">
+              {isAdmin ? (
+                <Link className="portal-pill-link admin-pill" to="/admin" title="Admin Repository Portal">
+                  <ShieldCheck size={14} />
+                  <span>Admin ({displayName})</span>
+                </Link>
+              ) : (
+                <Link className="portal-pill-link" to="/student" title="Student Learning Dashboard">
+                  <LayoutDashboard size={14} />
+                  <span>Dashboard ({displayName})</span>
+                </Link>
+              )}
+              <button className="nav-logout-btn" onClick={handleLogout} title="Sign out">
                 <LogOut size={14} />
                 <span>Log out</span>
               </button>
@@ -116,13 +126,20 @@ export function Header() {
               </NavLink>
             </div>
 
-            {isStudent ? (
+            {isAuthenticated ? (
               <div className="mobile-nav-portals">
-                <span className="mobile-portal-label">STUDENT DASHBOARD</span>
-                <Link to="/student" className="mobile-portal-btn student">
-                  <LayoutDashboard size={17} />
-                  <span>Open Student Portal</span>
-                </Link>
+                <span className="mobile-portal-label">AUTHENTICATED PORTAL</span>
+                {isAdmin ? (
+                  <Link to="/admin" className="mobile-portal-btn admin">
+                    <ShieldCheck size={17} />
+                    <span>Open Admin Portal</span>
+                  </Link>
+                ) : (
+                  <Link to="/student" className="mobile-portal-btn student">
+                    <LayoutDashboard size={17} />
+                    <span>Open Student Portal</span>
+                  </Link>
+                )}
                 <button className="mobile-auth-btn login" onClick={handleLogout} style={{ border: 0, width: '100%', cursor: 'pointer' }}>
                   <LogOut size={16} />
                   <span>Log out</span>

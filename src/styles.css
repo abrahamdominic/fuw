@@ -3468,93 +3468,67 @@ button {
 }
 
 /* ==========================================================================
-   Auth Pages & Fast Demo Buttons
+   Auth Pages, OTP Verification & Loading Screen
    ========================================================================== */
 .auth {
   min-height: calc(100vh - 150px);
   display: grid;
   place-items: center;
   background: #eef6f0;
-  padding: 50px 20px;
+  padding: 40px 16px;
 }
 
 .auth-panel {
   background: #ffffff;
-  padding: 40px;
-  max-width: 460px;
+  padding: 36px 32px;
+  max-width: 480px;
   width: 100%;
-  border-radius: 12px;
+  border-radius: 14px;
   box-shadow: 0 12px 35px rgba(18, 60, 34, 0.08);
+  border: 1px solid rgba(18, 96, 61, 0.08);
 }
 
-.demo-login-strip {
-  background: #f8faf8;
-  border: 1px solid #e1ebe3;
-  border-radius: 8px;
-  padding: 12px;
-  margin: 16px 0 20px;
-}
-
-.demo-label {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.8px;
-  color: #55675b;
+.auth-field-label {
   display: block;
-  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #233529;
+  margin-top: 14px;
+  text-align: left;
 }
 
-.demo-btns-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
+.auth-field-label:first-child {
+  margin-top: 0;
 }
 
-.demo-login-btn {
-  padding: 8px 10px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 700;
-  border: 0;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  transition: all 0.15s ease;
-}
-
-.demo-login-btn.student {
-  background: #e8f5ec;
-  color: #12603d;
-}
-
-.demo-login-btn.student:hover {
-  background: #12603d;
-  color: #ffffff;
-}
-
-.demo-login-btn.admin {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.demo-login-btn.admin:hover {
-  background: #92400e;
-  color: #ffffff;
-}
-
-.demo-login-btn.full-width {
+.auth-field-label input,
+.auth-field-label select,
+.auth-field-label textarea {
+  display: block;
   width: 100%;
-  padding: 12px;
-  margin-bottom: 18px;
+  margin-top: 6px;
+  padding: 11px 13px;
+  border: 1.5px solid #dce6de;
+  border-radius: 8px;
+  font: 14px inherit;
+  background: #ffffff;
+  color: #17271e;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.auth-field-label input:focus,
+.auth-field-label select:focus,
+.auth-field-label textarea:focus {
+  outline: none;
+  border-color: #12603d;
+  box-shadow: 0 0 0 3px rgba(18, 96, 61, 0.12);
 }
 
 .auth form input {
-  padding: 13px;
-  margin: 10px 0 0;
-  border: 1px solid #dce6de;
-  border-radius: 6px;
+  padding: 12px 14px;
+  margin: 8px 0 0;
+  border: 1.5px solid #dce6de;
+  border-radius: 8px;
   width: 100%;
   font: 14px inherit;
 }
@@ -3564,17 +3538,271 @@ button {
   width: 100%;
   font: 700 14px inherit;
   margin-top: 18px;
-  padding: 13px;
+  padding: 13px 18px;
   cursor: pointer;
   background: #12603d;
   color: #ffffff;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.auth form button[type="submit"]:hover:not(:disabled) {
+  background: #0d4a2f;
+}
+
+.auth form button[type="submit"]:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+/* OTP 6-Digit Verification Inputs */
+.otp-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 18px 0 8px;
+}
+
+.otp-inputs-row {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  width: 100%;
+}
+
+.otp-digit-box {
+  width: 48px;
+  height: 54px;
+  text-align: center;
+  font-size: 22px;
+  font-weight: 700;
+  font-family: 'DM Sans', monospace, sans-serif;
+  color: #0d4a2f;
+  background: #f8faf8;
+  border: 2px solid #c9dcd0;
+  border-radius: 10px;
+  transition: all 0.15s ease;
+  padding: 0;
+  margin: 0 !important;
+  -moz-appearance: textfield;
+}
+
+.otp-digit-box::-webkit-outer-spin-button,
+.otp-digit-box::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.otp-digit-box:focus {
+  outline: none;
+  background: #ffffff;
+  border-color: #12603d;
+  box-shadow: 0 0 0 4px rgba(18, 96, 61, 0.16);
+  transform: translateY(-2px);
+}
+
+.otp-email-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #eef6f0;
+  border: 1px solid #cce2d4;
+  padding: 8px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  color: #12603d;
+  margin: 12px 0 16px;
+}
+
+.otp-email-badge b {
+  color: #0d4a2f;
+}
+
+.edit-email-btn {
+  background: none;
+  border: 0;
+  color: #12603d;
+  cursor: pointer;
+  padding: 2px 4px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 4px;
+  transition: background 0.15s ease;
+}
+
+.edit-email-btn:hover {
+  background: rgba(18, 96, 61, 0.12);
+}
+
+.otp-resend-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 14px;
+}
+
+.otp-countdown-text {
+  font-size: 12.5px;
+  color: #617769;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.resend-otp-btn {
+  background: none;
+  border: 0;
+  color: #12603d;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
   border-radius: 6px;
   transition: background 0.15s ease;
 }
 
-.auth form button[type="submit"]:hover {
-  background: #0d4a2f;
+.resend-otp-btn:hover:not(:disabled) {
+  background: #eef6f0;
+  text-decoration: underline;
 }
+
+.resend-otp-btn:disabled {
+  color: #92a498;
+  cursor: not-allowed;
+}
+
+.back-step-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 0;
+  color: #617769;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 0;
+  margin-bottom: 12px;
+  transition: color 0.15s ease;
+}
+
+.back-step-btn:hover {
+  color: #12603d;
+}
+
+.auth-toggle-row {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid #e7eee9;
+  text-align: center;
+  font-size: 13px;
+  color: #55675b;
+}
+
+.auth-link-btn {
+  background: none;
+  border: 0;
+  color: #12603d;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  margin-left: 4px;
+}
+
+.auth-link-btn:hover {
+  color: #0d4a2f;
+}
+
+/* Protected Route Loading Screen */
+.auth-loading-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background: #f4f8f5;
+  padding: 24px;
+}
+
+.auth-loading-card {
+  background: #ffffff;
+  padding: 36px 40px;
+  border-radius: 16px;
+  box-shadow: 0 16px 40px rgba(18, 60, 34, 0.09);
+  text-align: center;
+  max-width: 400px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.auth-loading-card h3 {
+  font-size: 18px;
+  color: #123c22;
+  margin: 4px 0 0;
+}
+
+.auth-loading-card p {
+  font-size: 13px;
+  color: #617769;
+  margin: 0;
+}
+
+.loading-spinner-bar {
+  width: 44px;
+  height: 44px;
+  border: 4px solid #e1eee5;
+  border-top-color: #12603d;
+  border-radius: 50%;
+  animation: spin 0.85s linear infinite;
+  margin-bottom: 6px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spin-icon {
+  animation: spin 0.85s linear infinite;
+}
+
+/* Mobile Responsiveness for OTP & Auth */
+@media (max-width: 480px) {
+  .auth {
+    padding: 20px 12px;
+  }
+
+  .auth-panel {
+    padding: 24px 18px;
+  }
+
+  .otp-inputs-row {
+    gap: 6px;
+  }
+
+  .otp-digit-box {
+    width: 40px;
+    height: 48px;
+    font-size: 19px;
+    border-radius: 8px;
+  }
+
+  .auth-loading-card {
+    padding: 28px 20px;
+  }
+}
+
 
 /* ==========================================================================
    Footer

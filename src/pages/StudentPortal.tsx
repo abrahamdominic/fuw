@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, NavLink, useLocation, useNavigate, Routes, Route } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -38,11 +38,14 @@ import {
   Check
 } from 'lucide-react';
 import { useStore } from '../lib/useStore';
-import { MaterialItem } from '../lib/store';
+import { MaterialItem, getTimeGreeting, getUserTimeZone, formatUserTime } from '../lib/store';
 import { Logo } from '../components/Logo';
 import { MaterialCard } from '../components/MaterialCard';
 import { CatalogueFilters, FilterState } from '../components/CatalogueFilters';
+import { catalogue, facultyByName, departmentByName, levelsFor } from '../data/catalogue';
+import { useAuth } from '../lib/AuthContext';
 import { useToast } from '../components/Toast';
+
 
 interface StudentPortalProps {
   onReadOnline: (material: MaterialItem) => void;
@@ -65,9 +68,26 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { signOut, profile, user } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const currentUser = store.getCurrentUser();
+  const storeUser = store.getCurrentUser();
+  const currentUser = {
+    id: profile?.id || user?.id || storeUser.id,
+    fullName: profile?.fullName || user?.user_metadata?.full_name || storeUser.fullName || 'Student',
+    displayName: profile?.displayName || profile?.fullName?.split(' ')[0] || storeUser.displayName || '',
+    email: profile?.email || user?.email || storeUser.email || '',
+    matricNumber: profile?.matricNumber || storeUser.matricNumber || '',
+    faculty: profile?.faculty || storeUser.faculty || '',
+    department: profile?.department || storeUser.department || '',
+    level: profile?.level || storeUser.level || '',
+    role: (profile?.role === 'admin' ? 'ADMIN' : 'STUDENT') as 'STUDENT' | 'ADMIN',
+    bio: profile?.bio || storeUser.bio || '',
+    avatarUrl: profile?.avatarUrl || storeUser.avatarUrl || '',
+    isVerified: profile?.isVerified ?? true,
+    verificationStatus: 'VERIFIED' as const,
+    joinedDate: profile?.joinedDate || storeUser.joinedDate || '2026'
+  };
   const approvedMaterials = store.getApprovedMaterials();
   const studentUploads = store.getStudentUploads(currentUser.id);
   const savedMaterials = store.getSavedMaterials();
@@ -77,6 +97,12 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
 
   // Determine current active subpage
   const currentPath = location.pathname;
+
+  const handleLogout = async () => {
+    await signOut();
+    toast('Logged out of Student Portal', 'info');
+    navigate('/login');
+  };
 
   return (
     <div className="portal">
@@ -136,10 +162,10 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
         </nav>
 
         <div className="side-footer-actions">
-          <Link to="/" className="side-link logout-link">
+          <button type="button" onClick={handleLogout} className="side-link logout-link" style={{ background: 'none', border: 0, width: '100%', cursor: 'pointer', textAlign: 'left' }}>
             <LogOut size={17} />
-            <span>Exit to Public Library</span>
-          </Link>
+            <span>Sign out / Exit</span>
+          </button>
         </div>
       </aside>
 
@@ -240,12 +266,26 @@ function StudentOverviewTab({
   approvedMaterials,
   onReadOnline
 }: any) {
+  // Live clock: re-renders every 30s so the greeting and local time always
+  // reflect the student's real current timezone.
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 30000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const realName = currentUser.fullName || currentUser.displayName || 'Student';
+  const greeting = getTimeGreeting(realName, now);
+  const timeZone = getUserTimeZone();
+
   return (
     <div className="portal-view-fade">
       <div className="portal-top">
         <div>
-          <p className="kicker">WELCOME BACK, {currentUser.displayName?.toUpperCase() || currentUser.fullName?.toUpperCase()}</p>
-          <h1>Good morning, {currentUser.displayName || currentUser.fullName}</h1>
+          <p className="kicker">
+            WELCOME BACK, {realName.toUpperCase()} · {formatUserTime(now)} ({timeZone})
+          </p>
+          <h1>{greeting}</h1>
           <p className="subtitle">
             {currentUser.department} · {currentUser.level} · Matric: {currentUser.matricNumber}
           </p>
@@ -261,6 +301,7 @@ function StudentOverviewTab({
           </Link>
         </div>
       </div>
+
 
       {/* Metrics Stats Grid */}
       <div className="portal-stats">
@@ -313,11 +354,22 @@ function StudentOverviewTab({
         </Link>
       </div>
 
-      <div className="grid materials">
-        {(recentMaterials.length > 0 ? recentMaterials : approvedMaterials).map((m: MaterialItem) => (
-          <MaterialCard key={m.id} material={m} onReadOnline={onReadOnline} />
-        ))}
-      </div>
+      {(() => {
+        const recommended = recentMaterials.length > 0 ? recentMaterials : approvedMaterials;
+        return recommended.length === 0 ? (
+          <div className="empty-state card-empty">
+            <BookOpen size={40} />
+            <b>No library materials yet.</b>
+            <span>Once administrators publish verified course materials, they will appear here for your department.</span>
+          </div>
+        ) : (
+          <div className="grid materials">
+            {recommended.map((m: MaterialItem) => (
+              <MaterialCard key={m.id} material={m} onReadOnline={onReadOnline} />
+            ))}
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -405,7 +457,7 @@ function StudentUploadTab({ onUploaded }: { onUploaded: () => void }) {
           <div className="form-section">
             <h3>1. Resource Details</h3>
             <label>
-              Material Title *
+              Course Code + Material Title *
               <input
                 name="title"
                 required
@@ -762,21 +814,56 @@ function StudentReadingTab({
 function StudentProfileTab({ currentUser }: { currentUser: any }) {
   const store = useStore();
   const { toast } = useToast();
+  const { updateProfile, user } = useAuth();
+  const [busy, setBusy] = useState(false);
   const [formData, setFormData] = useState({
     fullName: currentUser.fullName || '',
     displayName: currentUser.displayName || '',
     matricNumber: currentUser.matricNumber || '',
-    email: currentUser.email || '',
-    faculty: currentUser.faculty || '',
-    department: currentUser.department || '',
-    level: currentUser.level || '300 Level',
+    email: currentUser.email || user?.email || '',
+    faculty: currentUser.faculty || catalogue[0]?.name || '',
+    department: currentUser.department || catalogue[0]?.departments[0]?.name || '',
+    level: currentUser.level || '100 Level',
     bio: currentUser.bio || ''
   });
 
-  const handleSave = (e: React.FormEvent) => {
+  const currentFaculty = facultyByName(formData.faculty) || catalogue[0];
+  const currentDepartment = departmentByName(formData.faculty, formData.department) || currentFaculty.departments[0];
+  const availableLevels = levelsFor(currentDepartment?.duration || 4);
+
+  const handleFacultyChange = (newFac: string) => {
+    const fac = facultyByName(newFac) || catalogue[0];
+    const firstDept = fac.departments[0];
+    const deptLevels = levelsFor(firstDept?.duration || 4);
+    setFormData((prev) => ({
+      ...prev,
+      faculty: newFac,
+      department: firstDept?.name || '',
+      level: deptLevels.includes(prev.level) ? prev.level : (deptLevels[0] || '100 Level')
+    }));
+  };
+
+  const handleDeptChange = (newDept: string) => {
+    const dept = departmentByName(formData.faculty, newDept);
+    const deptLevels = levelsFor(dept?.duration || 4);
+    setFormData((prev) => ({
+      ...prev,
+      department: newDept,
+      level: deptLevels.includes(prev.level) ? prev.level : (deptLevels[0] || '100 Level')
+    }));
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    setBusy(true);
     store.updateUserProfile(formData);
-    toast('Profile updated successfully!', 'success');
+    const res = await updateProfile(formData);
+    setBusy(false);
+    if (res.error) {
+      toast(res.error.message, 'error');
+    } else {
+      toast('Profile updated successfully in database!', 'success');
+    }
   };
 
   return (
@@ -813,6 +900,7 @@ function StudentProfileTab({ currentUser }: { currentUser: any }) {
                   value={formData.fullName}
                   onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
                   required
+                  disabled={busy}
                 />
               </label>
 
@@ -822,27 +910,35 @@ function StudentProfileTab({ currentUser }: { currentUser: any }) {
                   value={formData.displayName}
                   onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
                   required
+                  disabled={busy}
                 />
               </label>
             </div>
 
             <div className="form-grid-2">
               <label>
-                University Email Address
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  required
-                />
+                University Email Address (Verified)
+                <div className="input-with-badge">
+                  <input
+                    type="email"
+                    value={formData.email}
+                    readOnly
+                    className="input-readonly"
+                    title="Email is protected and linked to your Supabase authentication identity"
+                  />
+                  <span className="readonly-tag">
+                    <ShieldCheck size={12} /> Verified
+                  </span>
+                </div>
               </label>
 
               <label>
                 Matriculation Number
                 <input
                   value={formData.matricNumber}
-                  onChange={(e) => setFormData({ ...formData, matricNumber: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, matricNumber: e.target.value.toUpperCase() })}
                   required
+                  disabled={busy}
                 />
               </label>
             </div>
@@ -850,33 +946,50 @@ function StudentProfileTab({ currentUser }: { currentUser: any }) {
             <div className="form-grid-2">
               <label>
                 Faculty
-                <input
+                <select
                   value={formData.faculty}
-                  onChange={(e) => setFormData({ ...formData, faculty: e.target.value })}
-                />
+                  onChange={(e) => handleFacultyChange(e.target.value)}
+                  disabled={busy}
+                  required
+                >
+                  {catalogue.map((f) => (
+                    <option key={f.name} value={f.name}>
+                      {f.name}
+                    </option>
+                  ))}
+                </select>
               </label>
 
               <label>
                 Department
-                <input
+                <select
                   value={formData.department}
-                  onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                />
+                  onChange={(e) => handleDeptChange(e.target.value)}
+                  disabled={busy}
+                  required
+                >
+                  {currentFaculty.departments.map((d) => (
+                    <option key={d.name} value={d.name}>
+                      {d.name} ({d.duration} Years)
+                    </option>
+                  ))}
+                </select>
               </label>
             </div>
 
             <label>
-              Level of Study
+              Level of Study (Restricted to {currentDepartment?.duration || 4}-Year Degree Duration)
               <select
                 value={formData.level}
                 onChange={(e) => setFormData({ ...formData, level: e.target.value })}
+                disabled={busy}
+                required
               >
-                <option value="100 Level">100 Level</option>
-                <option value="200 Level">200 Level</option>
-                <option value="300 Level">300 Level</option>
-                <option value="400 Level">400 Level</option>
-                <option value="500 Level">500 Level</option>
-                <option value="600 Level">600 Level</option>
+                {availableLevels.map((lvl) => (
+                  <option key={lvl} value={lvl}>
+                    {lvl}
+                  </option>
+                ))}
               </select>
             </label>
 
@@ -886,11 +999,12 @@ function StudentProfileTab({ currentUser }: { currentUser: any }) {
                 value={formData.bio}
                 onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
                 placeholder="Share your academic interests, focus areas, and tech clubs..."
+                disabled={busy}
               />
             </label>
 
-            <button type="submit" className="primary save-profile-btn">
-              Save Profile Changes
+            <button type="submit" className="primary save-profile-btn" disabled={busy}>
+              {busy ? 'Saving Changes…' : 'Save Profile Changes'}
             </button>
           </form>
         </div>
@@ -899,23 +1013,29 @@ function StudentProfileTab({ currentUser }: { currentUser: any }) {
   );
 }
 
+
 // 9. Student Settings Tab
 function StudentSettingsTab({ currentUser }: { currentUser: any }) {
   const store = useStore();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { updateProfile, signOut, user } = useAuth();
 
   const [activeSection, setActiveSection] = useState<'account' | 'security' | 'notifications' | 'reading' | 'sessions' | 'danger'>('account');
   const [settings, setSettings] = useState(store.getStudentSettings());
   const [profileData, setProfileData] = useState({
     fullName: currentUser.fullName || '',
     displayName: currentUser.displayName || '',
-    email: currentUser.email || '',
+    email: currentUser.email || user?.email || '',
     matricNumber: currentUser.matricNumber || '',
-    faculty: currentUser.faculty || '',
-    department: currentUser.department || '',
-    level: currentUser.level || '300 Level'
+    faculty: currentUser.faculty || catalogue[0]?.name || '',
+    department: currentUser.department || catalogue[0]?.departments[0]?.name || '',
+    level: currentUser.level || '100 Level'
   });
+
+  const currentFaculty = facultyByName(profileData.faculty) || catalogue[0];
+  const currentDepartment = departmentByName(profileData.faculty, profileData.department) || currentFaculty.departments[0];
+  const availableLevels = levelsFor(currentDepartment?.duration || 4);
 
   const [passwordState, setPasswordState] = useState({
     currentPassword: '',
@@ -924,11 +1044,41 @@ function StudentSettingsTab({ currentUser }: { currentUser: any }) {
   });
 
   const [deactivateModalOpen, setDeactivateModalOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const handleFacultyChange = (newFac: string) => {
+    const fac = facultyByName(newFac) || catalogue[0];
+    const firstDept = fac.departments[0];
+    const deptLevels = levelsFor(firstDept?.duration || 4);
+    setProfileData((prev) => ({
+      ...prev,
+      faculty: newFac,
+      department: firstDept?.name || '',
+      level: deptLevels.includes(prev.level) ? prev.level : (deptLevels[0] || '100 Level')
+    }));
+  };
+
+  const handleDeptChange = (newDept: string) => {
+    const dept = departmentByName(profileData.faculty, newDept);
+    const deptLevels = levelsFor(dept?.duration || 4);
+    setProfileData((prev) => ({
+      ...prev,
+      department: newDept,
+      level: deptLevels.includes(prev.level) ? prev.level : (deptLevels[0] || '100 Level')
+    }));
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    setBusy(true);
     store.updateUserProfile(profileData);
-    toast('Account details updated successfully!', 'success');
+    const res = await updateProfile(profileData);
+    setBusy(false);
+    if (res.error) {
+      toast(res.error.message, 'error');
+    } else {
+      toast('Account details updated successfully in database!', 'success');
+    }
   };
 
   const handleSavePreferences = (e: React.FormEvent) => {
@@ -948,22 +1098,22 @@ function StudentSettingsTab({ currentUser }: { currentUser: any }) {
       return;
     }
     setPasswordState({ currentPassword: '', newPassword: '', confirmPassword: '' });
-    toast('Password updated successfully! Your next login will use your new password.', 'success');
+    toast('Password updated successfully!', 'success');
   };
 
   const handleSignOutOtherSessions = () => {
     toast('All other active browser sessions have been logged out.', 'info');
   };
 
-  const handleSignOut = () => {
-    store.logoutStudent();
+  const handleSignOut = async () => {
+    await signOut();
     toast('Logged out of Student Portal', 'info');
     navigate('/login');
   };
 
-  const handleConfirmDeactivate = () => {
+  const handleConfirmDeactivate = async () => {
     setDeactivateModalOpen(false);
-    store.logoutStudent();
+    await signOut();
     toast('Account deactivation requested. Your session has ended.', 'info');
     navigate('/');
   };
@@ -1053,6 +1203,7 @@ function StudentSettingsTab({ currentUser }: { currentUser: any }) {
                       value={profileData.fullName}
                       onChange={(e) => setProfileData({ ...profileData, fullName: e.target.value })}
                       required
+                      disabled={busy}
                     />
                   </label>
                   <label>
@@ -1061,31 +1212,38 @@ function StudentSettingsTab({ currentUser }: { currentUser: any }) {
                       value={profileData.displayName}
                       onChange={(e) => setProfileData({ ...profileData, displayName: e.target.value })}
                       required
+                      disabled={busy}
                     />
                   </label>
                 </div>
 
                 <div className="form-grid-2">
                   <label>
-                    Institutional Email Address
-                    <input
-                      type="email"
-                      value={profileData.email}
-                      onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
-                      required
-                    />
+                    Institutional Email Address (Verified)
+                    <div className="input-with-badge">
+                      <input
+                        type="email"
+                        value={profileData.email}
+                        readOnly
+                        className="input-readonly"
+                        title="Email is protected and linked to your Supabase authentication identity"
+                      />
+                      <span className="readonly-tag">
+                        <ShieldCheck size={12} /> Verified
+                      </span>
+                    </div>
                   </label>
                   <label>
                     Matriculation Number
                     <div className="input-with-badge">
                       <input
                         value={profileData.matricNumber}
-                        readOnly
-                        className="input-readonly"
-                        title="Matriculation numbers are permanently linked to your FUW admission record"
+                        onChange={(e) => setProfileData({ ...profileData, matricNumber: e.target.value.toUpperCase() })}
+                        required
+                        disabled={busy}
                       />
-                      <span className="readonly-tag" title="Protected Institutional Identifier">
-                        <ShieldCheck size={12} /> Verified
+                      <span className="readonly-tag" title="Institutional Identifier">
+                        <ShieldCheck size={12} /> Student ID
                       </span>
                     </div>
                   </label>
@@ -1094,40 +1252,71 @@ function StudentSettingsTab({ currentUser }: { currentUser: any }) {
                 <div className="form-grid-2">
                   <label>
                     Faculty
-                    <input
+                    <select
                       value={profileData.faculty}
-                      onChange={(e) => setProfileData({ ...profileData, faculty: e.target.value })}
+                      onChange={(e) => handleFacultyChange(e.target.value)}
+                      disabled={busy}
                       required
-                    />
+                    >
+                      {catalogue.map((f) => (
+                        <option key={f.name} value={f.name}>
+                          {f.name}
+                        </option>
+                      ))}
+                    </select>
                   </label>
                   <label>
                     Department
-                    <input
+                    <select
                       value={profileData.department}
-                      onChange={(e) => setProfileData({ ...profileData, department: e.target.value })}
+                      onChange={(e) => handleDeptChange(e.target.value)}
+                      disabled={busy}
                       required
-                    />
+                    >
+                      {currentFaculty.departments.map((d) => (
+                        <option key={d.name} value={d.name}>
+                          {d.name} ({d.duration} Years)
+                        </option>
+                      ))}
+                    </select>
                   </label>
                 </div>
 
-                <label>
-                  Level of Study
-                  <select
-                    value={profileData.level}
-                    onChange={(e) => setProfileData({ ...profileData, level: e.target.value })}
-                  >
-                    <option value="100 Level">100 Level (Undergraduate)</option>
-                    <option value="200 Level">200 Level (Undergraduate)</option>
-                    <option value="300 Level">300 Level (Undergraduate)</option>
-                    <option value="400 Level">400 Level (Undergraduate)</option>
-                    <option value="500 Level">500 Level (Undergraduate)</option>
-                    <option value="Postgraduate">Postgraduate / Masters</option>
-                  </select>
-                </label>
+                <div className="form-grid-2">
+                  <label>
+                    Level of Study (Restricted to {currentDepartment?.duration || 4}-Year Degree Duration)
+                    <select
+                      value={profileData.level}
+                      onChange={(e) => setProfileData({ ...profileData, level: e.target.value })}
+                      disabled={busy}
+                      required
+                    >
+                      {availableLevels.map((lvl) => (
+                        <option key={lvl} value={lvl}>
+                          {lvl}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label>
+                    Account Role
+                    <div className="input-with-badge">
+                      <input
+                        value="Student (Undergraduate Repository Contributor)"
+                        readOnly
+                        className="input-readonly"
+                      />
+                      <span className="readonly-tag">
+                        <ShieldCheck size={12} /> Student
+                      </span>
+                    </div>
+                  </label>
+                </div>
 
                 <div className="settings-actions-bar">
-                  <button type="submit" className="primary save-btn">
-                    <Save size={15} /> Save Account Changes
+                  <button type="submit" className="primary save-btn" disabled={busy}>
+                    <Save size={15} /> {busy ? 'Saving Changes…' : 'Save Account Changes'}
                   </button>
                 </div>
               </form>

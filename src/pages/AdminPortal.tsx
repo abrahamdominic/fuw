@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
 import {
   LayoutDashboard,
   FileText,
@@ -49,6 +50,7 @@ import { MaterialItem } from '../lib/store';
 import { Logo } from '../components/Logo';
 import { CatalogueFilters, FilterState } from '../components/CatalogueFilters';
 import { catalogue } from '../data/catalogue';
+import { useAuth } from '../lib/AuthContext';
 import { useToast } from '../components/Toast';
 
 interface AdminPortalProps {
@@ -73,7 +75,15 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { signOut, profile } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Pull fresh live data from Supabase whenever the admin portal opens
+  useEffect(() => {
+    store.syncMaterialsFromSupabase();
+    store.fetchUserStats();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const currentUser = store.getCurrentUser();
   const allMaterials = store.getAllMaterials();
@@ -84,6 +94,12 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
   const stats = store.getSystemStats();
 
   const currentPath = location.pathname;
+
+  const handleAdminLogout = async () => {
+    await signOut();
+    toast('Logged out of Admin Portal', 'info');
+    navigate('/admin/login');
+  };
 
   return (
     <div className="portal">
@@ -108,7 +124,7 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
             <ShieldCheck size={18} />
           </div>
           <div className="user-info-text">
-            <b>{currentUser.displayName || currentUser.fullName}</b>
+            <b>{profile?.fullName || currentUser.displayName || currentUser.fullName}</b>
             <span>Librarian / Administrator</span>
           </div>
         </div>
@@ -142,10 +158,15 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
         </nav>
 
         <div className="side-footer-actions">
-          <Link to="/" className="side-link logout-link">
+          <button
+            type="button"
+            onClick={handleAdminLogout}
+            className="side-link logout-link"
+            style={{ background: 'none', border: 0, width: '100%', cursor: 'pointer', textAlign: 'left' }}
+          >
             <LogOut size={17} />
-            <span>Public Library View</span>
-          </Link>
+            <span>Sign out / Exit</span>
+          </button>
         </div>
       </aside>
 
@@ -174,6 +195,7 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
             pendingCount={pendingMaterials.length}
             auditLogs={auditLogs}
             pendingMaterials={pendingMaterials}
+            allMaterials={allMaterials}
             onApprove={(id: string) => {
               store.approveMaterial(id, currentUser.fullName);
               toast('Material approved and published to public library!', 'success');
@@ -226,6 +248,7 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
             pendingCount={pendingMaterials.length}
             auditLogs={auditLogs}
             pendingMaterials={pendingMaterials}
+            allMaterials={allMaterials}
             onApprove={(id: string) => {
               store.approveMaterial(id, currentUser.fullName);
               toast('Material approved and published to frontend!', 'success');
@@ -248,10 +271,38 @@ function AdminOverviewTab({
   pendingCount,
   auditLogs,
   pendingMaterials,
+  allMaterials = [],
   onApprove,
   onReject,
   onReadOnline
 }: any) {
+  // Real monthly submission/activity chart built from actual material
+  // creation timestamps in the database (last 6 months).
+  const monthlyActivity = React.useMemo(() => {
+    const months: { key: string; label: string; count: number }[] = [];
+    const base = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(base.getFullYear(), base.getMonth() - i, 1);
+      months.push({
+        key: `${d.getFullYear()}-${d.getMonth()}`,
+        label: d.toLocaleString('en-US', { month: 'short' }),
+        count: 0
+      });
+    }
+    (allMaterials as MaterialItem[]).forEach((m) => {
+      const source = m.createdAt || m.date;
+      if (!source) return;
+      const d = new Date(source);
+      if (isNaN(d.getTime())) return;
+      const bucket = months.find((b) => b.key === `${d.getFullYear()}-${d.getMonth()}`);
+      if (bucket) bucket.count += 1;
+    });
+    return months;
+  }, [allMaterials]);
+
+  const maxMonthly = Math.max(1, ...monthlyActivity.map((m) => m.count));
+  const totalThisPeriod = monthlyActivity.reduce((acc, m) => acc + m.count, 0);
+
   return (
     <div className="portal-view-fade">
       <div className="portal-top">
@@ -332,31 +383,32 @@ function AdminOverviewTab({
         </section>
       </div>
 
-      {/* Monthly Uploads Activity Chart */}
+      {/* Monthly Uploads Activity Chart (real database records) */}
       <div className="admin-chart">
         <div className="chart-header">
           <div>
             <p className="kicker">ACTIVITY TELEMETRY</p>
-            <h2>Academic Material Submissions & Access (2026)</h2>
+            <h2>Academic Material Submissions & Access (Last 6 Months)</h2>
           </div>
           <span className="chart-tag">Current Academic Session</span>
         </div>
-        <div className="bars">
-          {[
-            { m: 'Jan', h: 45, v: '180' },
-            { m: 'Feb', h: 62, v: '248' },
-            { m: 'Mar', h: 78, v: '312' },
-            { m: 'Apr', h: 90, v: '360' },
-            { m: 'May', h: 100, v: '410' },
-            { m: 'Jun', h: 30, v: '120' }
-          ].map((bar) => (
-            <div key={bar.m}>
-              <span>{bar.v}</span>
-              <i style={{ height: `${bar.h}%` }} />
-              <b>{bar.m}</b>
-            </div>
-          ))}
-        </div>
+        {totalThisPeriod === 0 ? (
+          <div className="empty-state" style={{ padding: '28px 16px' }}>
+            <BarChart3 size={30} />
+            <b>No submissions recorded in the last six months.</b>
+            <span>Publish or approve materials to see live activity telemetry here.</span>
+          </div>
+        ) : (
+          <div className="bars">
+            {monthlyActivity.map((bar) => (
+              <div key={bar.key}>
+                <span>{bar.count}</span>
+                <i style={{ height: `${Math.round((bar.count / maxMonthly) * 100)}%` }} />
+                <b>{bar.label}</b>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Pending Queue Quick Section */}
@@ -819,61 +871,129 @@ function AdminUploadTab({ onUploaded }: { onUploaded: () => void }) {
   );
 }
 
-// 4. Admin Users Tab
+// 4. Admin Users Tab (Live Supabase profiles with real role management)
+interface AdminUserRow {
+  id: string;
+  full_name: string | null;
+  email: string;
+  matric_number: string | null;
+  faculty: string | null;
+  department: string | null;
+  level: string | null;
+  role: 'student' | 'admin';
+  created_at: string;
+}
+
 function AdminUsersTab() {
   const { toast } = useToast();
-  const sampleUsers = [
-    {
-      id: 'u-1',
-      name: 'Aisha Bello',
-      matric: 'FUW/2022/CSC/0142',
-      dept: 'Computer Science',
-      level: '300 Level',
-      status: 'VERIFIED',
-      role: 'STUDENT',
-      date: 'Nov 12, 2022'
-    },
-    {
-      id: 'u-2',
-      name: 'Emmanuel Tarfa',
-      matric: 'FUW/2021/AGR/0088',
-      dept: 'Agricultural Economics',
-      level: '400 Level',
-      status: 'VERIFIED',
-      role: 'STUDENT',
-      date: 'Oct 05, 2021'
-    },
-    {
-      id: 'u-3',
-      name: 'Fatima Mohammed',
-      matric: 'FUW/2023/ECN/0201',
-      dept: 'Economics',
-      level: '200 Level',
-      status: 'PENDING',
-      role: 'STUDENT',
-      date: 'Jan 14, 2023'
-    },
-    {
-      id: 'u-4',
-      name: 'Dr. Yakubu G. Audu',
-      matric: 'STAFF/LIB/001',
-      dept: 'Library Repository',
-      level: 'Admin',
-      status: 'VERIFIED',
-      role: 'ADMIN',
-      date: 'Oct 01, 2018'
+  const [users, setUsers] = useState<AdminUserRow[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const loadUsers = async () => {
+    if (!supabase) {
+      setErrorMsg('Database connection is not configured.');
+      setIsLoading(false);
+      return;
     }
-  ];
+    setIsLoading(true);
+    setErrorMsg(null);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, full_name, email, matric_number, faculty, department, level, role, created_at')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        setErrorMsg('Unable to load user accounts. Please verify your administrator permissions.');
+        setUsers([]);
+      } else {
+        setUsers((data as AdminUserRow[]) || []);
+      }
+    } catch {
+      setErrorMsg('Network error while loading user accounts. Check your connection and retry.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadUsers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Role changes are protected by RLS: only administrators may update roles,
+  // and a student can never elevate themselves through this path.
+  const handleToggleRole = async (u: AdminUserRow) => {
+    if (!supabase) return;
+    const nextRole = u.role === 'admin' ? 'student' : 'admin';
+    const confirmed = window.confirm(
+      `Change ${u.full_name || u.email} from "${u.role}" to "${nextRole}"?`
+    );
+    if (!confirmed) return;
+
+    setBusyId(u.id);
+    try {
+      const { error } = await supabase.from('profiles').update({ role: nextRole }).eq('id', u.id);
+      if (error) {
+        toast('Role update was blocked by database security policies.', 'error');
+      } else {
+        setUsers((prev) => prev.map((row) => (row.id === u.id ? { ...row, role: nextRole } : row)));
+        toast(`${u.full_name || u.email} is now ${nextRole === 'admin' ? 'an administrator' : 'a student'}.`, 'success');
+      }
+    } catch {
+      toast('Network error while updating the user role.', 'error');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const filtered = users.filter((u) => {
+    if (!searchTerm.trim()) return true;
+    const q = searchTerm.toLowerCase();
+    return (
+      (u.full_name || '').toLowerCase().includes(q) ||
+      (u.email || '').toLowerCase().includes(q) ||
+      (u.matric_number || '').toLowerCase().includes(q) ||
+      (u.department || '').toLowerCase().includes(q)
+    );
+  });
 
   return (
     <div className="portal-view-fade">
       <div className="portal-top">
         <div>
           <p className="kicker">ACADEMIC COMMUNITY</p>
-          <h1>Students & user accounts</h1>
-          <p className="subtitle">Manage student matriculation verification, librarian permissions, and user statuses.</p>
+          <h1>Students & user accounts ({users.length})</h1>
+          <p className="subtitle">Live registered accounts from the university database with librarian permission controls.</p>
         </div>
+        <button type="button" className="outline-btn" onClick={loadUsers} disabled={isLoading}>
+          <RefreshCw size={15} className={isLoading ? 'spin-icon' : ''} /> Refresh List
+        </button>
       </div>
+
+      <div className="manage-tools">
+        <Search size={17} />
+        <input
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Search by full name, email, matric number, or department..."
+        />
+        {searchTerm && (
+          <button className="clear-search-btn" onClick={() => setSearchTerm('')}>
+            Clear
+          </button>
+        )}
+      </div>
+
+      {errorMsg && (
+        <div className="form-feedback-box error">
+          <AlertCircle size={18} />
+          <p>{errorMsg}</p>
+        </div>
+      )}
 
       <div className="table">
         <div className="tr head users-table-grid">
@@ -885,32 +1005,59 @@ function AdminUsersTab() {
           <span>Actions</span>
         </div>
 
-        {sampleUsers.map((u) => (
-          <div className="tr users-table-grid" key={u.id}>
-            <span>
-              <b>{u.name}</b>
-            </span>
-            <span>{u.matric}</span>
-            <span>{u.dept} · {u.level}</span>
-            <span>
-              <span className={`role-pill ${u.role.toLowerCase()}`}>{u.role}</span>
-            </span>
-            <span>
-              <span className={`status-badge ${u.status.toLowerCase()}`}>
-                {u.status === 'VERIFIED' ? <CheckCircle2 size={12} /> : <Clock size={12} />}
-                {u.status}
-              </span>
-            </span>
-            <span>
-              <button
-                className="table-action-btn"
-                onClick={() => toast(`User ${u.name} status updated`)}
-              >
-                Manage
-              </button>
-            </span>
+        {isLoading ? (
+          <div className="empty-state">
+            <RefreshCw size={26} className="spin-icon" />
+            <b>Loading user accounts…</b>
+            <span>Fetching live records from the university database.</span>
           </div>
-        ))}
+        ) : filtered.length === 0 ? (
+          <div className="empty-state">
+            <Users size={32} />
+            <b>No user accounts found.</b>
+            <span>{searchTerm ? 'No accounts match your search.' : 'New registrations will appear here automatically.'}</span>
+          </div>
+        ) : (
+          filtered.map((u) => {
+            const verified = !!u.matric_number;
+            const joined = u.created_at
+              ? new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
+              : '—';
+            return (
+              <div className="tr users-table-grid" key={u.id}>
+                <span>
+                  <b>{u.full_name || 'Unnamed account'}</b>
+                  <small>{u.email}</small>
+                  <small style={{ display: 'block', opacity: 0.7 }}>Joined {joined}</small>
+                </span>
+                <span>{u.matric_number || 'Not submitted'}</span>
+                <span>
+                  {u.department || '—'} · {u.level || '—'}
+                  <small style={{ display: 'block', opacity: 0.7 }}>{u.faculty || ''}</small>
+                </span>
+                <span>
+                  <span className={`role-pill ${u.role}`}>{u.role.toUpperCase()}</span>
+                </span>
+                <span>
+                  <span className={`status-badge ${verified ? 'approved' : 'pending'}`}>
+                    {verified ? <CheckCircle2 size={12} /> : <Clock size={12} />}
+                    {verified ? 'VERIFIED' : 'PROFILE INCOMPLETE'}
+                  </span>
+                </span>
+                <span>
+                  <button
+                    className="table-action-btn"
+                    disabled={busyId === u.id}
+                    onClick={() => handleToggleRole(u)}
+                    title={u.role === 'admin' ? 'Demote this account to student' : 'Promote this account to administrator'}
+                  >
+                    {busyId === u.id ? 'Updating…' : u.role === 'admin' ? 'Set as Student' : 'Make Admin'}
+                  </button>
+                </span>
+              </div>
+            );
+          })
+        )}
       </div>
     </div>
   );
@@ -962,7 +1109,7 @@ function AdminDepartmentsTab() {
         <div>
           <p className="kicker">ACADEMIC PROGRAMMES</p>
           <h1>Accredited departments ({allDepts.length})</h1>
-          <p className="subtitle">Complete catalogue of 52 academic departments and degree durations.</p>
+          <p className="subtitle">Complete catalogue of {allDepts.length} academic departments and degree durations.</p>
         </div>
       </div>
 
@@ -1073,7 +1220,7 @@ function AdminCategoriesTab() {
             <li>Lecture Notes & Slides (Verified)</li>
             <li>Recommended Textbooks & Compendiums</li>
             <li>Examination Past Questions (Solved)</li>
-            <li>Test Questions & Revision Practice</li>
+            <li>Test Past Questions & Revision Practice</li>
             <li>Student Projects & Empirical Theses</li>
             <li>Handouts & Laboratory Worksheets</li>
             <li>Research Papers & Journal Publications</li>
