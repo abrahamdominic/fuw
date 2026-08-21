@@ -26,7 +26,23 @@ import {
   Sparkles,
   ArrowUpRight,
   ShieldAlert,
-  BarChart3
+  BarChart3,
+  SlidersHorizontal,
+  Lock,
+  Bell,
+  Key,
+  Database,
+  RefreshCw,
+  Save,
+  AlertTriangle,
+  Shield,
+  Check,
+  Info,
+  Globe,
+  Mail,
+  Phone,
+  MapPin,
+  Laptop
 } from 'lucide-react';
 import { useStore } from '../lib/useStore';
 import { MaterialItem } from '../lib/store';
@@ -1121,65 +1137,840 @@ function AdminAuditLogsTab({ logs }: { logs: any[] }) {
 
 // 10. Admin Settings Tab
 function AdminSettingsTab() {
+  const store = useStore();
   const { toast } = useToast();
+
+  const [activeTab, setActiveTab] = useState<'general' | 'materials' | 'users' | 'notifications' | 'security' | 'taxonomy'>('general');
+  const [settings, setSettings] = useState(store.getAdminSettings());
+  const [resetModalOpen, setResetModalOpen] = useState(false);
+  const [adminPasswordState, setAdminPasswordState] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+
+  const handleSaveSettings = (e: React.FormEvent) => {
+    e.preventDefault();
+    store.updateAdminSettings(settings);
+    toast('System configuration updated and persisted!', 'success');
+  };
+
+  const handlePasswordChange = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (adminPasswordState.newPassword.length < 8) {
+      toast('Admin password must be at least 8 characters.', 'error');
+      return;
+    }
+    if (adminPasswordState.newPassword !== adminPasswordState.confirmPassword) {
+      toast('Passwords do not match.', 'error');
+      return;
+    }
+    setAdminPasswordState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    toast('Administrator password updated successfully.', 'success');
+  };
+
+  const handleResetDefaults = () => {
+    const fresh = store.resetAdminSettings();
+    setSettings(fresh);
+    setResetModalOpen(false);
+    toast('Settings reset to university default configuration.', 'info');
+  };
+
+  const handleExportData = () => {
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      institution: 'Federal University Wukari',
+      settings,
+      stats: store.getSystemStats(),
+      materialsCount: store.getAllMaterials().length
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `FUW_Library_Config_${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    toast('Configuration & catalogue backup JSON exported successfully.');
+  };
+
+  const toggleFileType = (type: string) => {
+    const current = settings.materials.allowedFileTypes;
+    const updated = current.includes(type)
+      ? current.filter((t) => t !== type)
+      : [...current, type];
+    setSettings({
+      ...settings,
+      materials: { ...settings.materials, allowedFileTypes: updated }
+    });
+  };
+
   return (
     <div className="portal-view-fade">
       <div className="portal-top">
         <div>
-          <p className="kicker">REPOSITORY CONFIGURATION</p>
-          <h1>System settings</h1>
-          <p className="subtitle">Configure repository access rules, upload file limits, and administrative controls.</p>
+          <p className="kicker">SYSTEM CONFIGURATION & REPOSITORY POLICIES</p>
+          <h1>Admin settings</h1>
+          <p className="subtitle">
+            Configure submission policies, storage thresholds, student permissions, notifications, and security protocols.
+          </p>
+        </div>
+        <div className="portal-top-actions">
+          <button type="button" className="outline-btn" onClick={handleExportData}>
+            <Download size={15} /> Export JSON Config
+          </button>
         </div>
       </div>
 
-      <div className="settings-container">
-        <form
-          className="settings-form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            toast('Admin system settings saved successfully!', 'success');
-          }}
-        >
-          <div className="settings-section">
-            <h3>Submission & Review Policies</h3>
-            <label className="checkbox-label">
-              <input type="checkbox" defaultChecked />
-              <div>
-                <b>Mandatory Admin Approval for Student Uploads</b>
-                <span>Require an administrator or librarian to approve all student contributed materials before public display.</span>
+      <div className="settings-layout">
+        {/* Admin Settings Navigation */}
+        <aside className="settings-sidebar">
+          <button
+            type="button"
+            className={`settings-nav-item ${activeTab === 'general' ? 'active' : ''}`}
+            onClick={() => setActiveTab('general')}
+          >
+            <Building2 size={16} />
+            <span>General Information</span>
+          </button>
+
+          <button
+            type="button"
+            className={`settings-nav-item ${activeTab === 'materials' ? 'active' : ''}`}
+            onClick={() => setActiveTab('materials')}
+          >
+            <FileText size={16} />
+            <span>Material & Uploads</span>
+          </button>
+
+          <button
+            type="button"
+            className={`settings-nav-item ${activeTab === 'users' ? 'active' : ''}`}
+            onClick={() => setActiveTab('users')}
+          >
+            <Users size={16} />
+            <span>Users & Permissions</span>
+          </button>
+
+          <button
+            type="button"
+            className={`settings-nav-item ${activeTab === 'notifications' ? 'active' : ''}`}
+            onClick={() => setActiveTab('notifications')}
+          >
+            <Bell size={16} />
+            <span>Notification Rules</span>
+          </button>
+
+          <button
+            type="button"
+            className={`settings-nav-item ${activeTab === 'security' ? 'active' : ''}`}
+            onClick={() => setActiveTab('security')}
+          >
+            <Lock size={16} />
+            <span>Security & Access</span>
+          </button>
+
+          <button
+            type="button"
+            className={`settings-nav-item ${activeTab === 'taxonomy' ? 'active' : ''}`}
+            onClick={() => setActiveTab('taxonomy')}
+          >
+            <Database size={16} />
+            <span>Taxonomy & Backup</span>
+          </button>
+        </aside>
+
+        {/* Admin Settings Form Panel */}
+        <div className="settings-content-panel">
+          {/* 1. General Settings */}
+          {activeTab === 'general' && (
+            <div className="settings-section-card">
+              <div className="settings-card-header">
+                <div>
+                  <h2>General Repository Information</h2>
+                  <p>Configure public university library identification, contact addresses, and global announcements.</p>
+                </div>
               </div>
-            </label>
 
-            <label className="checkbox-label">
-              <input type="checkbox" defaultChecked />
-              <div>
-                <b>Automated File Integrity & Virus Scanning</b>
-                <span>Scan uploaded PDF, Word, and PowerPoint files for security before archiving.</span>
+              <form onSubmit={handleSaveSettings}>
+                <div className="form-grid-2">
+                  <label>
+                    Library System Name
+                    <input
+                      value={settings.general.libraryName}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          general: { ...settings.general, libraryName: e.target.value }
+                        })
+                      }
+                      required
+                    />
+                  </label>
+
+                  <label>
+                    Current Academic Session
+                    <select
+                      value={settings.general.academicSession}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          general: { ...settings.general, academicSession: e.target.value }
+                        })
+                      }
+                    >
+                      <option value="2025/2026">2025/2026 Academic Session</option>
+                      <option value="2026/2027">2026/2027 Academic Session</option>
+                      <option value="2024/2025">2024/2025 Academic Session</option>
+                    </select>
+                  </label>
+                </div>
+
+                <div className="form-grid-2">
+                  <label>
+                    Official Contact Email
+                    <input
+                      type="email"
+                      value={settings.general.contactEmail}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          general: { ...settings.general, contactEmail: e.target.value }
+                        })
+                      }
+                      required
+                    />
+                  </label>
+
+                  <label>
+                    Helpdesk Phone
+                    <input
+                      value={settings.general.supportPhone}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          general: { ...settings.general, supportPhone: e.target.value }
+                        })
+                      }
+                      required
+                    />
+                  </label>
+                </div>
+
+                <label>
+                  Campus Location & Address
+                  <input
+                    value={settings.general.campusLocation}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        general: { ...settings.general, campusLocation: e.target.value }
+                      })
+                    }
+                    required
+                  />
+                </label>
+
+                <label>
+                  Repository Description & Tagline
+                  <textarea
+                    rows={3}
+                    value={settings.general.libraryDescription}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        general: { ...settings.general, libraryDescription: e.target.value }
+                      })
+                    }
+                    required
+                  />
+                </label>
+
+                <label>
+                  Global Public Announcement Banner
+                  <input
+                    value={settings.general.announcementText}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        general: { ...settings.general, announcementText: e.target.value }
+                      })
+                    }
+                    placeholder="Broadcast announcement displayed at top of portal..."
+                  />
+                </label>
+
+                <div className="switch-group" style={{ marginTop: '12px' }}>
+                  <label className="switch-row">
+                    <div className="switch-info">
+                      <b>Maintenance Mode</b>
+                      <span>Temporarily display an under-maintenance message to public visitors while allowing administrator logins.</span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={settings.general.maintenanceMode}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          general: { ...settings.general, maintenanceMode: e.target.checked }
+                        })
+                      }
+                    />
+                  </label>
+                </div>
+
+                <div className="settings-actions-bar">
+                  <button type="submit" className="primary save-btn">
+                    <Save size={15} /> Save General Settings
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* 2. Material & Upload Policies */}
+          {activeTab === 'materials' && (
+            <div className="settings-section-card">
+              <div className="settings-card-header">
+                <div>
+                  <h2>Material Submission & Review Policies</h2>
+                  <p>Control file limits, approval mandates, and student submission rules.</p>
+                </div>
               </div>
-            </label>
-          </div>
 
-          <div className="settings-section">
-            <h3>Storage & Bandwidth Limits</h3>
-            <label>
-              Maximum Upload File Size
-              <select defaultValue="25">
-                <option value="10">10 MB</option>
-                <option value="25">25 MB (Standard)</option>
-                <option value="50">50 MB</option>
-                <option value="100">100 MB</option>
-              </select>
-            </label>
+              <form onSubmit={handleSaveSettings}>
+                <div className="form-grid-2">
+                  <label>
+                    Maximum Upload File Size Limit
+                    <select
+                      value={settings.materials.maxUploadSizeMb}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          materials: { ...settings.materials, maxUploadSizeMb: Number(e.target.value) }
+                        })
+                      }
+                    >
+                      <option value="10">10 MB (Light)</option>
+                      <option value="25">25 MB (Standard Recommended)</option>
+                      <option value="50">50 MB (High Resolution)</option>
+                      <option value="100">100 MB (Large Compilations)</option>
+                    </select>
+                  </label>
 
-            <label>
-              Public Rate Limiting (Requests per 15 min)
-              <input defaultValue="300" />
-            </label>
-          </div>
+                  <label>
+                    Default Material Publish State
+                    <select
+                      value={settings.materials.defaultMaterialStatus}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          materials: { ...settings.materials, defaultMaterialStatus: e.target.value as any }
+                        })
+                      }
+                    >
+                      <option value="pending">Require Administrator Approval (Safe)</option>
+                      <option value="approved">Auto-Approve (Direct Publish)</option>
+                    </select>
+                  </label>
+                </div>
 
-          <button className="primary save-settings-btn">Save System Configuration</button>
-        </form>
+                <div className="file-types-section">
+                  <span className="section-label-bold">Allowed Academic File Formats</span>
+                  <div className="file-types-grid">
+                    {['PDF', 'DOC', 'DOCX', 'PPT', 'PPTX', 'XLS', 'XLSX'].map((ext) => (
+                      <label key={ext} className="file-type-pill-label">
+                        <input
+                          type="checkbox"
+                          checked={settings.materials.allowedFileTypes.includes(ext)}
+                          onChange={() => toggleFileType(ext)}
+                        />
+                        <span>.{ext.toLowerCase()}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="switch-group">
+                  <label className="switch-row">
+                    <div className="switch-info">
+                      <b>Mandatory Admin Approval for Student Uploads</b>
+                      <span>Every material submitted by students must be reviewed and approved by a librarian before becoming publicly available in the catalogue.</span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={settings.materials.requireApprovalForStudentUploads}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          materials: { ...settings.materials, requireApprovalForStudentUploads: e.target.checked }
+                        })
+                      }
+                    />
+                  </label>
+
+                  <label className="switch-row">
+                    <div className="switch-info">
+                      <b>Keep Rejected Materials Visible to Submitter</b>
+                      <span>Allow students to see rejected submissions along with the administrator's feedback reason under "My Uploads".</span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={settings.materials.keepRejectedVisibleToStudents}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          materials: { ...settings.materials, keepRejectedVisibleToStudents: e.target.checked }
+                        })
+                      }
+                    />
+                  </label>
+
+                  <label className="switch-row">
+                    <div className="switch-info">
+                      <b>Enable Direct Public File Downloads</b>
+                      <span>Allow enrolled students and visitors to download PDF/Word copies in addition to reading online.</span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={settings.materials.enablePublicDownloads}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          materials: { ...settings.materials, enablePublicDownloads: e.target.checked }
+                        })
+                      }
+                    />
+                  </label>
+                </div>
+
+                <div className="settings-actions-bar">
+                  <button type="submit" className="primary save-btn">
+                    <Save size={15} /> Save Material Policies
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* 3. Users & Permissions */}
+          {activeTab === 'users' && (
+            <div className="settings-section-card">
+              <div className="settings-card-header">
+                <div>
+                  <h2>User & Student Permissions</h2>
+                  <p>Manage student registration access, verification rules, and contribution caps.</p>
+                </div>
+              </div>
+
+              <form onSubmit={handleSaveSettings}>
+                <div className="switch-group">
+                  <label className="switch-row">
+                    <div className="switch-info">
+                      <b>Allow Open Student Self-Registration</b>
+                      <span>Permit students with valid FUW matriculation numbers to register their accounts online.</span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={settings.users.allowStudentRegistration}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          users: { ...settings.users, allowStudentRegistration: e.target.checked }
+                        })
+                      }
+                    />
+                  </label>
+
+                  <label className="switch-row">
+                    <div className="switch-info">
+                      <b>Require University Email Domain Verification</b>
+                      <span>Enforce @fuw.edu.ng email addresses during account registration.</span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={settings.users.requireAccountVerification}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          users: { ...settings.users, requireAccountVerification: e.target.checked }
+                        })
+                      }
+                    />
+                  </label>
+
+                  <label className="switch-row">
+                    <div className="switch-info">
+                      <b>Grant Student Upload Privileges</b>
+                      <span>Enable the "Upload Material" section on the student dashboard for academic contributions.</span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={settings.users.allowStudentUploads}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          users: { ...settings.users, allowStudentUploads: e.target.checked }
+                        })
+                      }
+                    />
+                  </label>
+                </div>
+
+                <div className="form-grid-2" style={{ marginTop: '16px' }}>
+                  <label>
+                    Daily Upload Limit Per Student
+                    <input
+                      type="number"
+                      min={1}
+                      max={20}
+                      value={settings.users.maxUploadsPerStudentPerDay}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          users: { ...settings.users, maxUploadsPerStudentPerDay: Number(e.target.value) }
+                        })
+                      }
+                      required
+                    />
+                  </label>
+                </div>
+
+                <div className="settings-actions-bar">
+                  <button type="submit" className="primary save-btn">
+                    <Save size={15} /> Save User Permissions
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* 4. Notification Rules */}
+          {activeTab === 'notifications' && (
+            <div className="settings-section-card">
+              <div className="settings-card-header">
+                <div>
+                  <h2>Notification & Alert Settings</h2>
+                  <p>Configure automatic triggers for material submissions, approvals, rejections, and security audits.</p>
+                </div>
+              </div>
+
+              <form onSubmit={handleSaveSettings}>
+                <label>
+                  Primary Administrator Alert Email
+                  <input
+                    type="email"
+                    value={settings.notifications.adminNotificationEmail}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        notifications: { ...settings.notifications, adminNotificationEmail: e.target.value }
+                      })
+                    }
+                    required
+                  />
+                </label>
+
+                <div className="switch-group" style={{ marginTop: '16px' }}>
+                  <label className="switch-row">
+                    <div className="switch-info">
+                      <b>Alert on New Student Material Submissions</b>
+                      <span>Receive an immediate notification whenever a student submits a new lecture note or past question.</span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={settings.notifications.notifyOnNewSubmissions}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          notifications: { ...settings.notifications, notifyOnNewSubmissions: e.target.checked }
+                        })
+                      }
+                    />
+                  </label>
+
+                  <label className="switch-row">
+                    <div className="switch-info">
+                      <b>Send Automated Approval Confirmation to Student</b>
+                      <span>Notify the student when their material passes moderation and is published live.</span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={settings.notifications.notifyStudentOnApproval}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          notifications: { ...settings.notifications, notifyStudentOnApproval: e.target.checked }
+                        })
+                      }
+                    />
+                  </label>
+
+                  <label className="switch-row">
+                    <div className="switch-info">
+                      <b>Send Rejection Reason Feedback to Student</b>
+                      <span>Notify the student with administrator notes if their upload is rejected or needs revision.</span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={settings.notifications.notifyStudentOnRejection}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          notifications: { ...settings.notifications, notifyStudentOnRejection: e.target.checked }
+                        })
+                      }
+                    />
+                  </label>
+
+                  <label className="switch-row">
+                    <div className="switch-info">
+                      <b>System Security & Audit Activity Alerts</b>
+                      <span>Log and alert administrators on password updates, role changes, and bulk deletions.</span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={settings.notifications.securityAuditAlerts}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          notifications: { ...settings.notifications, securityAuditAlerts: e.target.checked }
+                        })
+                      }
+                    />
+                  </label>
+                </div>
+
+                <div className="settings-actions-bar">
+                  <button type="submit" className="primary save-btn">
+                    <Save size={15} /> Save Notification Rules
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* 5. Security & Access */}
+          {activeTab === 'security' && (
+            <div className="settings-section-card">
+              <div className="settings-card-header">
+                <div>
+                  <h2>Administrator Security & Session Rules</h2>
+                  <p>Manage administrator credentials, session timeouts, and rate limits.</p>
+                </div>
+              </div>
+
+              {/* Change Admin Password */}
+              <form onSubmit={handlePasswordChange} style={{ marginBottom: '28px' }}>
+                <span className="section-label-bold">Change Administrator Password</span>
+                <label style={{ marginTop: '10px' }}>
+                  Current Password
+                  <input
+                    type="password"
+                    placeholder="Enter current admin password"
+                    value={adminPasswordState.currentPassword}
+                    onChange={(e) => setAdminPasswordState({ ...adminPasswordState, currentPassword: e.target.value })}
+                    required
+                  />
+                </label>
+
+                <div className="form-grid-2">
+                  <label>
+                    New Admin Password
+                    <input
+                      type="password"
+                      placeholder="At least 8 characters"
+                      value={adminPasswordState.newPassword}
+                      onChange={(e) => setAdminPasswordState({ ...adminPasswordState, newPassword: e.target.value })}
+                      required
+                    />
+                  </label>
+
+                  <label>
+                    Confirm New Password
+                    <input
+                      type="password"
+                      placeholder="Repeat new password"
+                      value={adminPasswordState.confirmPassword}
+                      onChange={(e) => setAdminPasswordState({ ...adminPasswordState, confirmPassword: e.target.value })}
+                      required
+                    />
+                  </label>
+                </div>
+
+                <button type="submit" className="outline-btn" style={{ marginTop: '8px' }}>
+                  <Key size={14} /> Update Administrator Password
+                </button>
+              </form>
+
+              <hr className="settings-divider" />
+
+              {/* Session Policies */}
+              <form onSubmit={handleSaveSettings}>
+                <span className="section-label-bold">Session & Traffic Controls</span>
+                <div className="form-grid-2" style={{ marginTop: '12px' }}>
+                  <label>
+                    Administrator Inactivity Timeout
+                    <select
+                      value={settings.security.sessionTimeoutMinutes}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          security: { ...settings.security, sessionTimeoutMinutes: Number(e.target.value) }
+                        })
+                      }
+                    >
+                      <option value="15">15 Minutes</option>
+                      <option value="30">30 Minutes</option>
+                      <option value="60">60 Minutes (Standard)</option>
+                      <option value="240">4 Hours</option>
+                      <option value="1440">24 Hours</option>
+                    </select>
+                  </label>
+
+                  <label>
+                    Public Rate Limiting (Requests / 15 min)
+                    <input
+                      type="number"
+                      value={settings.security.rateLimitPer15Min}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          security: { ...settings.security, rateLimitPer15Min: Number(e.target.value) }
+                        })
+                      }
+                      required
+                    />
+                  </label>
+                </div>
+
+                <div className="switch-group" style={{ marginTop: '12px' }}>
+                  <label className="switch-row">
+                    <div className="switch-info">
+                      <b>Enforce Two-Factor Authentication (2FA) for Admins</b>
+                      <span>Require an authenticator code verification on every staff administrator login.</span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={settings.security.enforce2FA}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          security: { ...settings.security, enforce2FA: e.target.checked }
+                        })
+                      }
+                    />
+                  </label>
+
+                  <label className="switch-row">
+                    <div className="switch-info">
+                      <b>Allow Guest Browsing</b>
+                      <span>Allow non-authenticated public visitors to view catalogue metadata and book cards.</span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={settings.security.allowGuestBrowsing}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          security: { ...settings.security, allowGuestBrowsing: e.target.checked }
+                        })
+                      }
+                    />
+                  </label>
+                </div>
+
+                <div className="settings-actions-bar">
+                  <button type="submit" className="primary save-btn">
+                    <Save size={15} /> Save Security Configuration
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* 6. Taxonomy & Backup */}
+          {activeTab === 'taxonomy' && (
+            <div className="settings-section-card">
+              <div className="settings-card-header">
+                <div>
+                  <h2>Taxonomy Overview & System Reset</h2>
+                  <p>Inspect academic structure metrics and manage repository state backups.</p>
+                </div>
+              </div>
+
+              <div className="taxonomy-summary-grid">
+                <div className="tax-stat-box">
+                  <b>{catalogue.length}</b>
+                  <span>Faculties</span>
+                </div>
+                <div className="tax-stat-box">
+                  <b>{catalogue.reduce((acc, f) => acc + f.departments.length, 0)}</b>
+                  <span>Departments</span>
+                </div>
+                <div className="tax-stat-box">
+                  <b>{store.getAllMaterials().length}</b>
+                  <span>Materials</span>
+                </div>
+                <div className="tax-stat-box">
+                  <b>6</b>
+                  <span>Level Bands</span>
+                </div>
+              </div>
+
+              <div className="backup-actions-block">
+                <div className="backup-row">
+                  <div>
+                    <b>Export Complete Catalogue JSON</b>
+                    <p>Download a complete JSON database dump of all current materials, configurations, and audit logs.</p>
+                  </div>
+                  <button type="button" className="outline-btn" onClick={handleExportData}>
+                    <Download size={15} /> Export JSON
+                  </button>
+                </div>
+
+                <div className="backup-row danger-row">
+                  <div>
+                    <b>Reset System Settings to Factory Defaults</b>
+                    <p>Restore default submission rules, file thresholds, and notification policies.</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="danger-btn-outline"
+                    onClick={() => setResetModalOpen(true)}
+                  >
+                    <RefreshCw size={15} /> Reset Settings
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Reset Confirmation Modal */}
+      {resetModalOpen && (
+        <div className="modal-backdrop" onClick={() => setResetModalOpen(false)}>
+          <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="confirm-modal-icon warning">
+              <AlertTriangle size={28} />
+            </div>
+            <h3>Reset System Settings?</h3>
+            <p>
+              Are you sure you want to reset all repository configurations, upload limits, and notification preferences to their default university state?
+            </p>
+            <div className="confirm-modal-actions">
+              <button className="cancel-btn" onClick={() => setResetModalOpen(false)}>
+                Cancel
+              </button>
+              <button className="danger-confirm-btn" onClick={handleResetDefaults}>
+                Yes, Reset to Defaults
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

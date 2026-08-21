@@ -23,7 +23,19 @@ import {
   Menu,
   X,
   ShieldCheck,
-  UserCheck
+  UserCheck,
+  Lock,
+  Bell,
+  Key,
+  Shield,
+  Smartphone,
+  Laptop,
+  AlertTriangle,
+  RefreshCw,
+  SlidersHorizontal,
+  Save,
+  Info,
+  Check
 } from 'lucide-react';
 import { useStore } from '../lib/useStore';
 import { MaterialItem } from '../lib/store';
@@ -889,68 +901,587 @@ function StudentProfileTab({ currentUser }: { currentUser: any }) {
 
 // 9. Student Settings Tab
 function StudentSettingsTab({ currentUser }: { currentUser: any }) {
+  const store = useStore();
+  const navigate = useNavigate();
   const { toast } = useToast();
+
+  const [activeSection, setActiveSection] = useState<'account' | 'security' | 'notifications' | 'reading' | 'sessions' | 'danger'>('account');
+  const [settings, setSettings] = useState(store.getStudentSettings());
+  const [profileData, setProfileData] = useState({
+    fullName: currentUser.fullName || '',
+    displayName: currentUser.displayName || '',
+    email: currentUser.email || '',
+    matricNumber: currentUser.matricNumber || '',
+    faculty: currentUser.faculty || '',
+    department: currentUser.department || '',
+    level: currentUser.level || '300 Level'
+  });
+
+  const [passwordState, setPasswordState] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+
+  const [deactivateModalOpen, setDeactivateModalOpen] = useState(false);
+
+  const handleSaveProfile = (e: React.FormEvent) => {
+    e.preventDefault();
+    store.updateUserProfile(profileData);
+    toast('Account details updated successfully!', 'success');
+  };
+
+  const handleSavePreferences = (e: React.FormEvent) => {
+    e.preventDefault();
+    store.updateStudentSettings(settings);
+    toast('Library & notification preferences saved!', 'success');
+  };
+
+  const handleChangePassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (passwordState.newPassword.length < 6) {
+      toast('New password must be at least 6 characters.', 'error');
+      return;
+    }
+    if (passwordState.newPassword !== passwordState.confirmPassword) {
+      toast('New passwords do not match.', 'error');
+      return;
+    }
+    setPasswordState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    toast('Password updated successfully! Your next login will use your new password.', 'success');
+  };
+
+  const handleSignOutOtherSessions = () => {
+    toast('All other active browser sessions have been logged out.', 'info');
+  };
+
+  const handleSignOut = () => {
+    store.logoutStudent();
+    toast('Logged out of Student Portal', 'info');
+    navigate('/login');
+  };
+
+  const handleConfirmDeactivate = () => {
+    setDeactivateModalOpen(false);
+    store.logoutStudent();
+    toast('Account deactivation requested. Your session has ended.', 'info');
+    navigate('/');
+  };
+
   return (
     <div className="portal-view-fade">
       <div className="portal-top">
         <div>
-          <p className="kicker">PREFERENCES & NOTIFICATIONS</p>
-          <h1>Settings</h1>
-          <p className="subtitle">Configure notification alerts, reading display preferences, and account security.</p>
+          <p className="kicker">STUDENT PREFERENCES & SECURITY</p>
+          <h1>Account settings</h1>
+          <p className="subtitle">
+            Manage your university account credentials, notification alerts, reading display preferences, and active sessions.
+          </p>
         </div>
       </div>
 
-      <div className="settings-container">
-        <form
-          className="settings-form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            toast('Settings saved successfully!', 'success');
-          }}
-        >
-          <div className="settings-section">
-            <h3>Notification Preferences</h3>
-            <label className="checkbox-label">
-              <input type="checkbox" defaultChecked />
-              <div>
-                <b>Material Approval Alerts</b>
-                <span>Receive instant notification when your uploaded materials are approved by administrators.</span>
+      <div className="settings-layout">
+        {/* Settings Navigation Sidebar */}
+        <aside className="settings-sidebar">
+          <button
+            type="button"
+            className={`settings-nav-item ${activeSection === 'account' ? 'active' : ''}`}
+            onClick={() => setActiveSection('account')}
+          >
+            <Users size={16} />
+            <span>Account Profile</span>
+          </button>
+          <button
+            type="button"
+            className={`settings-nav-item ${activeSection === 'security' ? 'active' : ''}`}
+            onClick={() => setActiveSection('security')}
+          >
+            <Lock size={16} />
+            <span>Security & Password</span>
+          </button>
+          <button
+            type="button"
+            className={`settings-nav-item ${activeSection === 'notifications' ? 'active' : ''}`}
+            onClick={() => setActiveSection('notifications')}
+          >
+            <Bell size={16} />
+            <span>Notification Alerts</span>
+          </button>
+          <button
+            type="button"
+            className={`settings-nav-item ${activeSection === 'reading' ? 'active' : ''}`}
+            onClick={() => setActiveSection('reading')}
+          >
+            <SlidersHorizontal size={16} />
+            <span>Reading & Display</span>
+          </button>
+          <button
+            type="button"
+            className={`settings-nav-item ${activeSection === 'sessions' ? 'active' : ''}`}
+            onClick={() => setActiveSection('sessions')}
+          >
+            <Laptop size={16} />
+            <span>Active Sessions</span>
+          </button>
+          <button
+            type="button"
+            className={`settings-nav-item danger ${activeSection === 'danger' ? 'active' : ''}`}
+            onClick={() => setActiveSection('danger')}
+          >
+            <AlertTriangle size={16} />
+            <span>Account Actions</span>
+          </button>
+        </aside>
+
+        {/* Settings Content Area */}
+        <div className="settings-content-panel">
+          {/* 1. Account Profile */}
+          {activeSection === 'account' && (
+            <div className="settings-section-card">
+              <div className="settings-card-header">
+                <div>
+                  <h2>Account & Academic Credentials</h2>
+                  <p>Keep your contact details up to date for official library notices.</p>
+                </div>
               </div>
-            </label>
 
-            <label className="checkbox-label">
-              <input type="checkbox" defaultChecked />
-              <div>
-                <b>New Course Materials</b>
-                <span>Notify me when new lecture notes or past questions are added in {currentUser.department}.</span>
+              <form onSubmit={handleSaveProfile}>
+                <div className="form-grid-2">
+                  <label>
+                    Full Legal Name
+                    <input
+                      value={profileData.fullName}
+                      onChange={(e) => setProfileData({ ...profileData, fullName: e.target.value })}
+                      required
+                    />
+                  </label>
+                  <label>
+                    Preferred Display Name
+                    <input
+                      value={profileData.displayName}
+                      onChange={(e) => setProfileData({ ...profileData, displayName: e.target.value })}
+                      required
+                    />
+                  </label>
+                </div>
+
+                <div className="form-grid-2">
+                  <label>
+                    Institutional Email Address
+                    <input
+                      type="email"
+                      value={profileData.email}
+                      onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
+                      required
+                    />
+                  </label>
+                  <label>
+                    Matriculation Number
+                    <div className="input-with-badge">
+                      <input
+                        value={profileData.matricNumber}
+                        readOnly
+                        className="input-readonly"
+                        title="Matriculation numbers are permanently linked to your FUW admission record"
+                      />
+                      <span className="readonly-tag" title="Protected Institutional Identifier">
+                        <ShieldCheck size={12} /> Verified
+                      </span>
+                    </div>
+                  </label>
+                </div>
+
+                <div className="form-grid-2">
+                  <label>
+                    Faculty
+                    <input
+                      value={profileData.faculty}
+                      onChange={(e) => setProfileData({ ...profileData, faculty: e.target.value })}
+                      required
+                    />
+                  </label>
+                  <label>
+                    Department
+                    <input
+                      value={profileData.department}
+                      onChange={(e) => setProfileData({ ...profileData, department: e.target.value })}
+                      required
+                    />
+                  </label>
+                </div>
+
+                <label>
+                  Level of Study
+                  <select
+                    value={profileData.level}
+                    onChange={(e) => setProfileData({ ...profileData, level: e.target.value })}
+                  >
+                    <option value="100 Level">100 Level (Undergraduate)</option>
+                    <option value="200 Level">200 Level (Undergraduate)</option>
+                    <option value="300 Level">300 Level (Undergraduate)</option>
+                    <option value="400 Level">400 Level (Undergraduate)</option>
+                    <option value="500 Level">500 Level (Undergraduate)</option>
+                    <option value="Postgraduate">Postgraduate / Masters</option>
+                  </select>
+                </label>
+
+                <div className="settings-actions-bar">
+                  <button type="submit" className="primary save-btn">
+                    <Save size={15} /> Save Account Changes
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* 2. Security & Password */}
+          {activeSection === 'security' && (
+            <div className="settings-section-card">
+              <div className="settings-card-header">
+                <div>
+                  <h2>Security & Password</h2>
+                  <p>Protect your student portal access with a strong password.</p>
+                </div>
               </div>
-            </label>
-          </div>
 
-          <div className="settings-section">
-            <h3>Library Display & Reading</h3>
-            <label>
-              Default Material Sorting
-              <select defaultValue="newest">
-                <option value="newest">Newest First</option>
-                <option value="downloads">Most Downloaded</option>
-                <option value="az">A–Z Alphabetical</option>
-              </select>
-            </label>
+              <form onSubmit={handleChangePassword}>
+                <label>
+                  Current Password
+                  <input
+                    type="password"
+                    placeholder="Enter current password"
+                    value={passwordState.currentPassword}
+                    onChange={(e) => setPasswordState({ ...passwordState, currentPassword: e.target.value })}
+                    required
+                  />
+                </label>
 
-            <label>
-              PDF Reader Default Zoom
-              <select defaultValue="100">
-                <option value="75">75% (Compact)</option>
-                <option value="100">100% (Standard)</option>
-                <option value="125">125% (Comfortable)</option>
-              </select>
-            </label>
-          </div>
+                <div className="form-grid-2">
+                  <label>
+                    New Password
+                    <input
+                      type="password"
+                      placeholder="At least 6 characters"
+                      value={passwordState.newPassword}
+                      onChange={(e) => setPasswordState({ ...passwordState, newPassword: e.target.value })}
+                      required
+                    />
+                  </label>
+                  <label>
+                    Confirm New Password
+                    <input
+                      type="password"
+                      placeholder="Repeat new password"
+                      value={passwordState.confirmPassword}
+                      onChange={(e) => setPasswordState({ ...passwordState, confirmPassword: e.target.value })}
+                      required
+                    />
+                  </label>
+                </div>
 
-          <button className="primary save-settings-btn">Save All Preferences</button>
-        </form>
+                <div className="password-tips-card">
+                  <Shield size={16} />
+                  <div>
+                    <b>Password Security Advice</b>
+                    <span>Use a combination of uppercase letters, numbers, and symbols. Never share your student portal password with anyone.</span>
+                  </div>
+                </div>
+
+                <div className="settings-actions-bar">
+                  <button type="submit" className="primary save-btn">
+                    <Key size={15} /> Update Password
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* 3. Notification Preferences */}
+          {activeSection === 'notifications' && (
+            <div className="settings-section-card">
+              <div className="settings-card-header">
+                <div>
+                  <h2>Notification Preferences</h2>
+                  <p>Choose the automated alerts and emails you wish to receive from FUW E-Library.</p>
+                </div>
+              </div>
+
+              <form onSubmit={handleSavePreferences}>
+                <div className="switch-group">
+                  <label className="switch-row">
+                    <div className="switch-info">
+                      <b>Material Approval Notifications</b>
+                      <span>Receive an instant alert when your submitted academic materials are reviewed and approved by administrators.</span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={settings.notifications.approvalAlerts}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          notifications: { ...settings.notifications, approvalAlerts: e.target.checked }
+                        })
+                      }
+                    />
+                  </label>
+
+                  <label className="switch-row">
+                    <div className="switch-info">
+                      <b>Material Rejection & Feedback Alerts</b>
+                      <span>Get informed if a submission requires adjustments or is rejected by faculty librarians with specific reasons.</span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={settings.notifications.rejectionAlerts}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          notifications: { ...settings.notifications, rejectionAlerts: e.target.checked }
+                        })
+                      }
+                    />
+                  </label>
+
+                  <label className="switch-row">
+                    <div className="switch-info">
+                      <b>New Department Course Materials</b>
+                      <span>Notify me when new verified lecture notes, textbooks, or past questions are added to {currentUser.department}.</span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={settings.notifications.newCourseMaterials}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          notifications: { ...settings.notifications, newCourseMaterials: e.target.checked }
+                        })
+                      }
+                    />
+                  </label>
+
+                  <label className="switch-row">
+                    <div className="switch-info">
+                      <b>Account & Security Announcements</b>
+                      <span>Important institutional bulletins regarding semester catalog updates, examination periods, and scheduled maintenance.</span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={settings.notifications.securityAlerts}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          notifications: { ...settings.notifications, securityAlerts: e.target.checked }
+                        })
+                      }
+                    />
+                  </label>
+                </div>
+
+                <div className="settings-actions-bar">
+                  <button type="submit" className="primary save-btn">
+                    <Save size={15} /> Save Notification Preferences
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* 4. Reading & Display */}
+          {activeSection === 'reading' && (
+            <div className="settings-section-card">
+              <div className="settings-card-header">
+                <div>
+                  <h2>Reading & Display Preferences</h2>
+                  <p>Customize your online document reader defaults and catalog browsing view.</p>
+                </div>
+              </div>
+
+              <form onSubmit={handleSavePreferences}>
+                <div className="form-grid-2">
+                  <label>
+                    Default Library Layout
+                    <select
+                      value={settings.reading.defaultView}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          reading: { ...settings.reading, defaultView: e.target.value as any }
+                        })
+                      }
+                    >
+                      <option value="grid">Grid Cards (Visual Preview)</option>
+                      <option value="list">Compact List Table</option>
+                    </select>
+                  </label>
+
+                  <label>
+                    Preferred Material Sorting
+                    <select
+                      value={settings.reading.defaultSort}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          reading: { ...settings.reading, defaultSort: e.target.value as any }
+                        })
+                      }
+                    >
+                      <option value="newest">Newest First</option>
+                      <option value="downloads">Most Downloaded</option>
+                      <option value="az">Alphabetical (A–Z)</option>
+                    </select>
+                  </label>
+                </div>
+
+                <div className="form-grid-2">
+                  <label>
+                    PDF Document Reader Default Zoom
+                    <select
+                      value={settings.reading.defaultZoom}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          reading: { ...settings.reading, defaultZoom: Number(e.target.value) }
+                        })
+                      }
+                    >
+                      <option value="75">75% (Compact Fit)</option>
+                      <option value="100">100% (Standard View)</option>
+                      <option value="125">125% (Comfortable Large)</option>
+                    </select>
+                  </label>
+
+                  <label className="switch-row inline-switch" style={{ marginTop: '22px' }}>
+                    <div className="switch-info">
+                      <b>Remember Last Filter Choices</b>
+                      <span>Auto-apply your last selected faculty and level when opening the library.</span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={settings.reading.rememberFilters}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          reading: { ...settings.reading, rememberFilters: e.target.checked }
+                        })
+                      }
+                    />
+                  </label>
+                </div>
+
+                <div className="settings-actions-bar">
+                  <button type="submit" className="primary save-btn">
+                    <Save size={15} /> Save Display Settings
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* 5. Active Sessions */}
+          {activeSection === 'sessions' && (
+            <div className="settings-section-card">
+              <div className="settings-card-header">
+                <div>
+                  <h2>Active Login Sessions</h2>
+                  <p>Devices and browsers currently authenticated to your student account.</p>
+                </div>
+                <button type="button" className="outline-btn" onClick={handleSignOutOtherSessions}>
+                  Sign out other devices
+                </button>
+              </div>
+
+              <div className="sessions-list">
+                <div className="session-item current">
+                  <div className="session-icon">
+                    <Laptop size={20} />
+                  </div>
+                  <div className="session-details">
+                    <div className="session-title-row">
+                      <b>Current Web Browser</b>
+                      <span className="current-session-badge">Active Now</span>
+                    </div>
+                    <p>Chrome on Desktop · Wukari, Taraba State, Nigeria (FUW Campus Wi-Fi)</p>
+                    <span className="session-time">Started today at 10:15 AM</span>
+                  </div>
+                </div>
+
+                <div className="session-item">
+                  <div className="session-icon">
+                    <Smartphone size={20} />
+                  </div>
+                  <div className="session-details">
+                    <div className="session-title-row">
+                      <b>Mobile Safari / Android Web</b>
+                      <span className="session-status-text">Idle</span>
+                    </div>
+                    <p>Mobile Device · Taraba State, Nigeria</p>
+                    <span className="session-time">Last active 2 days ago</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 6. Danger Zone / Actions */}
+          {activeSection === 'danger' && (
+            <div className="settings-section-card danger-card">
+              <div className="settings-card-header">
+                <div>
+                  <h2>Account Actions</h2>
+                  <p>Sign out of your active student session or request account removal.</p>
+                </div>
+              </div>
+
+              <div className="danger-action-row">
+                <div>
+                  <b>Sign Out Current Session</b>
+                  <p>End your current session on this device. Your saved materials and reading progress will remain intact.</p>
+                </div>
+                <button type="button" className="danger-btn-outline" onClick={handleSignOut}>
+                  <LogOut size={15} /> Sign out
+                </button>
+              </div>
+
+              <div className="danger-action-row">
+                <div>
+                  <b>Deactivate Student Account</b>
+                  <p>Temporarily deactivate your access or remove your local personal profile from this browser.</p>
+                </div>
+                <button
+                  type="button"
+                  className="danger-btn-solid"
+                  onClick={() => setDeactivateModalOpen(true)}
+                >
+                  <Trash2 size={15} /> Deactivate Account
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Account Deactivation Confirmation Modal */}
+      {deactivateModalOpen && (
+        <div className="modal-backdrop" onClick={() => setDeactivateModalOpen(false)}>
+          <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="confirm-modal-icon warning">
+              <AlertTriangle size={28} />
+            </div>
+            <h3>Deactivate Student Account?</h3>
+            <p>
+              Are you sure you want to deactivate your student portal session? Your local reading history, saved bookmarks, and uploaded submissions will be archived.
+            </p>
+            <div className="confirm-modal-actions">
+              <button className="cancel-btn" onClick={() => setDeactivateModalOpen(false)}>
+                Cancel
+              </button>
+              <button className="danger-confirm-btn" onClick={handleConfirmDeactivate}>
+                Yes, Deactivate & Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

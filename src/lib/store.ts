@@ -1,6 +1,125 @@
 import { catalogue, materialTypes } from '../data/catalogue';
 import { supabase } from './supabase';
 
+function safeSync(promiseLike: any) {
+  if (!promiseLike) return;
+  Promise.resolve(promiseLike).catch(() => {});
+}
+
+export interface StudentSettings {
+  notifications: {
+    approvalAlerts: boolean;
+    rejectionAlerts: boolean;
+    newCourseMaterials: boolean;
+    securityAlerts: boolean;
+  };
+  reading: {
+    defaultSort: 'newest' | 'downloads' | 'az';
+    defaultView: 'grid' | 'list';
+    defaultZoom: number;
+    rememberFilters: boolean;
+  };
+}
+
+export interface AdminSettings {
+  general: {
+    libraryName: string;
+    libraryDescription: string;
+    contactEmail: string;
+    supportPhone: string;
+    academicSession: string;
+    campusLocation: string;
+    maintenanceMode: boolean;
+    announcementText: string;
+  };
+  materials: {
+    maxUploadSizeMb: number;
+    allowedFileTypes: string[];
+    requireApprovalForStudentUploads: boolean;
+    keepRejectedVisibleToStudents: boolean;
+    defaultMaterialStatus: 'approved' | 'pending';
+    enablePublicDownloads: boolean;
+  };
+  users: {
+    allowStudentRegistration: boolean;
+    requireAccountVerification: boolean;
+    allowStudentUploads: boolean;
+    allowStudentComments: boolean;
+    maxUploadsPerStudentPerDay: number;
+  };
+  notifications: {
+    notifyOnNewSubmissions: boolean;
+    notifyStudentOnApproval: boolean;
+    notifyStudentOnRejection: boolean;
+    notifyAdminOnRegistrations: boolean;
+    securityAuditAlerts: boolean;
+    adminNotificationEmail: string;
+  };
+  security: {
+    sessionTimeoutMinutes: number;
+    enforce2FA: boolean;
+    rateLimitPer15Min: number;
+    allowGuestBrowsing: boolean;
+  };
+}
+
+export const DEFAULT_STUDENT_SETTINGS: StudentSettings = {
+  notifications: {
+    approvalAlerts: true,
+    rejectionAlerts: true,
+    newCourseMaterials: true,
+    securityAlerts: true
+  },
+  reading: {
+    defaultSort: 'newest',
+    defaultView: 'grid',
+    defaultZoom: 100,
+    rememberFilters: true
+  }
+};
+
+export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
+  general: {
+    libraryName: 'Federal University Wukari Digital Library',
+    libraryDescription: 'The central digital repository and open educational resource hub for FUW faculty and students.',
+    contactEmail: 'library@fuw.edu.ng',
+    supportPhone: '+234 800 FUW LIBS',
+    academicSession: '2025/2026',
+    campusLocation: 'Kastina-Ala Road, PMB 1020, Wukari, Taraba State',
+    maintenanceMode: false,
+    announcementText: 'Welcome to the updated FUW E-Library platform. First Semester 2025/2026 course notes are now online!'
+  },
+  materials: {
+    maxUploadSizeMb: 25,
+    allowedFileTypes: ['PDF', 'DOC', 'DOCX', 'PPT', 'PPTX', 'XLS', 'XLSX'],
+    requireApprovalForStudentUploads: true,
+    keepRejectedVisibleToStudents: true,
+    defaultMaterialStatus: 'pending',
+    enablePublicDownloads: true
+  },
+  users: {
+    allowStudentRegistration: true,
+    requireAccountVerification: true,
+    allowStudentUploads: true,
+    allowStudentComments: false,
+    maxUploadsPerStudentPerDay: 5
+  },
+  notifications: {
+    notifyOnNewSubmissions: true,
+    notifyStudentOnApproval: true,
+    notifyStudentOnRejection: true,
+    notifyAdminOnRegistrations: true,
+    securityAuditAlerts: true,
+    adminNotificationEmail: 'admin.library@fuw.edu.ng'
+  },
+  security: {
+    sessionTimeoutMinutes: 60,
+    enforce2FA: false,
+    rateLimitPer15Min: 300,
+    allowGuestBrowsing: true
+  }
+};
+
 export interface MaterialItem {
   id: string;
   title: string;
@@ -436,6 +555,8 @@ class MaterialsStore {
     }
   ];
   private auditLogs: AuditLogItem[] = INITIAL_AUDIT_LOGS;
+  private studentSettings: StudentSettings = { ...DEFAULT_STUDENT_SETTINGS };
+  private adminSettings: AdminSettings = { ...DEFAULT_ADMIN_SETTINGS };
   private listeners: Set<() => void> = new Set();
 
   constructor() {
@@ -487,6 +608,16 @@ class MaterialsStore {
       if (storedAudit) {
         this.auditLogs = JSON.parse(storedAudit);
       }
+
+      const storedStudentSettings = localStorage.getItem('fuw_student_settings');
+      if (storedStudentSettings) {
+        this.studentSettings = JSON.parse(storedStudentSettings);
+      }
+
+      const storedAdminSettings = localStorage.getItem('fuw_admin_settings');
+      if (storedAdminSettings) {
+        this.adminSettings = JSON.parse(storedAdminSettings);
+      }
     } catch {
       this.materials = [...INITIAL_MATERIALS];
     }
@@ -531,6 +662,18 @@ class MaterialsStore {
   private saveAudit() {
     try {
       localStorage.setItem('fuw_audit_logs', JSON.stringify(this.auditLogs));
+    } catch {}
+  }
+
+  private saveStudentSettings() {
+    try {
+      localStorage.setItem('fuw_student_settings', JSON.stringify(this.studentSettings));
+    } catch {}
+  }
+
+  private saveAdminSettings() {
+    try {
+      localStorage.setItem('fuw_admin_settings', JSON.stringify(this.adminSettings));
     } catch {}
   }
 
@@ -675,21 +818,23 @@ class MaterialsStore {
 
     // Async sync with Supabase / API backend if configured
     if (supabase) {
-      supabase.from('materials').insert({
-        id: newMaterial.id,
-        title: newMaterial.title,
-        description: newMaterial.description,
-        faculty: newMaterial.faculty,
-        department: newMaterial.department,
-        level: newMaterial.level,
-        course_code: newMaterial.course,
-        course_title: newMaterial.courseTitle,
-        semester: newMaterial.semester,
-        material_type: newMaterial.type,
-        file_url: newMaterial.fileUrl,
-        file_name: newMaterial.fileName,
-        status: 'approved'
-      }).then(() => {}).catch(() => {});
+      safeSync(
+        supabase.from('materials').insert({
+          id: newMaterial.id,
+          title: newMaterial.title,
+          description: newMaterial.description,
+          faculty: newMaterial.faculty,
+          department: newMaterial.department,
+          level: newMaterial.level,
+          course_code: newMaterial.course,
+          course_title: newMaterial.courseTitle,
+          semester: newMaterial.semester,
+          material_type: newMaterial.type,
+          file_url: newMaterial.fileUrl,
+          file_name: newMaterial.fileName,
+          status: 'approved'
+        })
+      );
     }
 
     this.addAuditLog(
@@ -756,21 +901,23 @@ class MaterialsStore {
 
     // Async sync with Supabase / backend if available
     if (supabase) {
-      supabase.from('materials').insert({
-        id: newMaterial.id,
-        title: newMaterial.title,
-        description: newMaterial.description,
-        faculty: newMaterial.faculty,
-        department: newMaterial.department,
-        level: newMaterial.level,
-        course_code: newMaterial.course,
-        course_title: newMaterial.courseTitle,
-        semester: newMaterial.semester,
-        material_type: newMaterial.type,
-        file_url: newMaterial.fileUrl,
-        file_name: newMaterial.fileName,
-        status: 'pending'
-      }).then(() => {}).catch(() => {});
+      safeSync(
+        supabase.from('materials').insert({
+          id: newMaterial.id,
+          title: newMaterial.title,
+          description: newMaterial.description,
+          faculty: newMaterial.faculty,
+          department: newMaterial.department,
+          level: newMaterial.level,
+          course_code: newMaterial.course,
+          course_title: newMaterial.courseTitle,
+          semester: newMaterial.semester,
+          material_type: newMaterial.type,
+          file_url: newMaterial.fileUrl,
+          file_name: newMaterial.fileName,
+          status: 'pending'
+        })
+      );
     }
 
     this.addAuditLog(
@@ -797,7 +944,9 @@ class MaterialsStore {
     this.saveMaterials();
 
     if (supabase) {
-      supabase.from('materials').update({ status: 'approved', rejection_reason: null }).eq('id', materialId).then(() => {}).catch(() => {});
+      safeSync(
+        supabase.from('materials').update({ status: 'approved', rejection_reason: null }).eq('id', materialId)
+      );
     }
 
     this.addAuditLog(
@@ -824,7 +973,9 @@ class MaterialsStore {
     this.saveMaterials();
 
     if (supabase) {
-      supabase.from('materials').update({ status: 'rejected', rejection_reason: material.rejectionReason }).eq('id', materialId).then(() => {}).catch(() => {});
+      safeSync(
+        supabase.from('materials').update({ status: 'rejected', rejection_reason: material.rejectionReason }).eq('id', materialId)
+      );
     }
 
     this.addAuditLog(
@@ -850,7 +1001,9 @@ class MaterialsStore {
     this.saveMaterials();
 
     if (supabase) {
-      supabase.from('materials').update(updates).eq('id', materialId).then(() => {}).catch(() => {});
+      safeSync(
+        supabase.from('materials').update(updates).eq('id', materialId)
+      );
     }
 
     this.addAuditLog(
@@ -876,7 +1029,9 @@ class MaterialsStore {
     this.saveMaterials();
 
     if (supabase) {
-      supabase.from('materials').delete().eq('id', materialId).then(() => {}).catch(() => {});
+      safeSync(
+        supabase.from('materials').delete().eq('id', materialId)
+      );
     }
 
     this.addAuditLog(
@@ -915,28 +1070,23 @@ class MaterialsStore {
 
   public recordDownload(materialId: string): void {
     const material = this.materials.find((m) => m.id === materialId);
-    if (material) {
-      material.downloads += 1;
-      this.saveMaterials();
+    if (!material) return;
 
-      const existingIndex = this.downloadHistory.findIndex((d) => d.materialId === materialId);
-      const record: DownloadRecord = {
-        id: 'dl-' + Date.now(),
-        materialId,
-        materialTitle: material.title,
-        course: material.course,
-        fileSize: material.fileSize,
-        downloadedAt: 'Just now'
-      };
+    material.downloads += 1;
+    this.saveMaterials();
 
-      if (existingIndex !== -1) {
-        this.downloadHistory.splice(existingIndex, 1);
-      }
-      this.downloadHistory.unshift(record);
-      this.saveDownloads();
+    const record: DownloadRecord = {
+      id: 'dl-' + Date.now(),
+      materialId,
+      materialTitle: material.title,
+      course: material.course,
+      fileSize: material.fileSize,
+      downloadedAt: 'Just now'
+    };
 
-      this.notify();
-    }
+    this.downloadHistory.unshift(record);
+    this.saveDownloads();
+    this.notify();
   }
 
   public getDownloadHistory(): DownloadRecord[] {
@@ -948,31 +1098,31 @@ class MaterialsStore {
     if (material) {
       material.views += 1;
       this.saveMaterials();
-
-      const existingIndex = this.recentViews.findIndex((r) => r.materialId === materialId);
-      const record: RecentViewRecord = {
-        id: 'view-' + Date.now(),
-        materialId,
-        viewedAt: 'Just now'
-      };
-
-      if (existingIndex !== -1) {
-        this.recentViews.splice(existingIndex, 1);
-      }
-      this.recentViews.unshift(record);
-      if (this.recentViews.length > 20) this.recentViews.pop();
-      this.saveRecent();
-
-      this.notify();
     }
+
+    // Add to recent views (prevent duplicate immediate repeats)
+    const existingIndex = this.recentViews.findIndex((r) => r.materialId === materialId);
+    if (existingIndex !== -1) {
+      this.recentViews.splice(existingIndex, 1);
+    }
+
+    this.recentViews.unshift({
+      id: 'view-' + Date.now(),
+      materialId,
+      viewedAt: 'Just now'
+    });
+
+    if (this.recentViews.length > 20) {
+      this.recentViews.pop();
+    }
+
+    this.saveRecent();
+    this.notify();
   }
 
   public getRecentMaterials(): MaterialItem[] {
     const ids = this.recentViews.map((r) => r.materialId);
-    const uniqueIds = Array.from(new Set(ids));
-    return uniqueIds
-      .map((id) => this.materials.find((m) => m.id === id))
-      .filter((m): m is MaterialItem => m !== undefined);
+    return ids.map((id) => this.materials.find((m) => m.id === id)).filter(Boolean) as MaterialItem[];
   }
 
   public saveReadingProgress(materialId: string, page: number, totalPages: number): void {
@@ -1016,11 +1166,80 @@ class MaterialsStore {
     this.saveUser();
 
     if (supabase) {
-      supabase.from('profiles').update(data).eq('id', this.currentUser.id).then(() => {}).catch(() => {});
+      safeSync(
+        supabase.from('profiles').update(data).eq('id', this.currentUser.id)
+      );
     }
 
     this.notify();
     return this.currentUser;
+  }
+
+  // --- Student Settings & Preferences ---
+
+  public getStudentSettings(): StudentSettings {
+    return JSON.parse(JSON.stringify(this.studentSettings));
+  }
+
+  public updateStudentSettings(updates: Partial<StudentSettings>): StudentSettings {
+    this.studentSettings = {
+      ...this.studentSettings,
+      ...updates,
+      notifications: {
+        ...this.studentSettings.notifications,
+        ...(updates.notifications || {})
+      },
+      reading: {
+        ...this.studentSettings.reading,
+        ...(updates.reading || {})
+      }
+    };
+    this.saveStudentSettings();
+    this.notify();
+    return this.getStudentSettings();
+  }
+
+  // --- Admin Settings & System Configuration ---
+
+  public getAdminSettings(): AdminSettings {
+    return JSON.parse(JSON.stringify(this.adminSettings));
+  }
+
+  public updateAdminSettings(updates: Partial<AdminSettings>): AdminSettings {
+    this.adminSettings = {
+      ...this.adminSettings,
+      ...updates,
+      general: {
+        ...this.adminSettings.general,
+        ...(updates.general || {})
+      },
+      materials: {
+        ...this.adminSettings.materials,
+        ...(updates.materials || {})
+      },
+      users: {
+        ...this.adminSettings.users,
+        ...(updates.users || {})
+      },
+      notifications: {
+        ...this.adminSettings.notifications,
+        ...(updates.notifications || {})
+      },
+      security: {
+        ...this.adminSettings.security,
+        ...(updates.security || {})
+      }
+    };
+    this.saveAdminSettings();
+    this.notify();
+    return this.getAdminSettings();
+  }
+
+  public resetAdminSettings(): AdminSettings {
+    this.adminSettings = JSON.parse(JSON.stringify(DEFAULT_ADMIN_SETTINGS));
+    this.saveAdminSettings();
+    this.notify();
+    return this.getAdminSettings();
   }
 
   // --- Audit Logs ---
