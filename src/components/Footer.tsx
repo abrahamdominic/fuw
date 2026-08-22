@@ -30,10 +30,10 @@ export function Footer() {
             <li><Link to="/library?faculty=Faculty+of+Agriculture+%26+Life+Sciences">Agriculture & Life Sciences</Link></li>
             <li><Link to="/library?faculty=Faculty+of+Bio-Sciences">Bio-Sciences</Link></li>
             <li><Link to="/library?faculty=Faculty+of+Computing+%26+Information+System">Computing & Information System</Link></li>
-            <li><Link to="/library?faculty=Faculty+of+Engineering">Faculty of Engineering</Link></li>
+            <li><Link to="/library?faculty=Faculty+of+Physical+Sciences">Physical Sciences</Link></li>
             <li><Link to="/library?faculty=Faculty+of+Law">Faculty of Law</Link></li>
-            <li><Link to="/library?faculty=College+of+Health+Sciences">College of Health Sciences</Link></li>
-            <li><Link to="/faculties">View All 11 Faculties →</Link></li>
+            <li><Link to="/faculties#college-of-health-sciences">College of Health Sciences</Link></li>
+            <li><Link to="/faculties">View All 14 Faculties →</Link></li>
           </ul>
         </div>
 

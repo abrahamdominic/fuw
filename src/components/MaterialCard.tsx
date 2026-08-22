@@ -2,14 +2,17 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { FileText, Bookmark, Download, ArrowRight, Eye, Sparkles } from 'lucide-react';
 import { MaterialItem, store } from '../lib/store';
+import { incrementDownload } from '../lib/materials';
 import { useToast } from './Toast';
 
 interface MaterialCardProps {
   material: MaterialItem;
   onReadOnline?: (material: MaterialItem) => void;
+  /** When provided (authenticated student surfaces), shows an "Ask AI" action. */
+  onAskAi?: (material: MaterialItem) => void;
 }
 
-export function MaterialCard({ material, onReadOnline }: MaterialCardProps) {
+export function MaterialCard({ material, onReadOnline, onAskAi }: MaterialCardProps) {
   const { toast } = useToast();
   const isSaved = store.isBookmarked(material.id);
 
@@ -23,12 +26,20 @@ export function MaterialCard({ material, onReadOnline }: MaterialCardProps) {
   const handleDownload = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (!material.fileUrl) {
+      toast('This file has not been uploaded yet.', 'error');
+      return;
+    }
     store.recordDownload(material.id);
+    // Persist the counter server-side so stats survive across devices.
+    void incrementDownload(material.id);
     toast(`Downloading ${material.fileName} (${material.fileSize})`, 'success');
 
     const link = document.createElement('a');
     link.href = material.fileUrl;
     link.download = material.fileName;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -97,6 +108,20 @@ export function MaterialCard({ material, onReadOnline }: MaterialCardProps) {
           <Download size={14} />
           <span>Download</span>
         </button>
+        {onAskAi && (
+          <button
+            className="card-action-btn ask-btn"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onAskAi(material);
+            }}
+            title="Ask the AI assistant about this material"
+          >
+            <Sparkles size={14} />
+            <span>Ask AI</span>
+          </button>
+        )}
         <Link className="card-view-link" to={`/materials/${material.id}`} title="View full material details">
           <span>Details</span>
           <ArrowRight size={14} />

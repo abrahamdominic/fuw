@@ -33,11 +33,13 @@ import {
 } from 'lucide-react';
 import { useStore } from '../lib/useStore';
 import { MaterialItem } from '../lib/store';
-import { catalogue, facultyByName, departmentByName, levelsFor } from '../data/catalogue';
+import { catalogue, facultyByName, departmentByName, levelsFor, allDepartments, normalizeLevel, groupedFaculties } from '../data/catalogue';
 import { useAuth } from '../lib/AuthContext';
+import { getRemainingCooldown, startCooldown, OTP_COOLDOWN_SECONDS } from '../lib/otpCooldown';
+import { aiSearch, AiSearchResult, aiConfiguredHint } from '../lib/ai';
 import { HeroSection } from '../components/HeroSection';
 import { MaterialCard } from '../components/MaterialCard';
-import { CatalogueFilters, FilterState } from '../components/CatalogueFilters';
+import { CatalogueFilters, FilterState, EMPTY_FILTERS } from '../components/CatalogueFilters';
 import { Logo } from '../components/Logo';
 import { useToast } from '../components/Toast';
 
@@ -123,7 +125,7 @@ export function HomePage({ onReadOnline }: PublicPagesProps) {
           <div>
             Basic Medical Sciences · Allied Health Sciences · Clinical Sciences · Human Anatomy · Physiology · Medical Laboratory Science · Physiotherapy · Medicine & Surgery
           </div>
-          <Link to="/library?faculty=College+of+Health+Sciences" className="health-link">
+          <Link to="/faculties#college-of-health-sciences" className="health-link">
             Browse Medical Collection →
           </Link>
         </section>
@@ -135,9 +137,13 @@ export function HomePage({ onReadOnline }: PublicPagesProps) {
 // 2. LIBRARY PAGE (Search + Multi-level Filters + Sorting)
 export function LibraryPage({ onReadOnline }: PublicPagesProps) {
   const store = useStore();
+  const { isAuthenticated } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [sortBy, setSortBy] = useState('newest');
+  // AI semantic search state (graceful: silently skipped when unavailable).
+  const [aiResults, setAiResults] = useState<AiSearchResult[] | null>(null);
+  const [aiSearching, setAiSearching] = useState(false);
 
   const queryQ = searchParams.get('q') || '';
   const queryFaculty = searchParams.get('faculty') || '';
@@ -149,13 +155,21 @@ export function LibraryPage({ onReadOnline }: PublicPagesProps) {
 
   const [searchInput, setSearchInput] = useState(queryQ);
 
+  // When a deep-link carries only a department, infer its faculty so the
+  // cascading filter controls start unlocked at the right position.
+  const inferredFaculty =
+    queryFaculty ||
+    (queryDepartment
+      ? allDepartments().find((d) => d.name === queryDepartment)?.faculty || ''
+      : '');
+
   const filters: FilterState = {
-    faculty: queryFaculty,
+    faculty: inferredFaculty,
     department: queryDepartment,
-    course: queryCourse,
-    level: queryLevel,
+    level: normalizeLevel(queryLevel),
     semester: querySemester,
-    type: queryType
+    type: queryType,
+    course: queryCourse
   };
 
   const handleFilterChange = (newFilters: FilterState) => {
@@ -185,6 +199,32 @@ export function LibraryPage({ onReadOnline }: PublicPagesProps) {
     }
     setSearchParams(params);
   };
+
+  // Run AI semantic search in the background whenever the keyword query
+  // changes. Failures are silent — keyword results always remain visible.
+  useEffect(() => {
+    let cancelled = false;
+    setAiResults(null);
+    if (!queryQ || queryQ.trim().length < 3 || !isAuthenticated) return;
+    setAiSearching(true);
+    aiSearch(queryQ.trim(), {
+      department: queryDepartment || undefined,
+      level: queryLevel || undefined,
+      courseCode: queryCourse || undefined
+    })
+      .then((res) => {
+        if (!cancelled) setAiResults(res.results ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setAiResults(null);
+      })
+      .finally(() => {
+        if (!cancelled) setAiSearching(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [queryQ, isAuthenticated, queryDepartment, queryLevel, queryCourse]);
 
   // Filter approved materials
   const approved = store.getApprovedMaterials();
@@ -325,6 +365,12 @@ export function LibraryPage({ onReadOnline }: PublicPagesProps) {
               <button onClick={() => handleFilterChange({ ...filters, level: '' })}><X size={12} /></button>
             </span>
           )}
+          {querySemester && (
+            <span className="filter-chip">
+              Semester: {querySemester}
+              <button onClick={() => handleFilterChange({ ...filters, semester: '' })}><X size={12} /></button>
+            </span>
+          )}
           {queryType && (
             <span className="filter-chip">
               Type: {queryType}
@@ -371,6 +417,37 @@ export function LibraryPage({ onReadOnline }: PublicPagesProps) {
             </div>
           </div>
 
+          {/* AI semantic matches (only for signed-in users with a text query) */}
+          {queryQ && aiSearching && (
+            <div className="ai-search-status">
+              <Sparkles size={14} className="spin-icon" />
+              Searching library materials semantically…
+            </div>
+          )}
+          {queryQ && !aiSearching && aiResults && aiResults.length > 0 && (
+            <div className="ai-search-section">
+              <div className="ai-search-head">
+                <Sparkles size={15} />
+                <span>AI-powered semantic matches</span>
+                <span className="ai-search-count">{aiResults.length} relevant file{aiResults.length !== 1 ? 's' : ''}</span>
+              </div>
+              <div className="ai-search-list">
+                {aiResults.map((r) => (
+                  <Link key={r.id} to={`/materials/${r.id}`} className="ai-search-item">
+                    <div className="ai-search-item-main">
+                      <b>{r.title}</b>
+                      <span className="ai-search-snippet">{r.matchedSnippet}…</span>
+                    </div>
+                    <div className="ai-search-item-side">
+                      <span className="ai-relevance-pill">{Math.round(r.relevance * 100)}% match</span>
+                      <span className="ai-search-course">{r.course_code}</span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
           {filteredMaterials.length === 0 ? (
             <div className="empty-state library-empty">
               <BookOpen size={48} />
@@ -395,6 +472,10 @@ export function LibraryPage({ onReadOnline }: PublicPagesProps) {
 
 // 3. FACULTIES PAGE
 export function FacultiesPage() {
+  const groups = groupedFaculties();
+  const totalFaculty = catalogue.length;
+  const departmentsCount = catalogue.reduce((acc, f) => acc + f.departments.length, 0);
+
   return (
     <main className="faculties public-container">
       <div className="crumb">
@@ -403,26 +484,39 @@ export function FacultiesPage() {
 
       <h1>Faculties & accredited departments</h1>
       <p className="subtitle">
-        Explore academic materials organized systematically across Federal University Wukari's {catalogue.length} faculties.
+        Explore academic materials organized systematically across Federal University Wukari's{' '}
+        {totalFaculty} faculties ({departmentsCount} departments), including the College of Health
+        Sciences and its four constituent faculties.
       </p>
 
       <div className="faculty-list">
-        {catalogue.map((f) => (
-          <section key={f.name} className="faculty-section-card">
-            <h2>{f.name}</h2>
-            <div className="dept-links-grid">
-              {f.departments.map((d) => (
-                <Link
-                  key={d.name}
-                  to={`/library?department=${encodeURIComponent(d.name)}`}
-                  className="dept-link-item"
-                >
-                  <span>{d.name}</span>
-                  <span className="duration-pill">{d.duration} yrs</span>
-                </Link>
-              ))}
-            </div>
-          </section>
+        {groups.map((group) => (
+          <div key={group.college ?? 'faculties'}>
+            {group.college && (
+              <h2 id="college-of-health-sciences" className="college-heading">
+                <Building2 size={20} />
+                {group.college}
+                <small>Parent college · {group.faculties.length} faculties</small>
+              </h2>
+            )}
+            {group.faculties.map((f) => (
+              <section key={f.name} className={`faculty-section-card ${group.college ? 'in-college' : ''}`}>
+                <h2>{f.name}</h2>
+                <div className="dept-links-grid">
+                  {f.departments.map((d) => (
+                    <Link
+                      key={d.name}
+                      to={`/library?faculty=${encodeURIComponent(f.name)}&department=${encodeURIComponent(d.name)}`}
+                      className="dept-link-item"
+                    >
+                      <span>{d.name}</span>
+                      <span className="duration-pill">{d.duration} yrs</span>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
         ))}
       </div>
     </main>
@@ -432,26 +526,45 @@ export function FacultiesPage() {
 // 4. COURSES DIRECTORY PAGE
 export function CoursesPage() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [courseFilters, setCourseFilters] = useState<FilterState>({ ...EMPTY_FILTERS });
 
-  const allCourses = catalogue.flatMap((f) =>
-    f.departments.flatMap((d) =>
-      d.courses.map((c) => ({
-        code: c.code,
-        name: c.name,
-        level: c.level * 100 + ' Level',
-        semester: c.semester,
-        dept: d.name,
-        faculty: f.name
-      }))
-    )
+  // Build the full directory from the canonical catalogue. Level is already
+  // stored as a plain number (100/200/300) — never multiply it again.
+  const allCourses = useMemo(
+    () =>
+      catalogue.flatMap((f) =>
+        f.departments.flatMap((d) => {
+          // Respect the cascading faculty → department filters.
+          if (courseFilters.faculty && f.name !== courseFilters.faculty) return [];
+          if (courseFilters.department && d.name !== courseFilters.department) return [];
+          return d.courses
+            .map((c) => ({
+              code: c.code,
+              name: c.name,
+              levelNumber: c.level,
+              level: `${c.level} Level`,
+              semester: c.semester,
+              dept: d.name,
+              faculty: f.name
+            }))
+            .filter((c) => !courseFilters.level || c.level === courseFilters.level)
+            .filter((c) => !courseFilters.semester || c.semester === courseFilters.semester)
+            // Course is always the final selection in the cascade.
+            .filter((c) => !courseFilters.course || c.code === courseFilters.course);
+        })
+      ),
+    [courseFilters]
   );
 
-  const filtered = allCourses.filter(
-    (c) =>
-      c.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.dept.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filtered = allCourses.filter((c) => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      c.code.toLowerCase().includes(q) ||
+      c.name.toLowerCase().includes(q) ||
+      c.dept.toLowerCase().includes(q)
+    );
+  });
 
   return (
     <main className="courses-page public-container">
@@ -462,19 +575,42 @@ export function CoursesPage() {
       <h1>Course curriculum directory</h1>
       <p className="subtitle">Find learning resources, past questions, and notes for your specific course code.</p>
 
-      <div className="manage-tools search-courses-bar">
-        <Search size={18} />
+      {/* Modern course search bar */}
+      <div className="course-search-bar">
+        <Search size={18} className="course-search-icon" />
         <input
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="Filter by course code (e.g. CSC 201, ECN 201) or course title..."
+          placeholder="Search courses..."
+          aria-label="Search courses"
         />
         {searchTerm && (
-          <button className="clear-btn" onClick={() => setSearchTerm('')}>
-            Clear
+          <button
+            type="button"
+            className="course-search-clear"
+            onClick={() => setSearchTerm('')}
+            aria-label="Clear course search"
+          >
+            <X size={15} />
           </button>
         )}
       </div>
+
+      {/* Cascading filters — Faculty → Department → Level → Semester → Course */}
+      <CatalogueFilters
+        filters={courseFilters}
+        onChange={setCourseFilters}
+        fields={['faculty', 'department', 'level', 'semester', 'course']}
+      />
+      {(courseFilters.faculty || courseFilters.department || courseFilters.level || courseFilters.semester || courseFilters.course) && (
+        <button type="button" className="reset-link" style={{ margin: '10px 0 0' }} onClick={() => setCourseFilters({ ...EMPTY_FILTERS })}>
+          Reset filters
+        </button>
+      )}
+
+      <p className="courses-result-line">
+        Showing <b>{filtered.length}</b> of {allCourses.length} course{allCourses.length !== 1 ? 's' : ''}
+      </p>
 
       <div className="table">
         <div className="tr head courses-table-grid">
@@ -486,8 +622,19 @@ export function CoursesPage() {
           <span>Materials</span>
         </div>
 
-        {filtered.map((c) => (
-          <div className="tr courses-table-grid" key={c.code}>
+        {filtered.length === 0 && (
+          <div className="tr empty-state-row">
+            <span className="empty-state" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '2rem 1rem' }}>
+              <b>No courses match "{searchTerm}".</b>
+              <br />
+              Try a different course code (e.g. BIO101C), a title keyword such as "General Biology",
+              or adjust the filters above.
+            </span>
+          </div>
+        )}
+
+        {filtered.map((c, i) => (
+          <div className="tr courses-table-grid" key={`${c.code}-${c.dept}-${i}`}>
             <span>
               <b className="course-code-highlight">{c.code}</b>
             </span>
@@ -496,7 +643,10 @@ export function CoursesPage() {
             <span>{c.level}</span>
             <span>{c.semester}</span>
             <span>
-              <Link to={`/library?q=${encodeURIComponent(c.code)}`} className="table-action-btn">
+              <Link
+                to={`/library?faculty=${encodeURIComponent(c.faculty)}&department=${encodeURIComponent(c.dept)}&level=${encodeURIComponent(c.level)}&semester=${encodeURIComponent(c.semester)}&q=${encodeURIComponent(c.code)}`}
+                className="table-action-btn"
+              >
                 Browse Files
               </Link>
             </span>
@@ -759,7 +909,8 @@ export function LoginPage({ register: initialRegister = false }: { register?: bo
   const currentDepartment = departmentByName(profileData.faculty, profileData.department) || currentFaculty.departments[0];
   const availableLevels = levelsFor(currentDepartment?.duration || 4);
 
-  // Countdown timer effect
+  // Countdown timer effect — seeded from the persisted cooldown so a page
+  // refresh cannot be used to bypass the resend wait.
   useEffect(() => {
     let timer: any;
     if (countdown > 0) {
@@ -772,11 +923,20 @@ export function LoginPage({ register: initialRegister = false }: { register?: bo
     };
   }, [countdown]);
 
+  // Restore any still-running cooldown for this email after a refresh.
+  useEffect(() => {
+    if (email) {
+      setCountdown(getRemainingCooldown(email));
+    }
+  }, [email, step]);
+
   // If already authenticated with a completed profile, redirect to the right
   // dashboard. Incomplete profiles stay here so the student finishes signup.
   useEffect(() => {
     if (isAuthenticated && isProfileComplete && step !== 'profile') {
-      if (profile?.role === 'admin') {
+      if (profile?.role === 'super_admin') {
+        navigate('/super', { replace: true });
+      } else if (profile?.role === 'admin') {
         navigate('/admin', { replace: true });
       } else {
         navigate('/student', { replace: true });
@@ -830,7 +990,8 @@ export function LoginPage({ register: initialRegister = false }: { register?: bo
       setSuccessMsg(res.message || `A 6-digit verification code was sent to ${cleanEmail}`);
       toast('Verification code sent to your email', 'info');
       setStep('otp');
-      setCountdown(60);
+      startCooldown(cleanEmail);
+      setCountdown(OTP_COOLDOWN_SECONDS);
       setOtp(['', '', '', '', '', '']);
     }
   };
@@ -859,8 +1020,10 @@ export function LoginPage({ register: initialRegister = false }: { register?: bo
         // Move to Step 3: Complete Profile
         setStep('profile');
       } else {
-        // Existing user -> redirect to dashboard
-        if (res.role === 'admin') {
+        // Existing user -> redirect to the correct dashboard
+        if (res.role === 'super_admin') {
+          navigate('/super');
+        } else if (res.role === 'admin') {
           navigate('/admin');
         } else {
           navigate('/student');
@@ -882,7 +1045,8 @@ export function LoginPage({ register: initialRegister = false }: { register?: bo
     } else {
       setSuccessMsg(`A new 6-digit code has been sent to ${email}`);
       toast('New verification code sent', 'info');
-      setCountdown(60);
+      startCooldown(email.trim().toLowerCase());
+      setCountdown(OTP_COOLDOWN_SECONDS);
       setOtp(['', '', '', '', '', '']);
     }
   };
@@ -935,8 +1099,8 @@ export function LoginPage({ register: initialRegister = false }: { register?: bo
             <h1>{isRegister ? 'Create your account' : 'Sign in to library'}</h1>
             <p>
               {isRegister
-                ? 'Enter your email to receive a 6-digit Supabase authentication code.'
-                : 'Enter your registered email to receive a 6-digit one-time login code.'}
+                ? 'Enter your email to receive a 6 digit code.'
+                : 'Enter your registered email to receive a 6 digit one-time login code.'}
             </p>
 
             {errorMsg && (
@@ -1271,7 +1435,10 @@ export function AdminLoginPage() {
     if (res.error) {
       setErrorMsg(res.error.message);
     } else {
-      if (res.role === 'admin') {
+      if (res.role === 'super_admin') {
+        toast('Super Administrator access granted', 'success');
+        navigate('/super');
+      } else if (res.role === 'admin') {
         toast('Authorized Administrator access granted', 'success');
         navigate('/admin');
       } else {

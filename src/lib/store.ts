@@ -1,4 +1,4 @@
-import { catalogue, materialTypes } from '../data/catalogue';
+import { catalogue, materialTypes, normalizeLevel } from '../data/catalogue';
 import { supabase } from './supabase';
 
 // Timezone-aware helpers: the browser always reports the visitor's local
@@ -306,7 +306,7 @@ class MaterialsStore {
           faculty: row.faculty,
           department: row.department,
           type: row.material_type || 'Lecture Note',
-          level: row.level || '100 Level',
+          level: normalizeLevel(row.level) || '100 Level',
           semester: row.semester || 'First Semester',
           session: row.academic_session || row.session || '2025/2026',
           date: row.created_at ? new Date(row.created_at).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }) : '',

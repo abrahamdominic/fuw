@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useMemo } from '
 import { User, Session, AuthChangeEvent } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { store, UserProfile } from './store';
+import { AppRole, can } from './rbac';
 
 export interface ProfileData {
   id: string;
@@ -12,7 +13,9 @@ export interface ProfileData {
   faculty: string;
   department: string;
   level: string;
-  role: 'student' | 'admin';
+  role: AppRole;
+  permissions: string[];
+  isActive: boolean;
   bio?: string;
   avatarUrl?: string;
   isVerified?: boolean;
@@ -26,11 +29,14 @@ export interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   isAdmin: boolean;
+  isSuperAdmin: boolean;
   isStudent: boolean;
   isProfileComplete: boolean;
-  role: 'student' | 'admin' | null;
+  role: AppRole | null;
+  permissions: string[];
+  hasPermission: (permission: string) => boolean;
   sendOtp: (email: string, shouldCreateUser?: boolean) => Promise<{ error: Error | null; message?: string }>;
-  verifyOtp: (email: string, token: string) => Promise<{ error: Error | null; isNewUser?: boolean; role?: 'student' | 'admin' }>;
+  verifyOtp: (email: string, token: string) => Promise<{ error: Error | null; isNewUser?: boolean; role?: AppRole }>;
   completeProfile: (data: {
     fullName: string;
     matricNumber: string;
@@ -64,7 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         faculty: prof.faculty || '',
         department: prof.department || '',
         level: prof.level || '',
-        role: prof.role === 'admin' ? 'ADMIN' : 'STUDENT',
+        role: prof.role === 'admin' || prof.role === 'super_admin' ? 'ADMIN' : 'STUDENT',
         bio: prof.bio || '',
         avatarUrl: prof.avatarUrl || '',
         isVerified: true,
@@ -72,7 +78,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         joinedDate: prof.joinedDate || ''
       };
 
-      if (prof.role === 'admin') {
+      if (prof.role === 'admin' || prof.role === 'super_admin') {
         store.setAuthenticatedAdmin(storeUser);
       } else {
         store.setAuthenticatedStudent(storeUser);
@@ -106,7 +112,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           faculty: data.faculty || '',
           department: data.department || '',
           level: data.level || '',
-          role: (data.role as 'student' | 'admin') || 'student',
+          role: (data.role as AppRole) || 'student',
+          permissions: Array.isArray(data.permissions) ? data.permissions : [],
+          isActive: data.is_active !== false,
           bio: data.bio || '',
           avatarUrl: data.avatar_url || '',
           isVerified: true,
@@ -140,7 +148,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (initialSession?.user) {
             const prof = await fetchProfile(initialSession.user.id, initialSession.user.email);
             if (mounted) {
-              syncToStore(prof, initialSession.user);
+              // Deactivated accounts are signed out immediately.
+              if (prof && !prof.isActive) {
+                await supabase.auth.signOut();
+                setProfile(null);
+                syncToStore(null, null);
+              } else {
+                syncToStore(prof, initialSession.user);
+              }
             }
           }
         }
@@ -156,8 +171,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     initAuth();
 
     if (!supabase) return;
+    const authClient = supabase;
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+    const { data: { subscription } } = authClient.auth.onAuthStateChange(
       async (event: AuthChangeEvent, currentSession: Session | null) => {
         if (!mounted) return;
 
@@ -166,7 +182,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (currentSession?.user) {
           const prof = await fetchProfile(currentSession.user.id, currentSession.user.email);
-          syncToStore(prof, currentSession.user);
+          if (prof && !prof.isActive && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
+            await authClient.auth.signOut();
+            setProfile(null);
+            syncToStore(null, null);
+          } else {
+            syncToStore(prof, currentSession.user);
+          }
         } else {
           setProfile(null);
           syncToStore(null, null);
@@ -222,7 +244,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const verifyOtp = async (
     email: string,
     token: string
-  ): Promise<{ error: Error | null; isNewUser?: boolean; role?: 'student' | 'admin' }> => {
+  ): Promise<{ error: Error | null; isNewUser?: boolean; role?: AppRole }> => {
     if (!supabase) {
       return { error: new Error('Supabase client is not configured.') };
     }
@@ -268,7 +290,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return {
             error: null,
             isNewUser: needsCompletion,
-            role: (loadedProfile.role === 'admin' ? 'admin' : 'student') as 'student' | 'admin'
+            role: (loadedProfile.role || 'student') as AppRole
           };
         } else {
           // Profile needs to be completed
@@ -306,12 +328,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         faculty: data.faculty,
         department: data.department,
         level: data.level,
-        role: 'student',
+        role: profile?.role ?? 'student',
+        permissions: profile?.permissions ?? [],
+        isActive: true,
         bio: data.bio || '',
         isVerified: true,
         joinedDate: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
       };
 
+      // NOTE: role is intentionally NOT written here. Invited administrators
+      // receive their role from the database trigger when their account is
+      // created; overwriting it would silently demote them to students.
       const { error } = await supabase.from('profiles').upsert({
         id: user.id,
         full_name: newProfile.fullName,
@@ -320,7 +347,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         faculty: newProfile.faculty,
         department: newProfile.department,
         level: newProfile.level,
-        role: 'student',
         updated_at: new Date().toISOString()
       });
 
@@ -328,8 +354,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: new Error(error.message) };
       }
 
-      setProfile(newProfile);
-      syncToStore(newProfile, user);
+      // Re-fetch so trigger-assigned fields (e.g. an admin invite role applied
+      // on signup) are reflected immediately instead of using stale client state.
+      const fresh = await fetchProfile(user.id, user.email);
+      const finalProfile = fresh ?? newProfile;
+      setProfile(finalProfile);
+      syncToStore(finalProfile, user);
       return { error: null };
     } catch (err: any) {
       return { error: new Error(err.message || 'Failed to save student profile.') };
@@ -405,10 +435,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return null;
   };
 
-  const role = profile?.role || (sessionStorage.getItem('fuw-admin') === 'true' ? 'admin' : user ? 'student' : null);
-  const isAdmin = role === 'admin';
+  const role: AppRole | null =
+    profile?.role ||
+    (sessionStorage.getItem('fuw-admin') === 'true' ? 'admin' : user ? 'student' : null);
+  const isSuperAdmin = role === 'super_admin';
+  const isAdmin = role === 'admin' || isSuperAdmin;
+  const permissions = profile?.permissions ?? [];
+  const hasPermission = (permission: string) =>
+    can({ role, permissions, isActive: profile?.isActive !== false }, permission);
   const isStudent = role === 'student';
-  const isAuthenticated = !!user;
+  const isAuthenticated = !!user && profile?.isActive !== false;
   // A profile is complete once academic identity details have been saved
   const isProfileComplete = !!(profile && profile.matricNumber && profile.faculty && profile.department);
 
@@ -420,9 +456,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isLoading,
       isAuthenticated,
       isAdmin,
+      isSuperAdmin,
       isStudent,
       isProfileComplete,
       role,
+      permissions,
+      hasPermission,
       sendOtp,
       verifyOtp,
       completeProfile,
@@ -430,7 +469,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signOut,
       refreshProfile
     }),
-    [user, session, profile, isLoading, isAuthenticated, isAdmin, isStudent, isProfileComplete, role]
+    [user, session, profile, isLoading, isAuthenticated, isAdmin, isSuperAdmin, isStudent, isProfileComplete, role, permissions]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

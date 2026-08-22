@@ -5,11 +5,14 @@ import { Logo } from './Logo';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
+  /** Requires an admin or super admin account. */
   adminOnly?: boolean;
+  /** Requires a super admin account (used by the /super portal). */
+  superAdminOnly?: boolean;
 }
 
-export function ProtectedRoute({ children, adminOnly = false }: ProtectedRouteProps) {
-  const { user, profile, isLoading, isAuthenticated, isAdmin } = useAuth();
+export function ProtectedRoute({ children, adminOnly = false, superAdminOnly = false }: ProtectedRouteProps) {
+  const { user, profile, isLoading, isAuthenticated, isAdmin, isSuperAdmin } = useAuth();
   const location = useLocation();
 
   if (isLoading) {
@@ -27,16 +30,32 @@ export function ProtectedRoute({ children, adminOnly = false }: ProtectedRoutePr
 
   // Unauthenticated user -> redirect to login
   if (!isAuthenticated || !user) {
-    const loginTarget = adminOnly ? '/admin/login' : '/login';
+    const loginTarget = superAdminOnly ? '/admin/login' : adminOnly ? '/admin/login' : '/login';
     return <Navigate to={loginTarget} state={{ from: location }} replace />;
   }
 
+  // Deactivated accounts are blocked everywhere.
+  if (profile?.isActive === false) {
+    return (
+      <div className="auth-loading-screen">
+        <div className="auth-loading-card">
+          <Logo size={48} />
+          <h2>Account deactivated</h2>
+          <p>This account has been deactivated. Please contact the library administrator.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Super Admin portal
+  if (superAdminOnly && !isSuperAdmin) {
+    return <Navigate to={isAdmin ? '/admin' : '/student'} replace />;
+  }
+
   // If page requires Admin privileges
-  if (adminOnly) {
-    if (!isAdmin) {
-      // Normal student attempting to access /admin -> redirect to student portal
-      return <Navigate to="/student" replace />;
-    }
+  if (adminOnly && !isAdmin) {
+    // Normal student attempting to access /admin -> redirect to student portal
+    return <Navigate to="/student" replace />;
   }
 
   return <>{children}</>;

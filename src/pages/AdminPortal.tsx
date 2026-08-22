@@ -49,8 +49,18 @@ import { useStore } from '../lib/useStore';
 import { MaterialItem } from '../lib/store';
 import { Logo } from '../components/Logo';
 import { CatalogueFilters, FilterState } from '../components/CatalogueFilters';
-import { catalogue } from '../data/catalogue';
+import { catalogue, materialTypes, courseTitleByCode } from '../data/catalogue';
 import { useAuth } from '../lib/AuthContext';
+import { roleLabel, can } from '../lib/rbac';
+import {
+  submitMaterial as submitMaterialDb,
+  approveMaterial as approveMaterialDb,
+  rejectMaterial as rejectMaterialDb,
+  deleteMaterial as deleteMaterialDb,
+  fetchMaterials
+} from '../lib/materials';
+import { aiProcessMaterial } from '../lib/ai';
+import { ConfirmDialog, PromptDialog } from '../components/ConfirmDialog';
 import { useToast } from '../components/Toast';
 
 interface AdminPortalProps {
@@ -58,16 +68,17 @@ interface AdminPortalProps {
 }
 
 const adminNavItems = [
-  { label: 'Overview', path: '/admin', icon: LayoutDashboard, exact: true },
-  { label: 'Materials & Approvals', path: '/admin/materials', icon: FileText },
-  { label: 'Upload material', path: '/admin/upload', icon: Upload },
-  { label: 'Students & users', path: '/admin/users', icon: Users },
-  { label: 'Faculties', path: '/admin/faculties', icon: Building2 },
-  { label: 'Departments', path: '/admin/departments', icon: Building2 },
-  { label: 'Courses & levels', path: '/admin/courses', icon: GraduationCap },
-  { label: 'Categories & sessions', path: '/admin/categories', icon: Bookmark },
-  { label: 'Audit logs', path: '/admin/logs', icon: ShieldCheck },
-  { label: 'Settings', path: '/admin/settings', icon: Settings }
+  { label: 'Overview', path: '/admin', icon: LayoutDashboard, exact: true, permission: null },
+  { label: 'Materials & Approvals', path: '/admin/materials', icon: FileText, permission: null },
+  { label: 'Upload material', path: '/admin/upload', icon: Upload, permission: 'upload_as_approved' },
+  { label: 'AI & indexing', path: '/admin/ai', icon: Sparkles, permission: 'manage_ai' },
+  { label: 'Students & users', path: '/admin/users', icon: Users, permission: 'manage_students' },
+  { label: 'Faculties', path: '/admin/faculties', icon: Building2, permission: 'manage_catalogue' },
+  { label: 'Departments', path: '/admin/departments', icon: Building2, permission: 'manage_catalogue' },
+  { label: 'Courses & levels', path: '/admin/courses', icon: GraduationCap, permission: 'manage_catalogue' },
+  { label: 'Categories & sessions', path: '/admin/categories', icon: Bookmark, permission: 'manage_catalogue' },
+  { label: 'Audit logs', path: '/admin/logs', icon: ShieldCheck, permission: 'view_analytics' },
+  { label: 'Settings', path: '/admin/settings', icon: Settings, permission: null }
 ];
 
 export function AdminPortal({ onReadOnline }: AdminPortalProps) {
@@ -75,8 +86,17 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { signOut, profile } = useAuth();
+  const { signOut, profile, hasPermission, role } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  // Confirmation dialog for destructive actions
+  const [confirmState, setConfirmState] = useState<{
+    open: boolean;
+    title: string;
+    message: string;
+    tone?: 'danger' | 'default';
+    confirmLabel?: string;
+    action: () => void | Promise<void>;
+  } | null>(null);
 
   // Pull fresh live data from Supabase whenever the admin portal opens
   useEffect(() => {
@@ -94,6 +114,49 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
   const stats = store.getSystemStats();
 
   const currentPath = location.pathname;
+
+  /** Run a moderation action through the database RPCs (with notifications). */
+  const runAction = async (
+    action: () => Promise<void>,
+    successMsg: string,
+    fallbackStore?: () => void
+  ) => {
+    try {
+      await action();
+      toast(successMsg, 'success');
+    } catch (err: any) {
+      if (fallbackStore) fallbackStore();
+      toast(err?.message || 'Action failed — check your permissions.', 'error');
+    }
+  };
+
+  const handleApprove = (id: string) =>
+    runAction(
+      () => approveMaterialDb(id),
+      'Material approved and published to the public library!'
+    );
+
+  const handleReject = (id: string, reason: string) =>
+    runAction(
+      () => rejectMaterialDb(id, reason),
+      'Material rejected and the uploader has been notified.'
+    );
+
+  const handleDelete = (m: MaterialItem) =>
+    setConfirmState({
+      open: true,
+      title: 'Delete this material?',
+      tone: 'danger',
+      message: `"${m.title}" will be permanently removed from the library along with its stored file. Students will no longer be able to access it.`,
+      confirmLabel: 'Delete permanently',
+      action: async () => {
+        await runAction(
+          () => deleteMaterialDb(m.id),
+          'Material deleted from the library.',
+          () => store.deleteMaterial(m.id, currentUser.fullName)
+        );
+      }
+    });
 
   const handleAdminLogout = async () => {
     await signOut();
@@ -125,14 +188,16 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
           </div>
           <div className="user-info-text">
             <b>{profile?.fullName || currentUser.displayName || currentUser.fullName}</b>
-            <span>Librarian / Administrator</span>
+            <span>{roleLabel(role)}{hasPermission('upload_as_approved') ? '' : ' (limited)'}</span>
           </div>
         </div>
 
         <p className="side-nav-heading">REPOSITORY ADMINISTRATION</p>
 
         <nav className="side-nav-list">
-          {adminNavItems.map((item) => {
+          {adminNavItems
+            .filter((item) => !item.permission || hasPermission(item.permission))
+            .map((item) => {
             const Icon = item.icon;
             const isActive = item.exact
               ? currentPath === item.path || currentPath === item.path + '/'
@@ -196,14 +261,9 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
             auditLogs={auditLogs}
             pendingMaterials={pendingMaterials}
             allMaterials={allMaterials}
-            onApprove={(id: string) => {
-              store.approveMaterial(id, currentUser.fullName);
-              toast('Material approved and published to public library!', 'success');
-            }}
-            onReject={(id: string, reason: string) => {
-              store.rejectMaterial(id, reason, currentUser.fullName);
-              toast('Material marked as rejected.', 'info');
-            }}
+            canApprove={hasPermission('approve_materials')}
+            onApprove={(id: string) => handleApprove(id)}
+            onReject={(id: string, reason: string) => handleReject(id, reason)}
             onReadOnline={onReadOnline}
           />
         ) : currentPath.startsWith('/admin/materials') ? (
@@ -212,22 +272,29 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
             pendingMaterials={pendingMaterials}
             approvedMaterials={approvedMaterials}
             rejectedMaterials={rejectedMaterials}
-            onApprove={(id: string) => {
-              store.approveMaterial(id, currentUser.fullName);
-              toast('Material approved and published to public frontend!', 'success');
-            }}
-            onReject={(id: string, reason: string) => {
-              store.rejectMaterial(id, reason, currentUser.fullName);
-              toast('Material rejected.', 'info');
-            }}
+            canApprove={hasPermission('approve_materials')}
+            canReject={hasPermission('reject_materials')}
+            canDelete={hasPermission('delete_any_material')}
+            onApprove={(id: string) => handleApprove(id)}
+            onReject={(id: string, reason: string) => handleReject(id, reason)}
             onDelete={(id: string) => {
-              store.deleteMaterial(id, currentUser.fullName);
-              toast('Material deleted from database.', 'info');
+              const m = allMaterials.find((x) => x.id === id);
+              if (m) handleDelete(m);
             }}
             onReadOnline={onReadOnline}
           />
         ) : currentPath.startsWith('/admin/upload') ? (
           <AdminUploadTab onUploaded={() => navigate('/admin/materials')} />
+        ) : currentPath.startsWith('/admin/ai') ? (
+          hasPermission('manage_ai') ? (
+            <AdminAiManagementTab />
+          ) : (
+            <div className="empty-state card-empty">
+              <Lock size={40} />
+              <b>AI management is restricted.</b>
+              <span>Your account does not have the "Manage AI features" permission. Ask a super admin to grant it.</span>
+            </div>
+          )
         ) : currentPath.startsWith('/admin/users') ? (
           <AdminUsersTab />
         ) : currentPath.startsWith('/admin/faculties') ? (
@@ -249,17 +316,23 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
             auditLogs={auditLogs}
             pendingMaterials={pendingMaterials}
             allMaterials={allMaterials}
-            onApprove={(id: string) => {
-              store.approveMaterial(id, currentUser.fullName);
-              toast('Material approved and published to frontend!', 'success');
-            }}
-            onReject={(id: string, reason: string) => {
-              store.rejectMaterial(id, reason, currentUser.fullName);
-              toast('Material rejected.', 'info');
-            }}
+            canApprove={hasPermission('approve_materials')}
+            onApprove={(id: string) => handleApprove(id)}
+            onReject={(id: string, reason: string) => handleReject(id, reason)}
             onReadOnline={onReadOnline}
           />
         )}
+
+        {/* Destructive-action confirmation */}
+        <ConfirmDialog
+          open={confirmState?.open ?? false}
+          title={confirmState?.title ?? ''}
+          message={confirmState?.message ?? ''}
+          tone={confirmState?.tone}
+          confirmLabel={confirmState?.confirmLabel}
+          onConfirm={confirmState?.action ?? (() => {})}
+          onClose={() => setConfirmState(null)}
+        />
       </main>
     </div>
   );
@@ -272,10 +345,14 @@ function AdminOverviewTab({
   auditLogs,
   pendingMaterials,
   allMaterials = [],
+  canApprove = true,
+  canReject = true,
   onApprove,
   onReject,
   onReadOnline
 }: any) {
+  // Rejection reason dialog state (custom modal instead of window.prompt).
+  const [rejectTarget, setRejectTarget] = useState<{ id: string; title: string } | null>(null);
   // Real monthly submission/activity chart built from actual material
   // creation timestamps in the database (last 6 months).
   const monthlyActivity = React.useMemo(() => {
@@ -446,29 +523,51 @@ function AdminOverviewTab({
                 <span>{m.department} · {m.level}</span>
                 <span>{m.date}</span>
                 <span className="approval-action-btns">
-                  <button
-                    className="approval-btn approve"
-                    onClick={() => onApprove(m.id)}
-                    title="Approve and Publish to Frontend"
-                  >
-                    <CheckCircle2 size={14} /> Approve & Publish
-                  </button>
-                  <button
-                    className="approval-btn reject"
-                    onClick={() => {
-                      const reason = prompt('Optional rejection note:');
-                      onReject(m.id, reason || 'Does not meet submission criteria.');
-                    }}
-                    title="Reject submission"
-                  >
-                    <XCircle size={14} /> Reject
-                  </button>
+                  {canApprove && (
+                    <button
+                      className="approval-btn approve"
+                      onClick={() => onApprove(m.id)}
+                      title="Approve and Publish to Frontend"
+                    >
+                      <CheckCircle2 size={14} /> Approve & Publish
+                    </button>
+                  )}
+                  {canReject && (
+                    <button
+                      className="approval-btn reject"
+                      onClick={() => setRejectTarget({ id: m.id, title: m.title })}
+                      title="Reject submission"
+                    >
+                      <XCircle size={14} /> Reject
+                    </button>
+                  )}
+                  {!canApprove && !canReject && (
+                    <span className="status-badge pending">View only</span>
+                  )}
                 </span>
               </div>
             ))}
           </div>
         </div>
       )}
+
+      {/* Rejection reason dialog */}
+      <PromptDialog
+        open={!!rejectTarget}
+        title="Reject this submission?"
+        message={
+          rejectTarget
+            ? `"${rejectTarget.title}" will be marked as rejected. The uploader will be notified with your reason.`
+            : ''
+        }
+        placeholder="Reason shown to the uploader (e.g. wrong course code, unreadable scan…)"
+        confirmLabel="Reject submission"
+        onSubmit={(reason) => {
+          if (rejectTarget) onReject(rejectTarget.id, reason || 'Does not meet submission criteria.');
+          setRejectTarget(null);
+        }}
+        onClose={() => setRejectTarget(null)}
+      />
 
       {/* Recent Audit Logs */}
       <div className="admin-section-block">
@@ -516,6 +615,9 @@ function AdminMaterialsTab({
   pendingMaterials,
   approvedMaterials,
   rejectedMaterials,
+  canApprove = true,
+  canReject = true,
+  canDelete = true,
   onApprove,
   onReject,
   onDelete,
@@ -525,6 +627,9 @@ function AdminMaterialsTab({
   pendingMaterials: MaterialItem[];
   approvedMaterials: MaterialItem[];
   rejectedMaterials: MaterialItem[];
+  canApprove?: boolean;
+  canReject?: boolean;
+  canDelete?: boolean;
   onApprove: (id: string) => void;
   onReject: (id: string, reason: string) => void;
   onDelete: (id: string) => void;
@@ -532,6 +637,7 @@ function AdminMaterialsTab({
 }) {
   const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'approved' | 'rejected'>('pending');
   const [searchTerm, setSearchTerm] = useState('');
+  const [rejectTarget, setRejectTarget] = useState<{ id: string; title: string } | null>(null);
 
   let displayed =
     activeTab === 'pending'
@@ -682,7 +788,7 @@ function AdminMaterialsTab({
                   <Eye size={15} />
                 </button>
 
-                {m.status !== 'approved' && (
+                {m.status !== 'approved' && canApprove && (
                   <button
                     className="approval-btn approve small"
                     onClick={() => onApprove(m.id)}
@@ -692,35 +798,48 @@ function AdminMaterialsTab({
                   </button>
                 )}
 
-                {m.status === 'pending' && (
+                {m.status === 'pending' && canReject && (
                   <button
                     className="approval-btn reject small"
-                    onClick={() => {
-                      const reason = prompt('Optional rejection note:');
-                      onReject(m.id, reason || 'Does not satisfy curriculum guidelines.');
-                    }}
+                    onClick={() => setRejectTarget({ id: m.id, title: m.title })}
                     title="Reject"
                   >
                     <XCircle size={13} /> Reject
                   </button>
                 )}
 
-                <button
-                  className="action-icon-btn delete"
-                  onClick={() => {
-                    if (confirm(`Are you sure you want to delete "${m.title}"?`)) {
-                      onDelete(m.id);
-                    }
-                  }}
-                  title="Delete from database"
-                >
-                  <Trash2 size={15} />
-                </button>
+                {canDelete && (
+                  <button
+                    className="action-icon-btn delete"
+                    onClick={() => onDelete(m.id)}
+                    title="Delete from database"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                )}
               </span>
             </div>
           ))
         )}
       </div>
+
+      {/* Rejection reason dialog */}
+      <PromptDialog
+        open={!!rejectTarget}
+        title="Reject this submission?"
+        message={
+          rejectTarget
+            ? `"${rejectTarget.title}" will be marked as rejected and hidden from the public library. The uploader will be notified with your reason.`
+            : ''
+        }
+        placeholder="Reason shown to the uploader (e.g. wrong course code, unreadable scan…)"
+        confirmLabel="Reject submission"
+        onSubmit={(reason) => {
+          if (rejectTarget) onReject(rejectTarget.id, reason || 'Does not satisfy curriculum guidelines.');
+          setRejectTarget(null);
+        }}
+        onClose={() => setRejectTarget(null)}
+      />
     </div>
   );
 }
@@ -735,11 +854,11 @@ function AdminUploadTab({ onUploaded }: { onUploaded: () => void }) {
 
   const [filters, setFilters] = useState<FilterState>({
     faculty: 'Faculty of Social Sciences',
-    department: 'Economics',
-    course: 'ECN 201',
-    level: '200 Level',
+    department: 'Sociology',
+    course: '',
+    level: '300 Level',
     semester: 'First Semester',
-    type: 'Lecture Note'
+    type: materialTypes[0]
   });
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -762,18 +881,22 @@ function AdminUploadTab({ onUploaded }: { onUploaded: () => void }) {
     setMessage(null);
 
     try {
-      store.publishMaterialAdmin({
+      // Database-first publish: admins with the "upload_as_approved" permission
+      // have their submissions approved immediately; others go to the queue.
+      await submitMaterialDb({
         title,
         description,
         faculty: filters.faculty || 'Faculty of Social Sciences',
-        department: filters.department || 'Economics',
-        course_code: filters.course || 'GEN 101',
-        course_title: filters.course || title,
-        level: filters.level || '200 Level',
+        department: filters.department || 'Sociology',
+        course_code: filters.course || '',
+        course_title: filters.course ? courseTitleByCode(filters.course) : undefined,
+        level: filters.level || '300 Level',
         semester: filters.semester || 'First Semester',
-        material_type: filters.type || 'Lecture Note',
-        file
+        material_type: filters.type || materialTypes[0],
+        file,
+        admin: true
       });
+      void store.syncMaterialsFromSupabase();
 
       toast('Material published successfully! It is now live on the public library and course pages.', 'success');
       setMessage({
@@ -867,6 +990,173 @@ function AdminUploadTab({ onUploaded }: { onUploaded: () => void }) {
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+// 3b. Admin AI Management Tab (RAG indexing pipeline control)
+function AdminAiManagementTab() {
+  const store = useStore();
+  const { toast } = useToast();
+  const approvedMaterials = store.getApprovedMaterials();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [processingId, setProcessingId] = useState<string | null>(null);
+  // materialId -> status message after a processing attempt
+  const [jobResults, setJobResults] = useState<Record<string, { ok: boolean; text: string }>>({});
+  const [confirmTarget, setConfirmTarget] = useState<MaterialItem | null>(null);
+
+  const displayed = approvedMaterials.filter((m) => {
+    if (!searchTerm.trim()) return true;
+    const q = searchTerm.toLowerCase();
+    return (
+      m.title.toLowerCase().includes(q) ||
+      m.course.toLowerCase().includes(q) ||
+      m.department.toLowerCase().includes(q)
+    );
+  });
+
+  const handleProcess = async (m: MaterialItem) => {
+    setProcessingId(m.id);
+    try {
+      const res = await aiProcessMaterial(m.id);
+      if (res.status === 'ready') {
+        setJobResults((prev) => ({
+          ...prev,
+          [m.id]: { ok: true, text: `Indexed successfully — ${res.chunks ?? '?'} text chunks embedded.` }
+        }));
+        toast(`"${m.title}" is now searchable by the AI assistant.`, 'success');
+      } else {
+        setJobResults((prev) => ({
+          ...prev,
+          [m.id]: { ok: false, text: res.error || 'Processing failed.' }
+        }));
+        toast(`AI processing failed for "${m.title}".`, 'error');
+      }
+    } catch (err: any) {
+      const notConfigured =
+        err?.code === 'AI_NOT_CONFIGURED' || /not configured/i.test(err?.message || '');
+      setJobResults((prev) => ({
+        ...prev,
+        [m.id]: {
+          ok: false,
+          text: notConfigured
+            ? 'The AI_API_KEY secret is missing. Add it under Edge Function secrets, then redeploy ai-process.'
+            : err?.message || 'Processing failed.'
+        }
+      }));
+      toast(notConfigured ? 'AI is not configured yet (missing API key).' : 'AI processing failed.', 'error');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  return (
+    <div className="portal-view-fade">
+      <div className="portal-top">
+        <div>
+          <p className="kicker">RAG INDEXING PIPELINE</p>
+          <h1>AI & semantic indexing</h1>
+          <p className="subtitle">
+            Process approved materials so the student AI assistant and semantic search can answer questions from their content.
+            Supported formats: PDF, TXT, DOCX.
+          </p>
+        </div>
+      </div>
+
+      <div className="manage-tools">
+        <Search size={17} />
+        <input
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Search approved materials to process..."
+        />
+        {searchTerm && (
+          <button className="clear-search-btn" onClick={() => setSearchTerm('')}>
+            Clear
+          </button>
+        )}
+      </div>
+
+      {displayed.length === 0 ? (
+        <div className="empty-state card-empty">
+          <Sparkles size={40} />
+          <b>No approved materials available.</b>
+          <span>Only approved materials can be indexed for the AI assistant.</span>
+        </div>
+      ) : (
+        <div className="table">
+          <div className="tr head admin-materials-grid">
+            <span>Material Title & Course</span>
+            <span>Faculty & Department</span>
+            <span>File</span>
+            <span>AI Status</span>
+            <span>Actions</span>
+          </div>
+
+          {displayed.map((m) => {
+            const job = jobResults[m.id];
+            return (
+              <div className="tr admin-materials-grid" key={m.id}>
+                <span>
+                  <b>{m.title}</b>
+                  <small>{m.course} · {m.type}</small>
+                </span>
+                <span>
+                  <b>{m.department}</b>
+                  <small>{m.level} · {m.faculty}</small>
+                </span>
+                <span>
+                  <small>{m.fileName}</small>
+                  <small>({m.fileSize})</small>
+                </span>
+                <span>
+                  {job ? (
+                    job.ok ? (
+                      <span className="status-badge approved">
+                        <CheckCircle2 size={12} /> Indexed
+                      </span>
+                    ) : (
+                      <span className="status-badge rejected" title={job.text}>
+                        <AlertCircle size={12} /> Failed
+                      </span>
+                    )
+                  ) : (
+                    <span className="status-badge pending">Not indexed</span>
+                  )}
+                  {job && !job.ok && <small className="ai-job-error">{job.text}</small>}
+                </span>
+                <span className="admin-row-actions">
+                  <button
+                    className="approval-btn approve small"
+                    disabled={processingId === m.id}
+                    onClick={() => setConfirmTarget(m)}
+                    title="Extract text and create embeddings for this document"
+                  >
+                    <Sparkles size={13} />
+                    {processingId === m.id ? 'Processing…' : 'Process with AI'}
+                  </button>
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={!!confirmTarget}
+        title="Process with AI?"
+        tone="default"
+        confirmLabel="Start processing"
+        message={
+          confirmTarget
+            ? `This will download "${confirmTarget.fileName}", extract its text and generate embeddings. Large documents can take up to a minute.`
+            : ''
+        }
+        onConfirm={() => {
+          if (confirmTarget) void handleProcess(confirmTarget);
+        }}
+        onClose={() => setConfirmTarget(null)}
+      />
     </div>
   );
 }
@@ -1152,7 +1442,7 @@ function AdminCoursesTab() {
       d.courses.map((c) => ({
         code: c.code,
         name: c.name,
-        level: c.level * 100 + ' Level',
+        level: `${c.level} Level`,
         semester: c.semester,
         dept: d.name,
         faculty: f.name
@@ -1218,7 +1508,7 @@ function AdminCategoriesTab() {
           <h3>Material Classification Types</h3>
           <ul className="cat-list">
             <li>Lecture Notes & Slides (Verified)</li>
-            <li>Recommended Textbooks & Compendiums</li>
+            <li>Recommended Reference Materials & Compendiums</li>
             <li>Examination Past Questions (Solved)</li>
             <li>Test Past Questions & Revision Practice</li>
             <li>Student Projects & Empirical Theses</li>

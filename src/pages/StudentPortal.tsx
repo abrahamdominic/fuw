@@ -42,7 +42,19 @@ import { MaterialItem, getTimeGreeting, getUserTimeZone, formatUserTime } from '
 import { Logo } from '../components/Logo';
 import { MaterialCard } from '../components/MaterialCard';
 import { CatalogueFilters, FilterState } from '../components/CatalogueFilters';
-import { catalogue, facultyByName, departmentByName, levelsFor } from '../data/catalogue';
+import { catalogue, facultyByName, departmentByName, levelsFor, materialTypes, courseTitleByCode } from '../data/catalogue';
+import { submitMaterial as submitMaterialDb, fetchMyMaterials, deleteMaterial as deleteMaterialDb } from '../lib/materials';
+import {
+  fetchNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
+  deleteNotification,
+  subscribeToNotifications,
+  NotificationItem
+} from '../lib/notifications';
+import { aiAsk, AiCitation, aiConfiguredHint } from '../lib/ai';
+import { requireSupabase } from '../lib/supabase';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useAuth } from '../lib/AuthContext';
 import { useToast } from '../components/Toast';
 
@@ -55,6 +67,7 @@ const studentNavItems = [
   { label: 'Dashboard', path: '/student', icon: LayoutDashboard, exact: true },
   { label: 'Upload material', path: '/student/upload', icon: Upload },
   { label: 'My uploads', path: '/student/uploads', icon: FileText },
+  { label: 'AI study assistant', path: '/student/assistant', icon: Sparkles },
   { label: 'Saved materials', path: '/student/saved', icon: Heart },
   { label: 'Recently viewed', path: '/student/recent', icon: Clock },
   { label: 'Downloads', path: '/student/downloads', icon: Download },
@@ -70,6 +83,18 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
   const { toast } = useToast();
   const { signOut, profile, user } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  // Notification centre state
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [notifOpen, setNotifOpen] = useState(false);
+  // Server-side paginated "My Uploads"
+  const [uploadsPage, setUploadsPage] = useState(0);
+  const [pagedUploads, setPagedUploads] = useState<MaterialItem[]>([]);
+  const [uploadsTotal, setUploadsTotal] = useState(0);
+  const [uploadsVersion, setUploadsVersion] = useState(0);
+  const [pendingDelete, setPendingDelete] = useState<MaterialItem | null>(null);
+  // Material the student chose to "Ask AI" about
+  const [aiFocusMaterial, setAiFocusMaterial] = useState<MaterialItem | null>(null);
+  const UPLOADS_PAGE_SIZE = 8;
 
   const storeUser = store.getCurrentUser();
   const currentUser = {
@@ -81,7 +106,7 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
     faculty: profile?.faculty || storeUser.faculty || '',
     department: profile?.department || storeUser.department || '',
     level: profile?.level || storeUser.level || '',
-    role: (profile?.role === 'admin' ? 'ADMIN' : 'STUDENT') as 'STUDENT' | 'ADMIN',
+    role: (profile?.role === 'admin' || profile?.role === 'super_admin' ? 'ADMIN' : 'STUDENT') as 'STUDENT' | 'ADMIN',
     bio: profile?.bio || storeUser.bio || '',
     avatarUrl: profile?.avatarUrl || storeUser.avatarUrl || '',
     isVerified: profile?.isVerified ?? true,
@@ -94,6 +119,72 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
   const recentMaterials = store.getRecentMaterials();
   const downloadHistory = store.getDownloadHistory();
   const readingHistory = store.getReadingHistory();
+
+  const unreadNotifCount = notifications.filter((n) => !n.read).length;
+
+  // Load notifications once + subscribe to live inserts.
+  useEffect(() => {
+    if (!user?.id) return;
+    let unsubscribe = () => {};
+    let cancelled = false;
+    (async () => {
+      try {
+        const items = await fetchNotifications();
+        if (!cancelled) setNotifications(items);
+        unsubscribe = subscribeToNotifications(user.id, (item) =>
+          setNotifications((prev) => (prev.some((n) => n.id === item.id) ? prev : [item, ...prev]))
+        );
+      } catch {
+        // Notifications are non-critical.
+      }
+    })();
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [user?.id]);
+
+  // Server-paginated uploads listing (keeps performance stable as history grows).
+  useEffect(() => {
+    if (!currentUser.id) return;
+    let cancelled = false;
+    fetchMyMaterials(currentUser.id, uploadsPage, UPLOADS_PAGE_SIZE)
+      .then((res) => {
+        if (cancelled) return;
+        setPagedUploads(res.items);
+        setUploadsTotal(res.total);
+        if (res.items.length === 0 && res.total > 0 && uploadsPage > 0) {
+          // Page shrank below our cursor (e.g. after deletion) — step back.
+          setUploadsPage(Math.max(0, Math.ceil(res.total / UPLOADS_PAGE_SIZE) - 1));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser.id, uploadsPage, uploadsVersion]);
+
+  /** Jump into the AI assistant pre-focused on a specific material. */
+  const handleAskAi = (m: MaterialItem) => {
+    setAiFocusMaterial(m);
+    navigate('/student/assistant');
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!pendingDelete) return;
+    try {
+      await deleteMaterialDb(pendingDelete.id);
+      toast('Material removed from uploads.', 'info');
+      setUploadsPage((p) => p); // trigger refresh via dependency no-op
+      setPagedUploads((prev) => prev.filter((m) => m.id !== pendingDelete.id));
+      setUploadsTotal((t) => Math.max(0, t - 1));
+      void store.syncMaterialsFromSupabase();
+    } catch (err: any) {
+      toast(err.message || 'Could not delete this material.', 'error');
+    }
+    setPendingDelete(null);
+  };
 
   // Determine current active subpage
   const currentPath = location.pathname;
@@ -171,6 +262,83 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
 
       {/* Main Content Viewport */}
       <main className="portal-main">
+        {/* Notification centre */}
+        <div className="notif-bell-wrap">
+          <button
+            type="button"
+            className={`notif-bell ${unreadNotifCount > 0 ? 'has-unread' : ''}`}
+            onClick={() => setNotifOpen((o) => !o)}
+            aria-label={`Notifications${unreadNotifCount ? ` (${unreadNotifCount} unread)` : ''}`}
+            title="Notifications"
+          >
+            <Bell size={18} />
+            {unreadNotifCount > 0 && (
+              <span className="notif-badge">{unreadNotifCount > 9 ? '9+' : unreadNotifCount}</span>
+            )}
+          </button>
+
+          {notifOpen && (
+            <div className="notif-panel" role="dialog" aria-label="Your notifications">
+              <div className="notif-panel-head">
+                <b>Notifications</b>
+                <div className="notif-panel-head-actions">
+                  {unreadNotifCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await markAllNotificationsRead();
+                        setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+                      }}
+                    >
+                      Mark all read
+                    </button>
+                  )}
+                  <button type="button" onClick={() => setNotifOpen(false)} aria-label="Close notifications">
+                    <X size={16} />
+                  </button>
+                </div>
+              </div>
+              <div className="notif-list">
+                {notifications.length === 0 ? (
+                  <p className="notif-empty">You're all caught up — no notifications yet.</p>
+                ) : (
+                  notifications.map((n) => (
+                    <div key={n.id} className={`notif-item ${n.read ? '' : 'unread'}`}>
+                      <button
+                        type="button"
+                        className="notif-item-body"
+                        onClick={async () => {
+                          if (!n.read) {
+                            await markNotificationRead(n.id);
+                            setNotifications((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
+                          }
+                          if (n.link) navigate(n.link);
+                          setNotifOpen(false);
+                        }}
+                      >
+                        <b>{n.title}</b>
+                        <span>{n.body}</span>
+                        <small>{new Date(n.createdAt).toLocaleString()}</small>
+                      </button>
+                      <button
+                        type="button"
+                        className="notif-delete"
+                        aria-label="Delete notification"
+                        onClick={async () => {
+                          await deleteNotification(n.id);
+                          setNotifications((prev) => prev.filter((x) => x.id !== n.id));
+                        }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Mobile Portal Top Bar */}
         <div className="portal-mobile-bar">
           <button
@@ -199,22 +367,43 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
             recentMaterials={recentMaterials.slice(0, 4)}
             approvedMaterials={approvedMaterials.slice(0, 4)}
             onReadOnline={onReadOnline}
+            onAskAi={handleAskAi}
           />
         ) : currentPath.startsWith('/student/upload') ? (
-          <StudentUploadTab onUploaded={() => navigate('/student/uploads')} />
+          <StudentUploadTab
+            onUploaded={() => {
+              setUploadsVersion((v) => v + 1);
+              void store.syncMaterialsFromSupabase();
+              navigate('/student/uploads');
+            }}
+          />
         ) : currentPath.startsWith('/student/uploads') ? (
           <StudentMyUploadsTab
-            uploads={studentUploads}
-            onDelete={(id) => {
-              store.deleteMaterial(id, currentUser.fullName);
-              toast('Material removed from uploads.', 'info');
+            uploads={pagedUploads}
+            total={uploadsTotal}
+            page={uploadsPage}
+            pageSize={UPLOADS_PAGE_SIZE}
+            onPageChange={setUploadsPage}
+            stats={{
+              total: studentUploads.length,
+              approved: studentUploads.filter((m) => m.status === 'approved').length,
+              pending: studentUploads.filter((m) => m.status === 'pending').length,
+              rejected: studentUploads.filter((m) => m.status === 'rejected').length,
+              downloads: studentUploads.reduce((acc, m) => acc + (m.downloads || 0), 0)
             }}
+            onRequestDelete={setPendingDelete}
             onReadOnline={onReadOnline}
+          />
+        ) : currentPath.startsWith('/student/assistant') ? (
+          <StudentAiChatTab
+            focusMaterial={aiFocusMaterial}
+            onClearFocus={() => setAiFocusMaterial(null)}
           />
         ) : currentPath.startsWith('/student/saved') ? (
           <StudentSavedTab
             savedMaterials={savedMaterials}
             onReadOnline={onReadOnline}
+            onAskAi={handleAskAi}
             onRemove={(id) => {
               store.toggleBookmark(id);
               toast('Removed from saved materials.', 'info');
@@ -224,6 +413,7 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
           <StudentRecentTab
             recentMaterials={recentMaterials}
             onReadOnline={onReadOnline}
+            onAskAi={handleAskAi}
           />
         ) : currentPath.startsWith('/student/downloads') ? (
           <StudentDownloadsTab downloadHistory={downloadHistory} />
@@ -247,8 +437,24 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
             recentMaterials={recentMaterials.slice(0, 4)}
             approvedMaterials={approvedMaterials.slice(0, 4)}
             onReadOnline={onReadOnline}
+            onAskAi={handleAskAi}
           />
         )}
+
+        {/* Destructive-action confirmation */}
+        <ConfirmDialog
+          open={!!pendingDelete}
+          title="Delete this upload?"
+          tone="danger"
+          message={
+            pendingDelete
+              ? `"${pendingDelete.title}" will be permanently removed from the library, along with its stored file. This cannot be undone.`
+              : ''
+          }
+          confirmLabel="Delete permanently"
+          onConfirm={handleConfirmDelete}
+          onClose={() => setPendingDelete(null)}
+        />
       </main>
     </div>
   );
@@ -264,7 +470,8 @@ function StudentOverviewTab({
   uploadsCount,
   recentMaterials,
   approvedMaterials,
-  onReadOnline
+  onReadOnline,
+  onAskAi
 }: any) {
   // Live clock: re-renders every 30s so the greeting and local time always
   // reflect the student's real current timezone.
@@ -365,7 +572,7 @@ function StudentOverviewTab({
         ) : (
           <div className="grid materials">
             {recommended.map((m: MaterialItem) => (
-              <MaterialCard key={m.id} material={m} onReadOnline={onReadOnline} />
+              <MaterialCard key={m.id} material={m} onReadOnline={onReadOnline} onAskAi={onAskAi} />
             ))}
           </div>
         );
@@ -385,10 +592,10 @@ function StudentUploadTab({ onUploaded }: { onUploaded: () => void }) {
   const [filters, setFilters] = useState<FilterState>({
     faculty: 'Faculty of Computing & Information System',
     department: 'Computer Science',
-    course: 'CSC 201',
-    level: '200 Level',
+    course: '',
+    level: '100 Level',
     semester: 'First Semester',
-    type: 'Lecture Note'
+    type: materialTypes[0]
   });
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -411,16 +618,19 @@ function StudentUploadTab({ onUploaded }: { onUploaded: () => void }) {
     setMessage(null);
 
     try {
-      store.submitMaterialStudent({
+      // Database-first submission: the row is created immediately and the file
+      // is attached to Storage right after. Status (pending/approved) is
+      // decided server-side from the account's role.
+      await submitMaterialDb({
         title,
         description,
         faculty: filters.faculty || 'Faculty of Computing & Information System',
         department: filters.department || 'Computer Science',
-        course_code: filters.course || 'GEN 101',
-        course_title: filters.course || title,
-        level: filters.level || '200 Level',
+        course_code: filters.course || '',
+        course_title: filters.course ? courseTitleByCode(filters.course) : undefined,
+        level: filters.level || '100 Level',
         semester: filters.semester || 'First Semester',
-        material_type: filters.type || 'Lecture Note',
+        material_type: filters.type || materialTypes[0],
         file
       });
 
@@ -523,13 +733,25 @@ function StudentUploadTab({ onUploaded }: { onUploaded: () => void }) {
 // 3. Student My Uploads Tab (With Approval Statuses)
 function StudentMyUploadsTab({
   uploads,
-  onDelete,
+  total,
+  page,
+  pageSize,
+  onPageChange,
+  stats,
+  onRequestDelete,
   onReadOnline
 }: {
   uploads: MaterialItem[];
-  onDelete: (id: string) => void;
+  total: number;
+  page: number;
+  pageSize: number;
+  onPageChange: (page: number) => void;
+  stats: { total: number; approved: number; pending: number; rejected: number; downloads: number };
+  onRequestDelete: (m: MaterialItem) => void;
   onReadOnline: (m: MaterialItem) => void;
 }) {
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
   return (
     <div className="portal-view-fade">
       <div className="portal-top">
@@ -546,6 +768,30 @@ function StudentMyUploadsTab({
         </Link>
       </div>
 
+      {/* Contribution statistics derived from your full upload history */}
+      <div className="upload-stats-row">
+        <div className="upload-stat-card">
+          <b>{stats.total}</b>
+          <span>Total uploads</span>
+        </div>
+        <div className="upload-stat-card ok">
+          <b>{stats.approved}</b>
+          <span>Approved &amp; live</span>
+        </div>
+        <div className="upload-stat-card warn">
+          <b>{stats.pending}</b>
+          <span>Pending review</span>
+        </div>
+        <div className="upload-stat-card bad">
+          <b>{stats.rejected}</b>
+          <span>Rejected</span>
+        </div>
+        <div className="upload-stat-card">
+          <b>{stats.downloads.toLocaleString()}</b>
+          <span>Student downloads</span>
+        </div>
+      </div>
+
       {uploads.length === 0 ? (
         <div className="empty-state card-empty">
           <FileText size={40} />
@@ -556,64 +802,432 @@ function StudentMyUploadsTab({
           </Link>
         </div>
       ) : (
-        <div className="uploads-table-wrapper">
-          <div className="table">
-            <div className="tr head uploads-header-grid">
-              <span>Material / Title</span>
-              <span>Faculty & Dept</span>
-              <span>Level / Type</span>
-              <span>Submission Date</span>
-              <span>Approval Status</span>
-              <span>Actions</span>
-            </div>
-
-            {uploads.map((m) => (
-              <div className="tr uploads-row-grid" key={m.id}>
-                <span>
-                  <b>{m.title}</b>
-                  <small>{m.course} · {m.fileName} ({m.fileSize})</small>
-                </span>
-                <span>{m.department}</span>
-                <span>{m.level} · {m.type}</span>
-                <span>{m.date}</span>
-                <span>
-                  {m.status === 'approved' && (
-                    <span className="status-badge approved">
-                      <CheckCircle2 size={12} /> Approved & Live
-                    </span>
-                  )}
-                  {m.status === 'pending' && (
-                    <span className="status-badge pending">
-                      <Clock size={12} /> Pending Approval
-                    </span>
-                  )}
-                  {m.status === 'rejected' && (
-                    <span className="status-badge rejected" title={m.rejectionReason}>
-                      <AlertCircle size={12} /> Rejected
-                    </span>
-                  )}
-                </span>
-                <span className="row-action-btns">
-                  <button
-                    className="action-icon-btn"
-                    onClick={() => onReadOnline(m)}
-                    title="Preview material"
-                  >
-                    <Eye size={15} />
-                  </button>
-                  <button
-                    className="action-icon-btn delete"
-                    onClick={() => onDelete(m.id)}
-                    title="Delete upload"
-                  >
-                    <Trash2 size={15} />
-                  </button>
-                </span>
+        <>
+          <p className="uploads-count-line">
+            Showing {page * pageSize + 1}–{Math.min((page + 1) * pageSize, total)} of {total} upload{total !== 1 ? 's' : ''}
+          </p>
+          <div className="uploads-table-wrapper">
+            <div className="table">
+              <div className="tr head uploads-header-grid">
+                <span>Material / Title</span>
+                <span>Faculty & Dept</span>
+                <span>Level / Type</span>
+                <span>Submission Date</span>
+                <span>Approval Status</span>
+                <span>Actions</span>
               </div>
-            ))}
+
+              {uploads.map((m) => (
+                <div className="tr uploads-row-grid" key={m.id}>
+                  <span>
+                    <b>{m.title}</b>
+                    <small>{m.course} · {m.fileName} ({m.fileSize})</small>
+                  </span>
+                  <span>{m.department}</span>
+                  <span>{m.level} · {m.type}</span>
+                  <span>{m.date}</span>
+                  <span>
+                    {m.status === 'approved' && (
+                      <span className="status-badge approved">
+                        <CheckCircle2 size={12} /> Approved & Live
+                      </span>
+                    )}
+                    {m.status === 'pending' && (
+                      <span className="status-badge pending">
+                        <Clock size={12} /> Pending Approval
+                      </span>
+                    )}
+                    {m.status === 'rejected' && (
+                      <span className="status-badge rejected" title={m.rejectionReason}>
+                        <AlertCircle size={12} /> Rejected
+                      </span>
+                    )}
+                  </span>
+                  <span className="row-action-btns">
+                    <button
+                      className="action-icon-btn"
+                      onClick={() => onReadOnline(m)}
+                      title="Preview material"
+                    >
+                      <Eye size={15} />
+                    </button>
+                    <button
+                      className="action-icon-btn delete"
+                      onClick={() => onRequestDelete(m)}
+                      title="Delete upload"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
+
+          {totalPages > 1 && (
+            <div className="pagination-controls">
+              <button type="button" disabled={page === 0} onClick={() => onPageChange(page - 1)}>
+                Previous
+              </button>
+              <span>
+                Page {page + 1} of {totalPages}
+              </span>
+              <button type="button" disabled={page + 1 >= totalPages} onClick={() => onPageChange(page + 1)}>
+                Next
+              </button>
+            </div>
+          )}
+        </>
       )}
+    </div>
+  );
+}
+
+// 3b. AI Study Assistant Chat (RAG over approved library materials)
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  citations?: AiCitation[];
+}
+
+/** Inline markdown-lite: **bold**, *italic*, `code`. */
+function inlineMarkdown(text: string): React.ReactNode[] {
+  const parts: React.ReactNode[] = [];
+  const regex = /(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g;
+  let last = 0;
+  let match: RegExpExecArray | null;
+  let key = 0;
+  while ((match = regex.exec(text))) {
+    if (match.index > last) parts.push(text.slice(last, match.index));
+    const token = match[0];
+    if (token.startsWith('**')) parts.push(<b key={key++}>{token.slice(2, -2)}</b>);
+    else if (token.startsWith('`')) parts.push(<code key={key++} className="chat-inline-code">{token.slice(1, -1)}</code>);
+    else parts.push(<i key={key++}>{token.slice(1, -1)}</i>);
+    last = match.index + token.length;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return parts;
+}
+
+/**
+ * Lightweight markdown renderer for assistant answers: code fences,
+ * headings, bullet/numbered lists and inline emphasis — no external deps.
+ */
+function AssistantText({ content }: { content: string }) {
+  const blocks: React.ReactNode[] = [];
+  content.split(/```/).forEach((segment, si) => {
+    if (si % 2 === 1) {
+      const lines = segment.split('\n');
+      const hasLangTag = lines.length > 1 && /^[a-zA-Z0-9+#-]*$/.test(lines[0].trim());
+      const body = (hasLangTag ? lines.slice(1) : lines).join('\n').replace(/\n$/, '');
+      blocks.push(
+        <pre key={`code-${si}`} className="chat-code">
+          <code>{body}</code>
+        </pre>
+      );
+      return;
+    }
+    segment.split(/\n{2,}/).forEach((rawPara, pi) => {
+      const para = rawPara.trim();
+      if (!para) return;
+      const lines = para.split('\n');
+      const isList = lines.every((l) => /^\s*([-*•]|\d+[.)])\s+/.test(l));
+      if (/^#{1,4}\s+/.test(para)) {
+        blocks.push(<b key={`h-${si}-${pi}`} className="chat-heading">{para.replace(/^#{1,4}\s+/, '')}</b>);
+      } else if (isList) {
+        blocks.push(
+          <ul key={`ul-${si}-${pi}`} className="chat-list">
+            {lines.map((l, li) => (
+              <li key={li}>{inlineMarkdown(l.replace(/^\s*([-*•]|\d+[.)])\s+/, ''))}</li>
+            ))}
+          </ul>
+        );
+      } else {
+        blocks.push(<p key={`p-${si}-${pi}`} className="chat-para">{inlineMarkdown(para)}</p>);
+      }
+    });
+  });
+  return <div className="chat-text">{blocks}</div>;
+}
+
+function StudentAiChatTab({
+  focusMaterial,
+  onClearFocus
+}: {
+  focusMaterial?: MaterialItem | null;
+  onClearFocus?: () => void;
+}) {
+  const { profile } = useAuth();
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [materialId, setMaterialId] = useState<string | null>(focusMaterial?.id ?? null);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notConfigured, setNotConfigured] = useState(false);
+  const listRef = React.useRef<HTMLDivElement>(null);
+
+  // Keep the scoped material in sync when the student uses "Ask AI" elsewhere.
+  useEffect(() => {
+    if (focusMaterial) setMaterialId(focusMaterial.id);
+  }, [focusMaterial]);
+
+  // Restore the most recent conversation (and its messages) from the database
+  // so history survives page refreshes — Supabase is the source of truth.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const client = requireSupabase();
+        const { data: convs } = await client
+          .from('ai_conversations')
+          .select('id, material_id')
+          .order('updated_at', { ascending: false })
+          .limit(1);
+        const conv = convs?.[0];
+        if (!conv || cancelled) {
+          if (!cancelled) setHistoryLoaded(true);
+          return;
+        }
+        const { data: msgs } = await client
+          .from('ai_messages')
+          .select('role, content, citations')
+          .eq('conversation_id', conv.id)
+          .order('created_at', { ascending: true })
+          .limit(60);
+        if (cancelled) return;
+        if (msgs && msgs.length > 0) {
+          setConversationId(conv.id);
+          setMessages(
+            msgs.map((row) => ({
+              role: row.role === 'assistant' ? ('assistant' as const) : ('user' as const),
+              content: String(row.content ?? ''),
+              citations: Array.isArray(row.citations) ? (row.citations as AiCitation[]) : []
+            }))
+          );
+        }
+      } catch {
+        // History restore is best-effort only.
+      } finally {
+        if (!cancelled) setHistoryLoaded(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const suggestions = focusMaterial
+    ? [
+        'What are the main concepts discussed in this material?',
+        'Summarize this document for exam revision.',
+        'Create 5 practice questions from this document.'
+      ]
+    : [
+        'Explain the difference between RAM and ROM using my CSC materials.',
+        'Summarise key points from recent GST past questions.',
+        'Give me revision questions on organic chemistry reactions.'
+      ];
+
+  const quickActions = [
+    { label: 'Summarize', prompt: 'Summarize this material into clear exam-ready revision points.' },
+    { label: 'Key points', prompt: 'List the most important key points, definitions and formulas from this material.' },
+    { label: 'Practice quiz', prompt: 'Generate 10 practice questions with answers from this material.' },
+    { label: 'Revision notes', prompt: 'Create concise revision notes covering every major topic in this material.' }
+  ];
+
+  const scrollToBottom = () => {
+    requestAnimationFrame(() => {
+      listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' });
+    });
+  };
+
+  React.useEffect(() => {
+    scrollToBottom();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages.length, busy]);
+
+  const send = async (text: string) => {
+    const question = text.trim();
+    if (!question || busy) return;
+    setError(null);
+    setInput('');
+    setMessages((prev) => [...prev, { role: 'user', content: question }, { role: 'assistant', content: '…' }]);
+    setBusy(true);
+    try {
+      const res = await aiAsk({ message: question, conversationId, materialId });
+      setNotConfigured(false);
+      setConversationId(res.conversationId);
+      setMessages((prev) => {
+        const copy = [...prev];
+        copy[copy.length - 1] = { role: 'assistant', content: res.answer, citations: res.citations };
+        return copy;
+      });
+    } catch (err: any) {
+      // Drop the placeholder bubble and surface a friendly error.
+      setMessages((prev) => prev.slice(0, -1));
+      if (aiConfiguredHint(err)) setNotConfigured(true);
+      setError(err.message || 'The AI assistant is unavailable right now.');
+    } finally {
+      setBusy(false);
+      scrollToBottom();
+    }
+  };
+
+  const clearConversation = () => {
+    setMessages([]);
+    setConversationId(null);
+    setError(null);
+    setNotConfigured(false);
+    onClearFocus?.();
+  };
+
+  return (
+    <div className="portal-view-fade">
+      <div className="portal-top">
+        <div>
+          <p className="kicker">POWERED BY THE E-LIBRARY COLLECTION</p>
+          <h1>AI study assistant</h1>
+          <p className="subtitle">
+            Ask questions about your courses — answers are grounded in the approved materials in this library, with links to sources.
+          </p>
+        </div>
+        {(conversationId || messages.length > 0) && (
+          <button type="button" className="secondary-btn" onClick={clearConversation}>
+            <RefreshCw size={15} />
+            <span>New conversation</span>
+          </button>
+        )}
+      </div>
+
+      <div className="ai-chat-shell">
+        {/* Scoped-material context banner */}
+        <div className={`ai-context-chip ${materialId ? '' : 'hidden'}`}>
+          <FileText size={14} />
+          <span>
+            Asking about: <b>{focusMaterial?.title || 'Selected material'}</b>
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setMaterialId(null);
+              onClearFocus?.();
+            }}
+            aria-label="Stop focusing on this material"
+            title="Ask about the whole library instead"
+          >
+            <X size={13} />
+          </button>
+        </div>
+
+        <div className="ai-chat-window" ref={listRef}>
+          {!historyLoaded ? (
+            <div className="chat-typing">
+              <span className="chat-typing-dot" />
+              <span className="chat-typing-dot" />
+              <span className="chat-typing-dot" />
+              Loading your conversation…
+            </div>
+          ) : (
+            messages.length === 0 && (
+              <div className="ai-chat-empty">
+                <Sparkles size={34} />
+                <b>How can I help you study today?</b>
+                <span>{focusMaterial ? 'Try one of these about your selected material:' : 'Try one of these:'}</span>
+                <div className="ai-suggestions">
+                  {suggestions.map((s) => (
+                    <button key={s} type="button" onClick={() => send(s)} disabled={busy}>
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )
+          )}
+
+          {messages.map((m, i) =>
+            m.role === 'user' ? (
+              <div key={i} className="chat-row user">
+                <div className="chat-bubble user">{m.content}</div>
+                <div className="chat-avatar user" aria-hidden="true">
+                  {(profile?.fullName?.charAt(0) || 'S').toUpperCase()}
+                </div>
+              </div>
+            ) : (
+              <div key={i} className="chat-row assistant">
+                <div className="chat-avatar assistant" aria-hidden="true">
+                  <Sparkles size={14} />
+                </div>
+                <div className="chat-bubble assistant">
+                  <AssistantText content={m.content} />
+                  {m.citations && m.citations.length > 0 && (
+                    <div className="chat-citations">
+                      <small>Sources from your e-library:</small>
+                      <div className="chat-citation-chips">
+                        {m.citations.map((c, ci) => (
+                          <Link key={`${c.material_id}-${ci}`} to={`/materials/${c.material_id}`}>
+                            📄 {c.title}{c.page ? ` · p.${c.page}` : ''}
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          )}
+
+          {busy && (
+            <div className="chat-typing">
+              <span className="chat-typing-dot" />
+              <span className="chat-typing-dot" />
+              <span className="chat-typing-dot" />
+              Assistant is thinking…
+            </div>
+          )}
+        </div>
+
+        {(error || notConfigured) && (
+          <div className={`form-feedback-box error`}>
+            <AlertCircle size={18} />
+            <p>{notConfigured ? `${error} Administrators can enable it by adding the AI_API_KEY function secret.` : error}</p>
+          </div>
+        )}
+
+        {/* One-tap study actions for the focused material / whole library */}
+        <div className="ai-quick-actions">
+          {quickActions.map((qa) => (
+            <button key={qa.label} type="button" onClick={() => send(qa.prompt)} disabled={busy}>
+              {qa.label}
+            </button>
+          ))}
+        </div>
+
+        <form
+          className="ai-chat-input-row"
+          onSubmit={(e) => {
+            e.preventDefault();
+            send(input);
+          }}
+        >
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Ask anything about your course materials…"
+            maxLength={2000}
+            disabled={busy}
+            aria-label="Message the AI assistant"
+          />
+          <button type="submit" disabled={busy || !input.trim()}>
+            {busy ? 'Sending…' : 'Send'}
+          </button>
+        </form>
+        <p className="ai-chat-disclaimer">
+          Answers cite library materials where possible — always verify critical facts with your lecturers.
+        </p>
+      </div>
     </div>
   );
 }
@@ -622,11 +1236,13 @@ function StudentMyUploadsTab({
 function StudentSavedTab({
   savedMaterials,
   onReadOnline,
-  onRemove
+  onRemove,
+  onAskAi
 }: {
   savedMaterials: MaterialItem[];
   onReadOnline: (m: MaterialItem) => void;
   onRemove: (id: string) => void;
+  onAskAi: (m: MaterialItem) => void;
 }) {
   return (
     <div className="portal-view-fade">
@@ -650,7 +1266,7 @@ function StudentSavedTab({
       ) : (
         <div className="grid materials">
           {savedMaterials.map((m) => (
-            <MaterialCard key={m.id} material={m} onReadOnline={onReadOnline} />
+            <MaterialCard key={m.id} material={m} onReadOnline={onReadOnline} onAskAi={onAskAi} />
           ))}
         </div>
       )}
@@ -661,10 +1277,12 @@ function StudentSavedTab({
 // 5. Recently Viewed Tab
 function StudentRecentTab({
   recentMaterials,
-  onReadOnline
+  onReadOnline,
+  onAskAi
 }: {
   recentMaterials: MaterialItem[];
   onReadOnline: (m: MaterialItem) => void;
+  onAskAi: (m: MaterialItem) => void;
 }) {
   return (
     <div className="portal-view-fade">
@@ -688,7 +1306,7 @@ function StudentRecentTab({
       ) : (
         <div className="grid materials">
           {recentMaterials.map((m) => (
-            <MaterialCard key={m.id} material={m} onReadOnline={onReadOnline} />
+            <MaterialCard key={m.id} material={m} onReadOnline={onReadOnline} onAskAi={onAskAi} />
           ))}
         </div>
       )}
@@ -814,7 +1432,7 @@ function StudentReadingTab({
 function StudentProfileTab({ currentUser }: { currentUser: any }) {
   const store = useStore();
   const { toast } = useToast();
-  const { updateProfile, user } = useAuth();
+  const { updateProfile, user, profile } = useAuth();
   const [busy, setBusy] = useState(false);
   const [formData, setFormData] = useState({
     fullName: currentUser.fullName || '',
@@ -830,6 +1448,22 @@ function StudentProfileTab({ currentUser }: { currentUser: any }) {
   const currentFaculty = facultyByName(formData.faculty) || catalogue[0];
   const currentDepartment = departmentByName(formData.faculty, formData.department) || currentFaculty.departments[0];
   const availableLevels = levelsFor(currentDepartment?.duration || 4);
+
+  // Re-seed the form once the authenticated profile finishes loading so the
+  // fields don't stay stuck on guest/empty values after a refresh.
+  useEffect(() => {
+    setFormData({
+      fullName: currentUser.fullName || '',
+      displayName: currentUser.displayName || '',
+      matricNumber: currentUser.matricNumber || '',
+      email: currentUser.email || user?.email || '',
+      faculty: currentUser.faculty || catalogue[0]?.name || '',
+      department: currentUser.department || catalogue[0]?.departments[0]?.name || '',
+      level: currentUser.level || '100 Level',
+      bio: currentUser.bio || ''
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.id, profile?.fullName, profile?.faculty, profile?.department]);
 
   const handleFacultyChange = (newFac: string) => {
     const fac = facultyByName(newFac) || catalogue[0];
@@ -924,7 +1558,7 @@ function StudentProfileTab({ currentUser }: { currentUser: any }) {
                     value={formData.email}
                     readOnly
                     className="input-readonly"
-                    title="Email is protected and linked to your Supabase authentication identity"
+                    title="Email is protected and linked to your identity"
                   />
                   <span className="readonly-tag">
                     <ShieldCheck size={12} /> Verified
@@ -1226,7 +1860,7 @@ function StudentSettingsTab({ currentUser }: { currentUser: any }) {
                         value={profileData.email}
                         readOnly
                         className="input-readonly"
-                        title="Email is protected and linked to your Supabase authentication identity"
+                        title="Email is protected and linked to your identity"
                       />
                       <span className="readonly-tag">
                         <ShieldCheck size={12} /> Verified

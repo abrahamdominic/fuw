@@ -22,6 +22,7 @@ import {
 
 import { StudentPortal } from './pages/StudentPortal';
 import { AdminPortal } from './pages/AdminPortal';
+import { SuperAdminPortal } from './pages/SuperAdminPortal';
 
 import { AuthProvider } from './lib/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -77,10 +78,34 @@ function App() {
             }
           />
 
+          {/* Protected Super Admin Portal (owner only) */}
+          <Route
+            path="/super/login"
+            element={<AdminLoginPage />}
+          />
+          <Route
+            path="/super"
+            element={
+              <ProtectedRoute superAdminOnly>
+                <SuperAdminPortal />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/super/*"
+            element={
+              <ProtectedRoute superAdminOnly>
+                <SuperAdminPortal />
+              </ProtectedRoute>
+            }
+          />
+
           {/* Friendly Route Aliases */}
           <Route path="/dashboard" element={<Navigate to="/student" replace />} />
           <Route path="/profile" element={<Navigate to="/student/profile" replace />} />
           <Route path="/settings" element={<Navigate to="/student/settings" replace />} />
+          <Route path="/super-admin" element={<Navigate to="/super" replace />} />
+          <Route path="/superadmin" element={<Navigate to="/super" replace />} />
 
           {/* Public Pages Layout */}
           <Route
