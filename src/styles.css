@@ -3469,7 +3469,7 @@ button {
 }
 
 /* ==========================================================================
-   Auth Pages, OTP Verification & Loading Screen
+   Auth Pages & Loading Screen
    ========================================================================== */
 .auth {
   min-height: calc(100vh - 150px);
@@ -3525,6 +3525,40 @@ button {
   box-shadow: 0 0 0 3px rgba(18, 96, 61, 0.12);
 }
 
+/* Password input with show/hide visibility toggle */
+.password-input-wrap {
+  position: relative;
+  margin-top: 6px;
+}
+
+.password-input-wrap input {
+  width: 100%;
+  padding-right: 44px;
+}
+
+.password-toggle-btn {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #55675b;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.password-toggle-btn:hover {
+  background: #eef3ef;
+  color: #12603d;
+}
+
 .auth form input {
   padding: 12px 14px;
   margin: 8px 0 0;
@@ -3558,144 +3592,6 @@ button {
 .auth form button[type="submit"]:disabled {
   opacity: 0.65;
   cursor: not-allowed;
-}
-
-/* OTP 6-Digit Verification Inputs */
-.otp-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin: 18px 0 8px;
-}
-
-.otp-inputs-row {
-  display: flex;
-  gap: 10px;
-  justify-content: center;
-  width: 100%;
-}
-
-.otp-digit-box {
-  width: 48px;
-  height: 54px;
-  text-align: center;
-  font-size: 22px;
-  font-weight: 700;
-  font-family: 'DM Sans', monospace, sans-serif;
-  color: #0d4a2f;
-  background: #f8faf8;
-  border: 2px solid #c9dcd0;
-  border-radius: 10px;
-  transition: all 0.15s ease;
-  padding: 0;
-  margin: 0 !important;
-  -moz-appearance: textfield;
-}
-
-.otp-digit-box::-webkit-outer-spin-button,
-.otp-digit-box::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
-.otp-digit-box:focus {
-  outline: none;
-  background: #ffffff;
-  border-color: #12603d;
-  box-shadow: 0 0 0 4px rgba(18, 96, 61, 0.16);
-  transform: translateY(-2px);
-}
-
-.otp-email-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  background: #eef6f0;
-  border: 1px solid #cce2d4;
-  padding: 8px 14px;
-  border-radius: 20px;
-  font-size: 13px;
-  color: #12603d;
-  margin: 12px 0 16px;
-}
-
-.otp-email-badge b {
-  color: #0d4a2f;
-}
-
-.edit-email-btn {
-  background: none;
-  border: 0;
-  color: #12603d;
-  cursor: pointer;
-  padding: 2px 4px;
-  display: inline-flex;
-  align-items: center;
-  border-radius: 4px;
-  transition: background 0.15s ease;
-}
-
-.edit-email-btn:hover {
-  background: rgba(18, 96, 61, 0.12);
-}
-
-.otp-resend-container {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-top: 14px;
-}
-
-.otp-countdown-text {
-  font-size: 12.5px;
-  color: #617769;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.resend-otp-btn {
-  background: none;
-  border: 0;
-  color: #12603d;
-  font-weight: 700;
-  font-size: 13px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border-radius: 6px;
-  transition: background 0.15s ease;
-}
-
-.resend-otp-btn:hover:not(:disabled) {
-  background: #eef6f0;
-  text-decoration: underline;
-}
-
-.resend-otp-btn:disabled {
-  color: #92a498;
-  cursor: not-allowed;
-}
-
-.back-step-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: none;
-  border: 0;
-  color: #617769;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  padding: 6px 0;
-  margin-bottom: 12px;
-  transition: color 0.15s ease;
-}
-
-.back-step-btn:hover {
-  color: #12603d;
 }
 
 .auth-toggle-row {
@@ -3778,7 +3674,7 @@ button {
   animation: spin 0.85s linear infinite;
 }
 
-/* Mobile Responsiveness for OTP & Auth */
+/* Mobile Responsiveness for Auth */
 @media (max-width: 480px) {
   .auth {
     padding: 20px 12px;
@@ -3786,17 +3682,6 @@ button {
 
   .auth-panel {
     padding: 24px 18px;
-  }
-
-  .otp-inputs-row {
-    gap: 6px;
-  }
-
-  .otp-digit-box {
-    width: 40px;
-    height: 48px;
-    font-size: 19px;
-    border-radius: 8px;
   }
 
   .auth-loading-card {

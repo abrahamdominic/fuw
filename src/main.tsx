@@ -189,14 +189,6 @@ function App() {
             }
           />
           <Route
-            path="/verify-otp"
-            element={
-              <PublicLayout onReadOnline={handleReadOnline}>
-                <LoginPage />
-              </PublicLayout>
-            }
-          />
-          <Route
             path="/forgot-password"
             element={
               <PublicLayout onReadOnline={handleReadOnline}>

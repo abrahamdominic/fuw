@@ -1653,7 +1653,7 @@ function StudentSettingsTab({ currentUser }: { currentUser: any }) {
   const store = useStore();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { updateProfile, signOut, user } = useAuth();
+  const { updateProfile, changePassword, signOut, user } = useAuth();
 
   const [activeSection, setActiveSection] = useState<'account' | 'security' | 'notifications' | 'reading' | 'sessions' | 'danger'>('account');
   const [settings, setSettings] = useState(store.getStudentSettings());
@@ -1721,14 +1721,21 @@ function StudentSettingsTab({ currentUser }: { currentUser: any }) {
     toast('Library & notification preferences saved!', 'success');
   };
 
-  const handleChangePassword = (e: React.FormEvent) => {
+  const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (passwordState.newPassword.length < 6) {
-      toast('New password must be at least 6 characters.', 'error');
+    if (passwordState.newPassword.length < 8) {
+      toast('New password must be at least 8 characters.', 'error');
       return;
     }
     if (passwordState.newPassword !== passwordState.confirmPassword) {
       toast('New passwords do not match.', 'error');
+      return;
+    }
+    setBusy(true);
+    const res = await changePassword(passwordState.newPassword);
+    setBusy(false);
+    if (res.error) {
+      toast(res.error.message, 'error');
       return;
     }
     setPasswordState({ currentPassword: '', newPassword: '', confirmPassword: '' });

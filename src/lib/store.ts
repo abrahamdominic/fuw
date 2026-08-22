@@ -399,7 +399,7 @@ class MaterialsStore {
   }
 
   // NOTE: All sign-in / sign-out flows are handled exclusively through
-  // Supabase Email OTP authentication (see src/lib/AuthContext.tsx).
+  // Supabase username + password authentication (see src/lib/AuthContext.tsx).
   // The former mock loginStudent()/loginAdmin() helpers have been removed.
 
   public logoutStudent(): void {

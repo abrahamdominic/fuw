@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   FileText,
@@ -18,25 +18,18 @@ import {
   BookOpen,
   ShieldCheck,
   ArrowRight,
-  Filter,
   X,
   Sparkles,
   SlidersHorizontal,
-  Lock,
-  UserCheck,
   AlertCircle,
   RefreshCw,
-  ArrowLeft,
-  KeyRound,
-  ShieldAlert,
-  Edit3
+  EyeOff
 } from 'lucide-react';
 import { useStore } from '../lib/useStore';
 import { MaterialItem } from '../lib/store';
 import { catalogue, facultyByName, departmentByName, levelsFor, allDepartments, normalizeLevel, groupedFaculties } from '../data/catalogue';
-import { useAuth } from '../lib/AuthContext';
-import { getRemainingCooldown, startCooldown, OTP_COOLDOWN_SECONDS } from '../lib/otpCooldown';
-import { aiSearch, AiSearchResult, aiConfiguredHint } from '../lib/ai';
+import { useAuth, USERNAME_PATTERN, normalizeUsername } from '../lib/AuthContext';
+import { aiSearch, AiSearchResult } from '../lib/ai';
 import { HeroSection } from '../components/HeroSection';
 import { MaterialCard } from '../components/MaterialCard';
 import { CatalogueFilters, FilterState, EMPTY_FILTERS } from '../components/CatalogueFilters';
@@ -803,98 +796,71 @@ export function AboutPage({ contact = false }: { contact?: boolean }) {
   );
 }
 
-// Helper for 6-digit OTP input boxes with auto-advance and paste support
-function OtpDigitInput({
-  otp,
-  setOtp,
+// Shared password input with a show/hide visibility toggle.
+function PasswordField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  autoComplete = 'current-password',
   disabled
 }: {
-  otp: string[];
-  setOtp: (otp: string[]) => void;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  autoComplete?: string;
   disabled?: boolean;
 }) {
-  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
-
-  const handleChange = (index: number, val: string) => {
-    const digitsOnly = val.replace(/\D/g, '');
-    if (!digitsOnly) {
-      const next = [...otp];
-      next[index] = '';
-      setOtp(next);
-      return;
-    }
-    const char = digitsOnly.slice(-1);
-    const next = [...otp];
-    next[index] = char;
-    setOtp(next);
-
-    // Auto-focus next input
-    if (index < 5 && char) {
-      inputRefs.current[index + 1]?.focus();
-    }
-  };
-
-  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Backspace' && !otp[index] && index > 0) {
-      inputRefs.current[index - 1]?.focus();
-    }
-  };
-
-  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
-    e.preventDefault();
-    const pastedData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
-    if (pastedData) {
-      const next = ['', '', '', '', '', ''];
-      for (let i = 0; i < pastedData.length; i++) {
-        next[i] = pastedData[i];
-      }
-      setOtp(next);
-      const focusIndex = Math.min(pastedData.length, 5);
-      inputRefs.current[focusIndex]?.focus();
-    }
-  };
-
+  const [visible, setVisible] = useState(false);
   return (
-    <div className="otp-inputs-row" onPaste={handlePaste}>
-      {otp.map((digit, idx) => (
+    <label className="auth-field-label">
+      <span>{label}</span>
+      <div className="password-input-wrap">
         <input
-          key={idx}
-          ref={(el) => {
-            inputRefs.current[idx] = el;
-          }}
-          type="text"
-          inputMode="numeric"
-          pattern="[0-9]*"
-          maxLength={1}
-          value={digit}
+          type={visible ? 'text' : 'password'}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          autoComplete={autoComplete}
           disabled={disabled}
-          onChange={(e) => handleChange(idx, e.target.value)}
-          onKeyDown={(e) => handleKeyDown(idx, e)}
-          className={`otp-digit-box ${digit ? 'filled' : ''}`}
-          aria-label={`Digit ${idx + 1}`}
-          autoFocus={idx === 0}
+          required
         />
-      ))}
-    </div>
+        <button
+          type="button"
+          className="password-toggle-btn"
+          onClick={() => setVisible((v) => !v)}
+          aria-label={visible ? 'Hide password' : 'Show password'}
+          title={visible ? 'Hide password' : 'Show password'}
+          tabIndex={-1}
+        >
+          {visible ? <EyeOff size={16} /> : <Eye size={16} />}
+        </button>
+      </div>
+    </label>
   );
 }
 
-// 7. AUTH PAGES (Supabase Email OTP Authentication: Signup & Login)
+// 7. AUTH PAGES (Supabase username + password authentication)
 export function LoginPage({ register: initialRegister = false }: { register?: boolean }) {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { sendOtp, verifyOtp, completeProfile, isAuthenticated, isProfileComplete, user, profile } = useAuth();
+  const { signInWithUsername, signUpWithPassword, completeProfile, isAuthenticated, isProfileComplete, profile } = useAuth();
 
   const [isRegister, setIsRegister] = useState(initialRegister);
-  const [step, setStep] = useState<'email' | 'otp' | 'profile'>('email');
-  const [email, setEmail] = useState('');
-  const [otp, setOtp] = useState<string[]>(['', '', '', '', '', '']);
-  const [countdown, setCountdown] = useState(0);
+  const [step, setStep] = useState<'credentials' | 'profile'>('credentials');
   const [busy, setBusy] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  // Profile fields for Step 3
+  // Credential fields
+  const [fullName, setFullName] = useState('');
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+
+  // Academic fields for the post-signup profile completion step
   const [profileData, setProfileData] = useState({
     fullName: '',
     matricNumber: '',
@@ -908,27 +874,6 @@ export function LoginPage({ register: initialRegister = false }: { register?: bo
   const currentFaculty = facultyByName(profileData.faculty) || catalogue[0];
   const currentDepartment = departmentByName(profileData.faculty, profileData.department) || currentFaculty.departments[0];
   const availableLevels = levelsFor(currentDepartment?.duration || 4);
-
-  // Countdown timer effect — seeded from the persisted cooldown so a page
-  // refresh cannot be used to bypass the resend wait.
-  useEffect(() => {
-    let timer: any;
-    if (countdown > 0) {
-      timer = setInterval(() => {
-        setCountdown((c) => c - 1);
-      }, 1000);
-    }
-    return () => {
-      if (timer) clearInterval(timer);
-    };
-  }, [countdown]);
-
-  // Restore any still-running cooldown for this email after a refresh.
-  useEffect(() => {
-    if (email) {
-      setCountdown(getRemainingCooldown(email));
-    }
-  }, [email, step]);
 
   // If already authenticated with a completed profile, redirect to the right
   // dashboard. Incomplete profiles stay here so the student finishes signup.
@@ -968,90 +913,88 @@ export function LoginPage({ register: initialRegister = false }: { register?: bo
     }));
   };
 
-  // Step 1: Send OTP
-  const handleSendOtp = async (e: React.FormEvent) => {
+  /** Client-side registration validation — clear, user-friendly messages. */
+  const validateRegistration = (): string | null => {
+    if (!fullName.trim()) return 'Full name is required.';
+    const uname = normalizeUsername(username);
+    if (!USERNAME_PATTERN.test(uname)) {
+      return 'Username must be 3–20 characters using only lowercase letters, numbers, dots, dashes, or underscores.';
+    }
+    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      return 'Please enter a valid email address.';
+    }
+    if (password.length < 8) return 'Password must be at least 8 characters long.';
+    if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+      return 'Password must contain at least one letter and one number.';
+    }
+    if (password !== confirmPassword) return 'Passwords do not match.';
+    return null;
+  };
+
+  // Login with username + password
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
     setSuccessMsg(null);
 
-    const cleanEmail = email.trim().toLowerCase();
-    if (!cleanEmail || !cleanEmail.includes('@')) {
-      setErrorMsg('Please enter a valid university or personal email address.');
-      return;
-    }
-
     setBusy(true);
-    const res = await sendOtp(cleanEmail, isRegister);
+    const res = await signInWithUsername(username, password);
     setBusy(false);
 
     if (res.error) {
       setErrorMsg(res.error.message);
+      return;
+    }
+
+    toast('Welcome back to FUW E-Library!', 'success');
+    if (res.role === 'super_admin') {
+      navigate('/super');
+    } else if (res.role === 'admin') {
+      navigate('/admin');
     } else {
-      setSuccessMsg(res.message || `A 6-digit verification code was sent to ${cleanEmail}`);
-      toast('Verification code sent to your email', 'info');
-      setStep('otp');
-      startCooldown(cleanEmail);
-      setCountdown(OTP_COOLDOWN_SECONDS);
-      setOtp(['', '', '', '', '', '']);
+      navigate('/student');
     }
   };
 
-  // Step 2: Verify OTP
-  const handleVerifyOtp = async (e: React.FormEvent) => {
+  // Register a new account with email + password (username is stored on the
+  // profile and used for all future sign-ins).
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
     setSuccessMsg(null);
 
-    const code = otp.join('').trim();
-    if (code.length !== 6) {
-      setErrorMsg('Please enter all 6 digits of the verification code.');
+    const validationError = validateRegistration();
+    if (validationError) {
+      setErrorMsg(validationError);
       return;
     }
 
     setBusy(true);
-    const res = await verifyOtp(email, code);
+    const res = await signUpWithPassword({ fullName, username, email, password });
     setBusy(false);
 
     if (res.error) {
       setErrorMsg(res.error.message);
-    } else {
-      toast('Email verified successfully!', 'success');
-      if (res.isNewUser || isRegister) {
-        // Move to Step 3: Complete Profile
-        setStep('profile');
-      } else {
-        // Existing user -> redirect to the correct dashboard
-        if (res.role === 'super_admin') {
-          navigate('/super');
-        } else if (res.role === 'admin') {
-          navigate('/admin');
-        } else {
-          navigate('/student');
-        }
-      }
+      return;
     }
+
+    if (res.needsEmailConfirmation) {
+      setIsRegister(false);
+      setPassword('');
+      setConfirmPassword('');
+      setSuccessMsg(
+        'Account created! Check your email inbox for the confirmation link, then log in with your username and password.'
+      );
+      toast('Account created — confirm your email to log in.', 'success');
+      return;
+    }
+
+    toast('Account created successfully! Welcome to FUW E-Library.', 'success');
+    setProfileData((prev) => ({ ...prev, fullName: fullName.trim() }));
+    setStep('profile');
   };
 
-  // Resend OTP
-  const handleResendOtp = async () => {
-    if (countdown > 0 || busy) return;
-    setErrorMsg(null);
-    setBusy(true);
-    const res = await sendOtp(email, isRegister);
-    setBusy(false);
-
-    if (res.error) {
-      setErrorMsg(res.error.message);
-    } else {
-      setSuccessMsg(`A new 6-digit code has been sent to ${email}`);
-      toast('New verification code sent', 'info');
-      startCooldown(email.trim().toLowerCase());
-      setCountdown(OTP_COOLDOWN_SECONDS);
-      setOtp(['', '', '', '', '', '']);
-    }
-  };
-
-  // Step 3: Complete Profile
+  // Final step: complete student academic profile
   const handleCompleteProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
@@ -1092,16 +1035,12 @@ export function LoginPage({ register: initialRegister = false }: { register?: bo
           <b>FUW</b> E-Library
         </div>
 
-        {/* STEP 1: Enter Email */}
-        {step === 'email' && (
+        {/* STEP 1: Credentials (login or register) */}
+        {step === 'credentials' && !isRegister && (
           <>
-            <p className="kicker">{isRegister ? 'STUDENT REGISTRATION' : 'SECURE STUDENT ACCESS'}</p>
-            <h1>{isRegister ? 'Create your account' : 'Sign in to library'}</h1>
-            <p>
-              {isRegister
-                ? 'Enter your email to receive a 6 digit code.'
-                : 'Enter your registered email to receive a 6 digit one-time login code.'}
-            </p>
+            <p className="kicker">SECURE STUDENT ACCESS</p>
+            <h1>Sign in to library</h1>
+            <p>Log in with your username and password.</p>
 
             {errorMsg && (
               <div className="form-feedback-box error">
@@ -1117,7 +1056,115 @@ export function LoginPage({ register: initialRegister = false }: { register?: bo
               </div>
             )}
 
-            <form onSubmit={handleSendOtp} className="auth-flow-form">
+            <form onSubmit={handleLogin} className="auth-flow-form">
+              <label className="auth-field-label">
+                <span>Username</span>
+                <input
+                  required
+                  type="text"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  placeholder="your.username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  disabled={busy}
+                  autoFocus
+                />
+              </label>
+
+              <PasswordField
+                label="Password"
+                value={password}
+                onChange={setPassword}
+                placeholder="Your password"
+                disabled={busy}
+              />
+
+              <button type="submit" className="primary auth-submit-btn" disabled={busy}>
+                {busy ? (
+                  <>
+                    <RefreshCw size={16} className="spin-icon" /> Signing in…
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck size={16} /> Login
+                  </>
+                )}
+              </button>
+            </form>
+
+            <div className="auth-toggle-row">
+              <p>
+                New student to FUW E-Library?{' '}
+                <button
+                  type="button"
+                  className="auth-link-btn"
+                  onClick={() => {
+                    setIsRegister(true);
+                    setErrorMsg(null);
+                    setSuccessMsg(null);
+                  }}
+                >
+                  Create an account
+                </button>
+              </p>
+            </div>
+          </>
+        )}
+
+        {step === 'credentials' && isRegister && (
+          <>
+            <p className="kicker">STUDENT REGISTRATION</p>
+            <h1>Create your account</h1>
+            <p>Register with your details. You will sign in with your username and password.</p>
+
+            {errorMsg && (
+              <div className="form-feedback-box error">
+                <AlertCircle size={17} />
+                <p>{errorMsg}</p>
+              </div>
+            )}
+
+            {successMsg && (
+              <div className="form-feedback-box success">
+                <CheckCircle2 size={17} />
+                <p>{successMsg}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleRegister} className="auth-flow-form">
+              <label className="auth-field-label">
+                <span>Full Name</span>
+                <input
+                  required
+                  type="text"
+                  placeholder="e.g. Aisha Bello"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  disabled={busy}
+                  autoFocus
+                />
+              </label>
+
+              <label className="auth-field-label">
+                <span>Username</span>
+                <input
+                  required
+                  type="text"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  minLength={3}
+                  maxLength={20}
+                  pattern="[a-z0-9._\-]+"
+                  title="3–20 characters: lowercase letters, numbers, dots, dashes, or underscores"
+                  placeholder="e.g. aisha.bello"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value.toLowerCase())}
+                  disabled={busy}
+                />
+              </label>
+
               <label className="auth-field-label">
                 <span>Email Address</span>
                 <input
@@ -1127,18 +1174,35 @@ export function LoginPage({ register: initialRegister = false }: { register?: bo
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={busy}
-                  autoFocus
                 />
               </label>
+
+              <PasswordField
+                label="Password"
+                value={password}
+                onChange={setPassword}
+                placeholder="At least 8 characters with a letter and a number"
+                autoComplete="new-password"
+                disabled={busy}
+              />
+
+              <PasswordField
+                label="Confirm Password"
+                value={confirmPassword}
+                onChange={setConfirmPassword}
+                placeholder="Re-enter your password"
+                autoComplete="new-password"
+                disabled={busy}
+              />
 
               <button type="submit" className="primary auth-submit-btn" disabled={busy}>
                 {busy ? (
                   <>
-                    <RefreshCw size={16} className="spin-icon" /> Sending OTP…
+                    <RefreshCw size={16} className="spin-icon" /> Creating account…
                   </>
                 ) : (
                   <>
-                    <KeyRound size={16} /> Send 6-Digit OTP
+                    <CheckCircle2 size={16} /> Create Account
                   </>
                 )}
               </button>
@@ -1146,110 +1210,24 @@ export function LoginPage({ register: initialRegister = false }: { register?: bo
 
             <div className="auth-toggle-row">
               <p>
-                {isRegister ? 'Already have an account?' : 'New student to FUW E-Library?'}{' '}
+                Already have an account?{' '}
                 <button
                   type="button"
                   className="auth-link-btn"
                   onClick={() => {
-                    setIsRegister(!isRegister);
+                    setIsRegister(false);
                     setErrorMsg(null);
                     setSuccessMsg(null);
                   }}
                 >
-                  {isRegister ? 'Log in with OTP' : 'Create an account'}
+                  Log in
                 </button>
               </p>
             </div>
           </>
         )}
 
-        {/* STEP 2: Verify 6-digit OTP */}
-        {step === 'otp' && (
-          <>
-            <p className="kicker">TWO-FACTOR VERIFICATION</p>
-            <h1>Enter verification code</h1>
-            <div className="otp-email-badge">
-              <span>Code sent to: <b>{email}</b></span>
-              <button
-                type="button"
-                className="edit-email-btn"
-                onClick={() => {
-                  setStep('email');
-                  setErrorMsg(null);
-                }}
-              >
-                <Edit3 size={13} /> Change
-              </button>
-            </div>
-
-            {errorMsg && (
-              <div className="form-feedback-box error">
-                <AlertCircle size={17} />
-                <p>{errorMsg}</p>
-              </div>
-            )}
-
-            {successMsg && (
-              <div className="form-feedback-box success">
-                <CheckCircle2 size={17} />
-                <p>{successMsg}</p>
-              </div>
-            )}
-
-            <form onSubmit={handleVerifyOtp} className="auth-flow-form">
-              <label className="auth-field-label">
-                <span>Enter 6-digit OTP Code</span>
-                <OtpDigitInput otp={otp} setOtp={setOtp} disabled={busy} />
-              </label>
-
-              <button
-                type="submit"
-                className="primary auth-submit-btn"
-                disabled={busy || otp.join('').length !== 6}
-              >
-                {busy ? (
-                  <>
-                    <RefreshCw size={16} className="spin-icon" /> Verifying…
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 size={16} /> {isRegister ? 'Verify Email & Continue' : 'Verify & Sign In'}
-                  </>
-                )}
-              </button>
-
-              <div className="otp-resend-container">
-                {countdown > 0 ? (
-                  <span className="otp-countdown-text">
-                    <Clock size={14} /> Resend OTP in <b>{countdown}s</b>
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    className="resend-otp-btn"
-                    onClick={handleResendOtp}
-                    disabled={busy}
-                  >
-                    <RefreshCw size={14} /> Didn't receive code? Resend OTP
-                  </button>
-                )}
-              </div>
-
-              <button
-                type="button"
-                className="back-step-btn"
-                onClick={() => {
-                  setStep('email');
-                  setErrorMsg(null);
-                }}
-              >
-                <ArrowLeft size={14} /> Back to email entry
-              </button>
-            </form>
-          </>
-        )}
-
-        {/* STEP 3: Complete Student Profile */}
+        {/* STEP 2: Complete Student Profile */}
         {step === 'profile' && (
           <>
             <p className="kicker">FINAL STEP: PROFILE DETAILS</p>
@@ -1276,14 +1254,14 @@ export function LoginPage({ register: initialRegister = false }: { register?: bo
               </label>
 
               <label className="auth-field-label">
-                <span>Verified Email Address</span>
+                <span>Registered Username & Email</span>
                 <div className="input-with-badge">
                   <input
-                    type="email"
-                    value={email || user?.email || ''}
+                    type="text"
+                    value={`${normalizeUsername(username)} · ${email}`}
                     readOnly
                     className="input-readonly"
-                    title="Email verified via Supabase Auth"
+                    title="Verified during registration"
                   />
                   <span className="readonly-tag">
                     <ShieldCheck size={12} /> Verified
@@ -1310,11 +1288,23 @@ export function LoginPage({ register: initialRegister = false }: { register?: bo
                   disabled={busy}
                   required
                 >
-                  {catalogue.map((f) => (
-                    <option key={f.name} value={f.name}>
-                      {f.name}
-                    </option>
-                  ))}
+                  {groupedFaculties().map((group) =>
+                    group.college ? (
+                      <optgroup key={group.college} label={group.college}>
+                        {group.faculties.map((f) => (
+                          <option key={f.name} value={f.name}>
+                            {f.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ) : (
+                      group.faculties.map((f) => (
+                        <option key={f.name} value={f.name}>
+                          {f.name}
+                        </option>
+                      ))
+                    )
+                  )}
                 </select>
               </label>
 
@@ -1369,86 +1359,48 @@ export function LoginPage({ register: initialRegister = false }: { register?: bo
   );
 }
 
-// 8. ADMIN LOGIN GATEWAY (Supabase Email OTP Authentication + Role Authorization)
+// 8. ADMIN LOGIN GATEWAY (Supabase username + password authentication + role authorization)
 export function AdminLoginPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { sendOtp, verifyOtp, profile, isAdmin } = useAuth();
+  const { signInWithUsername } = useAuth();
 
-  const [step, setStep] = useState<'email' | 'otp'>('email');
-  const [adminEmail, setAdminEmail] = useState('');
-  const [otp, setOtp] = useState<string[]>(['', '', '', '', '', '']);
-  const [countdown, setCountdown] = useState(0);
+  const [adminUsername, setAdminUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  useEffect(() => {
-    let timer: any;
-    if (countdown > 0) {
-      timer = setInterval(() => setCountdown((c) => c - 1), 1000);
-    }
-    return () => {
-      if (timer) clearInterval(timer);
-    };
-  }, [countdown]);
-
-  const handleSendAdminOtp = async (e: React.FormEvent) => {
+  const handleAdminSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
 
-    const cleanEmail = adminEmail.trim().toLowerCase();
-    if (!cleanEmail || !cleanEmail.includes('@')) {
-      setErrorMsg('Please enter a valid administrator email address.');
+    if (!adminUsername.trim() || !password) {
+      setErrorMsg('Please enter your admin username and password.');
       return;
     }
 
     setBusy(true);
-    const res = await sendOtp(cleanEmail, false);
+    const res = await signInWithUsername(adminUsername, password);
     setBusy(false);
 
     if (res.error) {
       setErrorMsg(res.error.message);
-    } else {
-      setSuccessMsg(`A 6-digit administrator verification code has been sent to ${cleanEmail}`);
-      toast('Admin OTP code sent to your email', 'info');
-      setStep('otp');
-      setCountdown(60);
-      setOtp(['', '', '', '', '', '']);
-    }
-  };
-
-  const handleVerifyAdminOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMsg(null);
-
-    const code = otp.join('').trim();
-    if (code.length !== 6) {
-      setErrorMsg('Please enter the 6-digit admin code.');
       return;
     }
 
-    setBusy(true);
-    const res = await verifyOtp(adminEmail, code);
-    setBusy(false);
-
-    if (res.error) {
-      setErrorMsg(res.error.message);
+    if (res.role === 'super_admin') {
+      toast('Super Administrator access granted', 'success');
+      navigate('/super');
+    } else if (res.role === 'admin') {
+      toast('Authorized Administrator access granted', 'success');
+      navigate('/admin');
     } else {
-      if (res.role === 'super_admin') {
-        toast('Super Administrator access granted', 'success');
-        navigate('/super');
-      } else if (res.role === 'admin') {
-        toast('Authorized Administrator access granted', 'success');
-        navigate('/admin');
-      } else {
-        // Account exists but is not an admin
-        setErrorMsg('Access Denied: Your account does not have administrator privileges. Redirecting to student portal...');
-        toast('Access Denied: Student account redirected to student portal', 'error');
-        setTimeout(() => {
-          navigate('/student');
-        }, 2000);
-      }
+      // Account exists but is not an admin
+      setErrorMsg('Access Denied: Your account does not have administrator privileges. Redirecting to student portal...');
+      toast('Access Denied: Student account redirected to student portal', 'error');
+      setTimeout(() => {
+        navigate('/student');
+      }, 2000);
     }
   };
 
@@ -1461,7 +1413,7 @@ export function AdminLoginPage() {
         </div>
         <p className="kicker">STAFF & LIBRARIAN GATEWAY</p>
         <h1>Admin sign in</h1>
-        <p>Sign in to review student material submissions and manage library catalogues.</p>
+        <p>Sign in with your administrator username and password to review submissions and manage library catalogues.</p>
 
         {errorMsg && (
           <div className="form-feedback-box error">
@@ -1470,114 +1422,47 @@ export function AdminLoginPage() {
           </div>
         )}
 
-        {successMsg && (
-          <div className="form-feedback-box success">
-            <CheckCircle2 size={17} />
-            <p>{successMsg}</p>
-          </div>
-        )}
+        <form onSubmit={handleAdminSignIn} className="auth-flow-form">
+          <label className="auth-field-label">
+            <span>Admin Username</span>
+            <input
+              required
+              type="text"
+              autoCapitalize="none"
+              autoCorrect="off"
+              placeholder="e.g. library.admin"
+              value={adminUsername}
+              onChange={(e) => setAdminUsername(e.target.value.toLowerCase())}
+              disabled={busy}
+              autoFocus
+            />
+          </label>
 
-        {step === 'email' ? (
-          <form onSubmit={handleSendAdminOtp} className="auth-flow-form">
-            <label className="auth-field-label">
-              <span>Admin Staff Email</span>
-              <input
-                required
-                type="email"
-                placeholder="e.g. admin.library@fuw.edu.ng"
-                value={adminEmail}
-                onChange={(e) => setAdminEmail(e.target.value)}
-                disabled={busy}
-                autoFocus
-              />
-            </label>
+          <PasswordField
+            label="Password"
+            value={password}
+            onChange={setPassword}
+            placeholder="Admin password"
+            disabled={busy}
+          />
 
-            <button type="submit" className="primary auth-submit-btn" disabled={busy}>
-              {busy ? (
-                <>
-                  <RefreshCw size={16} className="spin-icon" /> Sending OTP…
-                </>
-              ) : (
-                <>
-                  <KeyRound size={16} /> Send Admin Access Code
-                </>
-              )}
-            </button>
+          <button type="submit" className="primary auth-submit-btn" disabled={busy}>
+            {busy ? (
+              <>
+                <RefreshCw size={16} className="spin-icon" /> Authorizing…
+              </>
+            ) : (
+              <>
+                <ShieldCheck size={16} /> Verify & Access Admin Dashboard
+              </>
+            )}
+          </button>
 
-            <p className="auth-back-link">
-              <Link to="/">← Return to Public Library</Link>
-            </p>
-          </form>
-        ) : (
-          <form onSubmit={handleVerifyAdminOtp} className="auth-flow-form">
-            <div className="otp-email-badge">
-              <span>Admin Code sent to: <b>{adminEmail}</b></span>
-              <button
-                type="button"
-                className="edit-email-btn"
-                onClick={() => {
-                  setStep('email');
-                  setErrorMsg(null);
-                }}
-              >
-                <Edit3 size={13} /> Change
-              </button>
-            </div>
-
-            <label className="auth-field-label">
-              <span>Enter 6-digit Administrator OTP</span>
-              <OtpDigitInput otp={otp} setOtp={setOtp} disabled={busy} />
-            </label>
-
-            <button
-              type="submit"
-              className="primary auth-submit-btn"
-              disabled={busy || otp.join('').length !== 6}
-            >
-              {busy ? (
-                <>
-                  <RefreshCw size={16} className="spin-icon" /> Authorizing…
-                </>
-              ) : (
-                <>
-                  <ShieldCheck size={16} /> Verify & Access Admin Dashboard
-                </>
-              )}
-            </button>
-
-            <div className="otp-resend-container">
-              {countdown > 0 ? (
-                <span className="otp-countdown-text">
-                  <Clock size={14} /> Resend OTP in <b>{countdown}s</b>
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  className="resend-otp-btn"
-                  onClick={handleSendAdminOtp}
-                  disabled={busy}
-                >
-                  <RefreshCw size={14} /> Resend Admin OTP
-                </button>
-              )}
-            </div>
-
-            <p className="auth-back-link">
-              <button
-                type="button"
-                className="back-step-btn"
-                onClick={() => {
-                  setStep('email');
-                  setErrorMsg(null);
-                }}
-              >
-                <ArrowLeft size={14} /> Back to email
-              </button>
-            </p>
-          </form>
-        )}
+          <p className="auth-back-link">
+            <Link to="/">← Return to Public Library</Link>
+          </p>
+        </form>
       </div>
     </main>
   );
 }
-

@@ -35,8 +35,16 @@ export interface AuthContextType {
   role: AppRole | null;
   permissions: string[];
   hasPermission: (permission: string) => boolean;
-  sendOtp: (email: string, shouldCreateUser?: boolean) => Promise<{ error: Error | null; message?: string }>;
-  verifyOtp: (email: string, token: string) => Promise<{ error: Error | null; isNewUser?: boolean; role?: AppRole }>;
+  signInWithUsername: (
+    username: string,
+    password: string
+  ) => Promise<{ error: Error | null; role?: AppRole }>;
+  signUpWithPassword: (input: {
+    fullName: string;
+    username: string;
+    email: string;
+    password: string;
+  }) => Promise<{ error: Error | null; needsEmailConfirmation?: boolean }>;
   completeProfile: (data: {
     fullName: string;
     matricNumber: string;
@@ -46,11 +54,19 @@ export interface AuthContextType {
     bio?: string;
   }) => Promise<{ error: Error | null }>;
   updateProfile: (updates: Partial<ProfileData>) => Promise<{ error: Error | null }>;
+  changePassword: (
+    newPassword: string
+  ) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<ProfileData | null>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+/** Canonical username rules shared by the UI and the auth layer. */
+export const USERNAME_PATTERN = /^[a-z0-9._-]{3,20}$/;
+
+export const normalizeUsername = (username: string): string => username.trim().toLowerCase();
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -203,104 +219,164 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  // Send Email OTP
-  const sendOtp = async (email: string, shouldCreateUser: boolean = true) => {
+  // Sign in with username + password.
+  // The username is resolved to its auth email through the SECURITY DEFINER
+  // RPC `lookup_login_email`, then authentication is delegated entirely to
+  // Supabase Auth (`signInWithPassword`). Passwords are never stored or
+  // hashed client-side.
+  const signInWithUsername = async (
+    username: string,
+    password: string
+  ): Promise<{ error: Error | null; role?: AppRole }> => {
     if (!supabase) {
       return { error: new Error('Supabase client is not configured.') };
     }
 
-    const cleanEmail = email.trim().toLowerCase();
-    if (!cleanEmail || !cleanEmail.includes('@')) {
-      return { error: new Error('Please enter a valid university or personal email address.') };
+    const uname = normalizeUsername(username);
+    if (!uname || !password) {
+      return { error: new Error('Please enter your username and password.') };
     }
 
     try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email: cleanEmail,
-        options: {
-          shouldCreateUser,
-          emailRedirectTo: window.location.origin
-        }
-      });
-
-      if (error) {
-        // Humanize common Supabase errors
-        if (error.message.toLowerCase().includes('rate limit')) {
-          return { error: new Error('Too many OTP requests. Please wait a few moments before trying again.') };
-        }
-        if (error.message.toLowerCase().includes('signups not allowed') || error.message.toLowerCase().includes('user not found')) {
-          return { error: new Error('No account found with this email. Please register first.') };
-        }
-        return { error: new Error(error.message) };
+      const { data: loginEmail, error: lookupError } = await supabase.rpc(
+        'lookup_login_email',
+        { p_username: uname }
+      );
+      if (lookupError) {
+        return { error: new Error('Unable to verify your account right now. Please try again.') };
+      }
+      const email = typeof loginEmail === 'string' ? loginEmail.trim() : '';
+      if (!email) {
+        return { error: new Error('No account found with this username.') };
       }
 
-      return { error: null, message: `A 6-digit verification code has been sent to ${cleanEmail}.` };
-    } catch (err: any) {
-      return { error: new Error(err.message || 'Unable to send OTP. Please check your network connection.') };
-    }
-  };
-
-  // Verify Email OTP
-  const verifyOtp = async (
-    email: string,
-    token: string
-  ): Promise<{ error: Error | null; isNewUser?: boolean; role?: AppRole }> => {
-    if (!supabase) {
-      return { error: new Error('Supabase client is not configured.') };
-    }
-
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanToken = token.trim();
-
-    if (cleanToken.length !== 6) {
-      return { error: new Error('Please enter the complete 6-digit verification code.') };
-    }
-
-    try {
-      const { data, error } = await supabase.auth.verifyOtp({
-        email: cleanEmail,
-        token: cleanToken,
-        type: 'email'
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password
       });
 
-      if (error) {
-        if (error.message.toLowerCase().includes('expired')) {
-          return { error: new Error('This verification code has expired. Please request a new code.') };
+      if (authError) {
+        const msg = authError.message.toLowerCase();
+        if (msg.includes('invalid login credentials')) {
+          return { error: new Error('Incorrect password. Please try again.') };
         }
-        if (error.message.toLowerCase().includes('invalid') || error.message.toLowerCase().includes('token')) {
-          return { error: new Error('Invalid verification code. Please check your email and try again.') };
+        if (msg.includes('not confirmed')) {
+          return {
+            error: new Error(
+              'Your email address has not been confirmed yet. Please check your inbox for the confirmation link.'
+            )
+          };
         }
-        return { error: new Error(error.message) };
+        if (msg.includes('rate limit')) {
+          return { error: new Error('Too many sign-in attempts. Please wait a few moments and try again.') };
+        }
+        return { error: new Error(authError.message) };
       }
 
       if (data.user) {
         setUser(data.user);
         setSession(data.session);
 
-        const loadedProfile = await fetchProfile(data.user.id, data.user.email);
-        if (loadedProfile) {
-          syncToStore(loadedProfile, data.user);
-          // A brand-new signup gets an auto-created bare profile from the
-          // database trigger. Treat it as "new user" until academic details
-          // (matric number / faculty / department) have been completed.
-          const needsCompletion =
-            !loadedProfile.matricNumber ||
-            !loadedProfile.faculty ||
-            !loadedProfile.department;
-          return {
-            error: null,
-            isNewUser: needsCompletion,
-            role: (loadedProfile.role || 'student') as AppRole
-          };
-        } else {
-          // Profile needs to be completed
-          return { error: null, isNewUser: true, role: 'student' as const };
+        const prof = await fetchProfile(data.user.id, data.user.email);
+        if (prof && !prof.isActive) {
+          await supabase.auth.signOut();
+          setProfile(null);
+          syncToStore(null, null);
+          return { error: new Error('This account has been deactivated. Contact the library administrator.') };
+        }
+        if (prof) syncToStore(prof, data.user);
+        return { error: null, role: (prof?.role ?? 'student') as AppRole };
+      }
+
+      return { error: new Error('Sign-in failed. Please try again.') };
+    } catch (err: any) {
+      return { error: new Error(err.message || 'Sign-in failed. Please check your connection and try again.') };
+    }
+  };
+
+  // Register a new account with Supabase Auth password signup. The chosen
+  // username travels inside the signup metadata so the database trigger
+  // persists it on the profile row; duplicate usernames/emails are rejected
+  // via the `register_identity_check` RPC before any account is created.
+  const signUpWithPassword = async (input: {
+    fullName: string;
+    username: string;
+    email: string;
+    password: string;
+  }): Promise<{ error: Error | null; needsEmailConfirmation?: boolean }> => {
+    if (!supabase) {
+      return { error: new Error('Supabase client is not configured.') };
+    }
+
+    const fullName = input.fullName.trim();
+    const uname = normalizeUsername(input.username);
+    const cleanEmail = input.email.trim().toLowerCase();
+
+    if (!fullName) {
+      return { error: new Error('Please enter your full name.') };
+    }
+    if (!USERNAME_PATTERN.test(uname)) {
+      return {
+        error: new Error(
+          'Username must be 3–20 characters using only lowercase letters, numbers, dots, dashes, or underscores.'
+        )
+      };
+    }
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      return { error: new Error('Please enter a valid email address.') };
+    }
+
+    try {
+      // Duplicate username / email pre-check (friendly errors before signup).
+      const { data: check, error: checkError } = await supabase.rpc('register_identity_check', {
+        p_username: uname,
+        p_email: cleanEmail
+      });
+      if (!checkError && check && typeof check === 'object') {
+        if ((check as any).username_taken) {
+          return { error: new Error('That username is already taken. Please choose another one.') };
+        }
+        if ((check as any).email_taken) {
+          return { error: new Error('An account with this email already exists. Please log in instead.') };
         }
       }
 
-      return { error: new Error('Verification completed but user session was not found.') };
+      const displayName = fullName.split(/\s+/)[0] || uname;
+      const { data, error } = await supabase.auth.signUp({
+        email: cleanEmail,
+        password: input.password,
+        options: {
+          data: { full_name: fullName, display_name: displayName, username: uname }
+        }
+      });
+
+      if (error) {
+        const msg = error.message.toLowerCase();
+        if (msg.includes('already registered') || msg.includes('already exists')) {
+          return { error: new Error('An account with this email already exists. Please log in instead.') };
+        }
+        if (msg.includes('password')) {
+          return { error: new Error(error.message.replace(/^Password /, '')) };
+        }
+        if (msg.includes('rate limit') || msg.includes('signup requires')) {
+          return { error: new Error(error.message) };
+        }
+        return { error: new Error(error.message) };
+      }
+
+      if (data.user) {
+        setUser(data.user);
+        setSession(data.session ?? null);
+        // The handle_new_user trigger creates the bare profile row (with the
+        // username). Pull it into context so ProtectedRoute passes instantly.
+        const prof = await fetchProfile(data.user.id, data.user.email);
+        if (prof) syncToStore(prof, data.user);
+      }
+
+      // When "Confirm email" is enabled server-side no session is returned.
+      return { error: null, needsEmailConfirmation: !data.session };
     } catch (err: any) {
-      return { error: new Error(err.message || 'Verification failed. Please check your connection and try again.') };
+      return { error: new Error(err.message || 'Registration failed. Please check your connection and try again.') };
     }
   };
 
@@ -368,16 +444,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Update Profile
   const updateProfile = async (updates: Partial<ProfileData>) => {
-    if (!supabase || !user || !profile) {
-      return { error: new Error('No authenticated profile found.') };
+    if (!supabase) {
+      return { error: new Error('Supabase client is not configured.') };
+    }
+    if (!user) {
+      return { error: new Error('You must be signed in to update your profile.') };
     }
 
     try {
+      // The cached profile can be null right after a restored session or if
+      // the initial fetch failed. Re-fetch once so saving never fails merely
+      // because the client-side copy was unavailable.
+      let currentProfile = profile;
+      if (!currentProfile) {
+        currentProfile = await fetchProfile(user.id, user.email);
+      }
+
       const updatedProfile: ProfileData = {
-        ...profile,
+        ...(currentProfile ?? {
+          id: user.id,
+          fullName: '',
+          displayName: '',
+          email: user.email || '',
+          matricNumber: '',
+          faculty: '',
+          department: '',
+          level: '',
+          role: 'student',
+          permissions: [],
+          isActive: true
+        }),
         ...updates,
         // Role cannot be changed by student
-        role: profile.role
+        role: currentProfile?.role ?? 'student'
       };
 
       const dbUpdates: any = {
@@ -385,16 +484,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
 
       if (updates.fullName !== undefined) dbUpdates.full_name = updates.fullName;
+      if (updates.displayName !== undefined) dbUpdates.display_name = updates.displayName;
       if (updates.matricNumber !== undefined) dbUpdates.matric_number = updates.matricNumber;
       if (updates.faculty !== undefined) dbUpdates.faculty = updates.faculty;
       if (updates.department !== undefined) dbUpdates.department = updates.department;
       if (updates.level !== undefined) dbUpdates.level = updates.level;
       if (updates.bio !== undefined) dbUpdates.bio = updates.bio;
 
-      const { error } = await supabase
-        .from('profiles')
-        .update(dbUpdates)
-        .eq('id', user.id);
+      // Upsert (keyed by id) instead of update: when no profiles row exists
+      // yet, an UPDATE would silently match zero rows while an INSERT here is
+      // permitted by RLS (id = auth.uid()), creating it on first save.
+      const { error } = await supabase.from('profiles').upsert({
+        id: user.id,
+        email: user.email,
+        ...dbUpdates
+      });
 
       if (error) {
         return { error: new Error(error.message) };
@@ -405,6 +509,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { error: null };
     } catch (err: any) {
       return { error: new Error(err.message || 'Failed to update profile.') };
+    }
+  };
+
+  // Change password via Supabase Auth (hashed server-side, never stored locally).
+  const changePassword = async (newPassword: string): Promise<{ error: Error | null }> => {
+    if (!supabase || !user) {
+      return { error: new Error('You must be signed in to change your password.') };
+    }
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) {
+        return { error: new Error(error.message) };
+      }
+      return { error: null };
+    } catch (err: any) {
+      return { error: new Error(err.message || 'Failed to change password.') };
     }
   };
 
@@ -462,10 +582,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       role,
       permissions,
       hasPermission,
-      sendOtp,
-      verifyOtp,
+      signInWithUsername,
+      signUpWithPassword,
       completeProfile,
       updateProfile,
+      changePassword,
       signOut,
       refreshProfile
     }),
