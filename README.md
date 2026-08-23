@@ -1,323 +1,410 @@
 # FUW E-Library
 
-Digital library platform for Federal University Wukari — a React + Vite frontend backed by Supabase (PostgreSQL, Auth, Storage, Edge Functions) with an AI study assistant built on Retrieval-Augmented Generation (RAG).
+FUW E-Library is the digital repository and learning platform of Federal University
+Wukari: a public academic library backed by Supabase, with dedicated dashboards for
+students, administrators and the Super Admin. This document describes the
+application's features, followed by the production-safe database setup guide.
 
-## Quick links
+---
 
-| Portal | URL |
-| --- | --- |
-| Public library | `/` (home) · `/library` · `/courses` · `/faculties` |
-| Student portal | `/login` (username + password) → `/student` |
-| Admin portal | `/admin/login` → `/admin` |
-| **Super Admin portal** | **`/super/login`** → `/super` (aliases: `/super-admin`, `/superadmin`) |
+## Features
 
-The Super Admin is the single owner account with full governance: promote/demote admins, assign granular permissions, invite staff, and monitor platform-wide activity.
+### Public library (no account required)
 
-## Architecture
+- **Landing page** — cinematic hero with video background, audio/motion controls,
+  live repository statistics, quick search and shortcut links.
+- **Library catalogue** — full-text search plus faculty / department / level /
+  semester / material-type filters, sorting, removable active-filter chips and a
+  mobile filter drawer.
+- **Faculties & departments** — browsable directory of all 14 faculties (including
+  the College of Health Sciences grouping) with departments and programme durations.
+- **Course directory** — searchable index of every seeded course (code, title,
+  level, semester) across all departments.
+- **Material pages** — rich detail view per material with metadata, uploader info
+  and save / download / read-online actions.
+- **Interactive reader** — in-browser document reader modal with zoom controls,
+  page navigation, reading-progress bar and keyboard-friendly controls.
+- **About & contact** pages and a fully responsive branded footer.
 
+### Accounts & authentication
+
+- Student self-registration and login powered by Supabase Auth, with signup
+  identity checks (`register_identity_check`) and login email lookup.
+- Show/hide password toggles, inline validation feedback and friendly error states.
+- Role-aware routing: students land on their dashboard, staff on the admin portal;
+  unauthenticated visitors are redirected through protected routes.
+- Invited staff automatically become administrators when they sign up with the
+  invited email address.
+
+### Student dashboard
+
+- Time-aware greeting header with the student's local time and quick stats.
+- **Upload material** with drag-and-drop file dropzone and catalogue-linked
+  faculty / department / course / level selects; submissions queue for review.
+- **My uploads** — server-side paginated and searchable listing with per-item
+  status badges and safe deletion (confirm dialog).
+- **AI study assistant** — chat with citations back to library materials, context
+  chip for the material being discussed, suggested prompts and markdown answers.
+- Saved materials, recently viewed, download history and reading history with
+  per-material progress bars.
+- Real-time **notification centre** (live Supabase subscription) with unread badge,
+  keyword filter, mark-all-read and delete.
+- Profile editor (avatar initials, matric, faculty/department/level), password
+  change, notification preferences and account danger-zone actions.
+
+### Admin portal (permission-gated)
+
+- Sidebar navigation where every section respects the admin's assigned RBAC
+  permission keys.
+- **Overview** — eight live metric tiles, monthly submissions/activity chart built
+  from real database records, pending-approvals banner and a quick approval queue.
+- **Materials & approvals** — tabbed queues (pending / approved / rejected / all)
+  with search; approve & publish, reject with a reason prompt, or permanently
+  delete (all destructive actions double-confirmed).
+- **Direct publishing** — upload materials straight into the library as approved.
+- **AI & indexing** management for the ingestion pipeline (permission gated).
+- **Students & users**, **faculties**, **departments**, **courses & levels** and
+  **categories & sessions** management tables with inline create/edit tooling and
+  per-table search.
+- **Audit logs** viewer covering every moderation action.
+- Settings tab including a read-only maintenance-status card.
+
+### Super Admin portal
+
+- **Governance overview** with platform-wide staff/student/material statistics and
+  a quick-reference guide.
+- **Administrators** — promote registered students, rename accounts, activate or
+  deactivate staff, demote to student (danger-confirmed), and fine-tune each
+  admin's permissions through a dedicated checkbox editor modal.
+- **Admin invites** — invite staff by email; roles apply automatically at signup,
+  with an invite log and filtering.
+- **System & maintenance** — persistent maintenance mode stored in Supabase with a
+  customisable public message, live status indicator and polished enable/disable
+  confirmation dialogs (the Super Admin always retains access).
+- **Global dashboard search** across materials, courses, students and staff
+  (spotlight-style overlay on desktop, expanding sheet on mobile).
+
+### Platform-wide
+
+- **Maintenance mode gate** — when enabled, students and visitors are redirected
+  to a branded maintenance splash showing the custom message, with retry and
+  support contact.
+- **Toast notifications** for every success/error/info outcome.
+- **Security first** — Row Level Security on all 13 tables, SECURITY DEFINER
+  helper functions that cannot recurse, permission-scoped RPCs, and storage-bucket
+  policies on `library-materials`.
+- **Fully responsive UI** — every page adapts from large desktops down to ~320px
+  phones: collapsible sidebar drawers with tap-away scrims, horizontally
+  scrollable table lanes, reflowing stat/card grids, fluid readable typography,
+  touch-sized buttons and modals that fit small screens.
+
+---
+
+## Database Setup Guide
+
+Production-safe SQL migration for the FUW E-Library Supabase database. The three
+scripts are designed to run **in order**, against a database that may already
+contain users, profiles, materials and catalogue data. Nothing is dropped, no
+user is deleted, and every statement is safe to re-run.
+
+---
+
+## 1. What the migration does
+
+### Tables (13)
+
+| Table | Purpose |
+|---|---|
+| `faculties` | Official FUW faculties, with programme `duration_years` |
+| `departments` | Departments grouped under faculties (`faculty_id` FK), with durations |
+| `levels` | Study levels — exactly six rows: 100, 200, 300, 400, 500, 600 |
+| `courses` | Course catalogue per department (`department_id`, `level_id` FKs), `semester` = *First Semester* / *Second Semester*, `is_general_course` for codes ending in `C` |
+| `profiles` | One row per `auth.users` account: full name, username, matric number, faculty/department/level text, `role` (`app_role`), `permissions text[]`, `is_active`, `last_login_at` |
+| `materials` | Uploads with normalised FK columns (`faculty_id`, `department_id`, `course_id`, `level_id`) **plus** mirrored display columns kept in sync by trigger; enum-typed `status` and `material_type`; download/view counters |
+| `notifications` | Per-user notices generated by review/delete actions |
+| `admin_invites` | Pending/accepted admin invitations applied automatically at signup |
+| `ai_conversations`, `ai_messages` | AI chat threads and messages |
+| `ai_processing_jobs`, `material_chunks` | AI ingestion pipeline (pgvector embeddings, optional) |
+| `system_settings` | Persistent key/value settings — maintenance mode lives under key `'maintenance'` |
+
+### Enums (custom types)
+
+- `app_role`: `student`, `admin`, `super_admin`
+- `material_status`: `pending`, `approved`, `rejected`
+- `material_type`: canonical labels **Test Questions**, **Exam Past Questions**, **Projects**, **Handouts** plus legacy labels (`Test Past Questions`, `Lecture Note`, `Textbook`) so historical rows still fit.
+
+### Relationships
+
+- `profiles.id → auth.users.id` (cascade)
+- `departments → faculties`, `courses → departments/levels`
+- `materials → faculties/departments/courses/levels/profiles` (uploader + approver)
+- `notifications → profiles`, `admin_invites.invited_by → profiles`
+- `ai_* → profiles/materials/conversations`
+
+### Roles & security
+
+- Helper functions `is_super_admin()`, `is_admin()`, `has_permission(text)` — SECURITY DEFINER, so policies can never recurse.
+- RLS on all 13 tables with explicit SELECT/INSERT/UPDATE/DELETE policies:
+  - students see approved materials + their own uploads, manage own profile/notifications;
+  - admins additionally read all profiles and review materials per assigned permission keys (`approve_materials`, `reject_materials`, `delete_any_material`, `upload_as_approved`, …);
+  - super-admins pass every check (they are never treated as plain students) and exclusively manage catalogue rows, invites, admin accounts and maintenance mode.
+- Grants for `anon` (read-only), `authenticated` (full DML, gated by RLS) and `service_role`.
+- Storage bucket `library-materials` with public-read + owner/admin write policies.
+
+### Functions & triggers
+
+- Auth sync: new `auth.users` row → matching profile (role defaults to student); login activity updates `last_login_at`; pending invites convert signups to admins automatically.
+- RPCs: `promote_first_super_admin`, `promote_to_admin`, `demote_admin`, `set_admin_active`, `update_admin_details`, `update_admin_permissions`, `create_admin_invite`, `approve_material_rpc`, `reject_material_rpc`, `notify_material_deleted`, `lookup_login_email`, `register_identity_check`, stats counters, `get_maintenance_status`, `set_maintenance_mode`, optional `match_material_chunks` (pgvector).
+- Catalogue-sync trigger keeps `materials` FK ids and display names consistent in both directions.
+
+### Seed data (script3)
+
+- 14 faculties, 67 departments, 6 levels, 441 course rows.
+- Durations honoured: Engineering 5y, Agriculture 5y, Law 5y, Medicine/Clinical Sciences 6y, Medical Laboratory Science 5y, Bachelor of Physiotherapy 5y (Doctor of Physiotherapy track sits under Clinical Sciences at 6y), Anatomy 4y, Physiology 4y.
+- Common-course rules: `GST111C` (+`GST112C`) for **every** department at 100 Level; `MTH101C`/`MTH102C`, `PHY101C`/`PHY107C`/`PHY102C`/`PHY108C` for science departments at 100 Level; `GST311C`/`GST312` for everyone at 300 Level.
+- Maintenance-mode setting seeded as disabled.
+
+---
+
+## 2. File structure
+
+```text
+project-root/
+├── script1.sql   # structure: extensions, enums, tables, columns, keys, indexes
+├── script2.sql   # security: RLS, policies, grants, functions, triggers, storage
+├── script3.sql   # seed rows + final verification
+└── README.md     # this guide
 ```
-src/
-  main.tsx                 App entry, routes (public / student / admin / super admin)
-  styles.css               Design system + responsive breakpoints
-  pages/
-    PublicPages.tsx        Home, Library, Faculties, Courses, Material detail,
-                           Login/Register (username + password), Admin login gateway
-    StudentPortal.tsx      Student dashboard: uploads, My Uploads (+stats &
-                           pagination), AI assistant, saved/recent/downloads/
-                           reading history, profile, settings, notifications
-    AdminPortal.tsx        Admin dashboard: materials CRUD, approvals, courses,
-                           students, AI processing management, settings
-    SuperAdminPortal.tsx   Owner governance: admin accounts, permissions,
-                           invites, platform stats
-  components/              Header, Footer, HeroSection, MaterialCard,
-                           CatalogueFilters, DocumentReaderModal, ConfirmDialog
-                           /PromptDialog, Toast, ProtectedRoute, Logo
-  lib/
-    supabase.ts            Supabase client (persistSession + autoRefreshToken)
-    AuthContext.tsx        Username/password auth via Supabase Auth, session,
-                           roles (student/admin/super_admin), permissions,
-                           refreshProfile, changePassword
-    rbac.ts                Permission catalogue & checks
-    materials.ts           Materials CRUD, storage upload, pagination, counts
-    notifications.ts       DB-backed notification centre + realtime subscribe
-    ai.ts                  Client wrappers for ai-chat / ai-search / ai-process
-    store.ts               Client cache synced from Supabase
-  data/catalogue.ts        Faculty → department → level → semester course
-                           catalogue with shared/common course expansion
 
-supabase/
-  reset_database.sql       Clean-slate reset: drops all E-Library tables,
-                           functions, policies, triggers and storage objects
-                           while preserving auth.users accounts & extensions
-  schema.sql               Legacy base tables (superseded by the rebuild)
-  migrations/
-    20260824_rebuild_full_schema.sql    ★ Single clean-install migration:
-                                        complete schema (roles, RBAC, review
-                                        workflow, AI/RAG, RLS, grants, storage)
-    20260822_upgrade_rbac_ai.sql        Legacy — superseded by rebuild
-    20260822_faculties_levels_format.sql Legacy — superseded by rebuild
-    20260822_username_password_auth.sql Legacy — folded into the rebuild
-    20260823_fix_profiles_role_type.sql Legacy repair script (TEXT→enum)
-  functions/
-    ai-chat/               RAG chat (rate-limited, conversation persistence)
-    ai-search/             Semantic search over approved materials
-    ai-process/            PDF/DOCX/TXT extraction → chunking → embeddings
-    _shared/ai.ts          OpenAI-compatible provider helpers (server-side key)
-server/, prisma/           Legacy Express/Prisma API foundation (unused by the app)
+---
+
+## 3. Prerequisites
+
+1. A Supabase project (PostgreSQL 15+).
+2. Access to the **SQL Editor** in the Supabase Dashboard as the project owner (the editor runs statements as `postgres`, which owns both `public` and `auth` objects).
+3. Your existing database (this migration targets live projects; it also works on an empty one).
+4. No active long-running transactions that lock `public.profiles` or `public.materials` (pause heavy cron jobs if any).
+5. Optional but recommended: `pgvector` availability for AI features — the scripts degrade gracefully if it is missing.
+
+---
+
+## 4. Backup
+
+Take a snapshot **before** running anything:
+
+- Dashboard path: **Project Settings → Database → Backups** — note the latest daily backup time, or create a manual backup if your plan supports it.
+- CLI alternative:
+
+```bash
+# Dump schema + data (requires DATABASE_PASSWORD or a pooled connection string)
+pg_dump "postgresql://postgres:[PASSWORD]@db.[PROJECT_REF].supabase.co:5432/postgres" \
+  -Fc -f fuw_backup_before_migration.dump
+
+# Restore point (only if ever needed)
+pg_restore -d "postgresql://postgres:[PASSWORD]@db.[PROJECT_REF].supabase.co:5432/postgres" \
+  --clean --if-exists fuw_backup_before_migration.dump
 ```
 
-## Roles & access control
+Also export CSVs of `profiles`, `materials`, `faculties`, `departments`, `courses` from the Table Editor as a belt-and-braces copy.
 
-- **Student** — browse/search/read materials, upload for approval, track My Uploads status, notifications, profile, AI assistant.
-- **Admin** — permission-gated dashboard: manage materials, approve/reject student uploads, run AI processing. Cannot manage other admins.
-- **Super Admin** — full control: promote/demote admins, edit details, activate/deactivate, assign granular permissions, invite staff by email, plus everything an admin can do.
+---
 
-Authorization is enforced twice: in React (`ProtectedRoute` with `adminOnly` / `superAdminOnly`) and in PostgreSQL via Row Level Security policies plus `SECURITY DEFINER` RPCs (`promote_to_admin`, `demote_admin`, `set_admin_active`, `update_admin_details`, `update_admin_permissions`, `create_admin_invite`, `approve_material_rpc`, `reject_material_rpc`). Students can never approve their own uploads or modify other users' data.
+## 5. Running the migration
 
-## Authentication (username + password)
+Run each file in the Supabase Dashboard → **SQL Editor → New Query**:
 
-- Students register with **Full Name, Username, Email, Password, Confirm Password**, then complete their academic profile (matric number, faculty, department, level).
-- Sign-in uses **Username + Password** everywhere (student, admin, and super admin gateways). The username is resolved to its auth email through the `lookup_login_email` SECURITY DEFINER RPC, then authentication is handled entirely by `supabase.auth.signInWithPassword()` — passwords are hashed and verified by Supabase Auth only, never stored in application tables.
-- Usernames are unique (case-insensitive unique index on `profiles.username`) and validated for format; duplicate usernames/emails are rejected pre-signup via the `register_identity_check` RPC.
-- Existing email-OTP accounts were preserved: the migration backfills a username for every legacy user from their email local-part (collision-safe suffixes) without touching any other data.
-- Sessions persist across refreshes (`persistSession` + `autoRefreshToken`); role-based redirects send students to `/student`, admins to `/admin`, and the super admin to `/super`.
+1. Paste the entire contents of **`script1.sql`** → **Run**.
+2. Confirm it reports `script1 OK - database structure created/aligned ...` (or fix the problems it names).
+3. Paste the entire contents of **`script2.sql`** → **Run**.
+4. Confirm it reports `script2 OK - RLS (13/13), 28+ functions, triggers, grants, storage ...`.
+5. Paste the entire contents of **`script3.sql`** → **Run**.
+6. Confirm it reports `SEED COMPLETE` with faculty/department/course counts.
 
-## Key features
+Rules:
 
-- Username + password authentication on top of Supabase Auth with show/hide password toggles, strength validation, friendly error messages, and real in-app password changes (`changePassword`).
-- Official FUW faculty structure (14 faculties incl. the College of Health Sciences group) driven by a single centralized catalogue used consistently across every dropdown, upload form, dashboard, and filter.
-- Cascading filters everywhere: **Faculty → Department → Level → Semester → Material Type → Course**. Each selection resets its dependents, dependent dropdowns stay disabled until their parent is chosen, levels respect each department's programme duration (100–600 Level), and the course is always the final selection.
-- Modern course-directory search bar (icon, clear button, focus states) that filters live and case-insensitively by code/title/department while respecting the cascading filters.
-- Student uploads stored in Supabase (database row + Storage file) with pending/approved/rejected workflow, review feedback, statistics, server-side pagination and DB-backed notifications.
-- AI study assistant: natural-language Q&A grounded in approved materials with citations, per-material "Ask AI" scoping, summaries/quizzes/revision notes, persisted conversation history, semantic search on the library page.
-- Fully responsive UI with fluid typography from desktop down to small phones.
+- Run the scripts strictly in order `1 → 2 → 3`; each one depends on the previous.
+- Verify each script succeeds before starting the next — every script ends with a verification block that raises a single clear exception naming everything wrong if a step failed.
+- If a script fails mid-way, the SQL Editor rolls back that whole run; fix the named problem and re-run the same script from the top. It is always safe to re-run.
+- Keep the default "auto-commit per statement" behaviour of the SQL Editor; do not wrap the scripts in extra manual transactions.
 
-## Run locally
+---
 
-1. Create a Supabase project, then run the two clean-install scripts in order:
-   `supabase/reset_database.sql` → `supabase/migrations/20260824_rebuild_full_schema.sql`.
-2. Copy `.env.example` to `.env` and fill in your project URL and anon key.
-3. `npm install && npm run dev` (frontend on http://localhost:5173).
-4. Deploy the edge functions (`supabase/functions/*`) and set their secrets:
-   - `AI_API_KEY` (required), optional `AI_BASE_URL`, `AI_MODEL`, `EMBEDDING_MODEL`.
-5. Bootstrap the first Super Admin by calling the `promote_first_super_admin` RPC once with your account ID, then sign in at **`/super/login`**.
+## 6. Verification queries
 
-The legacy Express/Prisma API (`npm run server`) is kept for reference but is not required.
+Run these in the SQL Editor after `script3.sql`. Each query should return the expected result noted beside it.
 
-## Database setup — everything to create in Supabase
+```sql
+-- Tables (expect 13 rows)
+SELECT table_name FROM information_schema.tables
+WHERE table_schema = 'public'
+ORDER BY table_name;
 
-### Recommended: clean install (2 scripts)
+-- Key columns + data types (expect app_role / material_status / material_type)
+SELECT table_name, column_name, udt_name
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND (column_name IN ('role','status','material_type'))
+ORDER BY table_name, column_name;
 
-Run these **in order** in Dashboard → SQL Editor:
+-- Enum labels
+SELECT t.typname, e.enumlabel
+FROM pg_type t JOIN pg_enum e ON e.enumtypid = t.oid
+WHERE t.typname IN ('app_role','material_status','material_type')
+ORDER BY t.typname, e.enumsortorder;
+-- Expect: app_role = student/admin/super_admin;
+--         material_status = pending/approved/rejected;
+--         material_type includes Test Questions, Exam Past Questions,
+--         Projects, Handouts (+ legacy labels).
 
-1. `supabase/reset_database.sql` — drops every E-Library table, function, policy, trigger and storage object. Auth accounts (`auth.users`), extensions and unrelated resources are preserved.
-2. `supabase/migrations/20260824_rebuild_full_schema.sql` — recreates the complete schema from scratch: enums, all 8 tables, indexes, SECURITY DEFINER helpers, admin/review/auth RPCs, triggers, RLS policies, grants, the `library-materials` storage bucket, and loud final verification.
+-- Foreign keys on materials (expect >= 6)
+SELECT conname, confrelid::regclass AS references_table
+FROM pg_constraint
+WHERE conrelid = 'public.materials'::regclass AND contype = 'f';
 
-Both are idempotent; script 2 ends with a verification block that raises an exception if anything failed to build.
+-- Indexes (expect >= 19 core indexes)
+SELECT indexname FROM pg_indexes
+WHERE schemaname = 'public'
+ORDER BY indexname;
 
-### Legacy deployments
+-- RLS enabled everywhere (expect 13 rows)
+SELECT relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'public' AND c.relkind = 'r' AND c.relrowsecurity
+ORDER BY relname;
 
-The following older scripts were used historically and are kept for reference only — do **not** run them on a fresh project (the rebuild above replaces them):
+-- Policies (expect several per table; no duplicates)
+SELECT tablename, policyname, cmd FROM pg_policies
+WHERE schemaname = 'public'
+ORDER BY tablename, policyname;
 
-- `schema.sql`, `20260822_upgrade_rbac_ai.sql`, `20260822_faculties_levels_format.sql`, `20260822_username_password_auth.sql`, `20260823_fix_profiles_role_type.sql`.
+-- Role distribution (students/admins/super_admins)
+SELECT role, COUNT(*) FROM public.profiles GROUP BY role ORDER BY role;
 
-If your project predates the rebuild and you hit errors like `return type mismatch in function declared to return app_role`, missing-table `PGRST205` errors or `permission denied` API errors, the fastest fix is the clean-install path above — it resets everything and rebuilds correctly in one pass.
+-- Faculties (expect >= 14)
+SELECT name, duration_years FROM public.faculties ORDER BY name;
 
-Then configure **Authentication → Providers → Email** (enable *Confirm email* as desired) and **Authentication → Policies** minimum password length (app enforces 8+ chars with a letter and number).
+-- Departments (expect >= 60)
+SELECT fa.name AS faculty, d.name, d.duration_years
+FROM public.departments d JOIN public.faculties fa ON fa.id = d.faculty_id
+ORDER BY fa.name, d.name;
 
-### Extensions
+-- Levels (expect EXACTLY 6, values 100..600 only)
+SELECT name, numeric_level FROM public.levels ORDER BY numeric_level;
 
-| Extension | Purpose |
-| --- | --- |
-| `pgcrypto` | `gen_random_uuid()` defaults |
-| `vector` (pgvector) | AI embedding storage & similarity search (optional; AI features degrade gracefully without it) |
+-- Courses (expect >= 400)
+SELECT COUNT(*) FROM public.courses;
 
-### Custom enum types
+-- GST111C present for every department (expect 0 rows)
+SELECT d.name FROM public.departments d
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.courses c
+  WHERE c.department_id = d.id AND upper(c.course_code) = 'GST111C');
 
-| Type | Values |
-| --- | --- |
-| `public.app_role` | `student`, `admin`, `super_admin` |
-| `public.material_status` | `pending`, `approved`, `rejected` |
-| `public.material_type` | `Test Questions`, `Test Past Questions`, `Exam Past Questions`, `Projects`, `Handouts`, `Lecture Note`, `Textbook` |
+-- MTH101C / PHY101C coverage for science students
+SELECT upper(course_code), COUNT(*) FROM public.courses
+WHERE upper(course_code) IN ('MTH101C','PHY101C')
+GROUP BY 1;
 
-### Academic catalogue tables (`faculties`, `departments`, `levels`, `courses`)
+-- Semesters (expect only First Semester / Second Semester)
+SELECT DISTINCT semester FROM public.courses ORDER BY semester;
 
-- Seeded automatically with the official FUW structure (14 faculties → 67 departments → 440+ courses) from the same source as `src/data/catalogue.ts`; levels are strictly **100–600**.
-- `materials` links to them through `faculty_id / department_id / course_id / level_id` foreign keys **plus** mirrored display columns (`faculty`, `department`, `level`) that a trigger (`sync_material_catalogue`) keeps in sync in both directions — clients may send either form.
-- Public read for everyone; only the Super Admin can modify the catalogue.
+-- Material types available to the app (expect the four canonical labels)
+SELECT unnest(enum_range(NULL::public.material_type)) AS material_type;
 
-### Table `public.profiles` (one row per auth user — created automatically on signup)
+-- Maintenance mode setting
+SELECT * FROM public.get_maintenance_status();
+```
 
-| Column | Type | Constraints / Default |
-| --- | --- | --- |
-| `id` | UUID PK | = `auth.users.id`, ON DELETE CASCADE |
-| `full_name` | TEXT | NOT NULL DEFAULT '' |
-| `display_name` | TEXT | first name, used across dashboards |
-| `email` | TEXT | synced from auth.users by trigger |
-| `username` | TEXT | **unique** (case-insensitive index), used for login; backfilled for legacy users from email local-part |
-| `matric_number` | TEXT | UNIQUE, set when student completes profile |
-| `faculty` | TEXT | official FUW faculty name |
-| `department` | TEXT | official FUW department name |
-| `level` | TEXT | `"100 Level"` … `"600 Level"` format |
-| `bio` | TEXT | optional student bio |
-| `avatar_url` | TEXT | optional avatar |
-| `role` | `app_role` | NOT NULL DEFAULT `student` — never trusted from frontend |
-| `is_active` | BOOLEAN | NOT NULL DEFAULT `true`; deactivated users are signed out |
-| `permissions` | TEXT[] | NOT NULL DEFAULT `'{}'`; granular admin permissions |
-| `created_by` | UUID | FK → profiles.id, SET NULL (who promoted an admin) |
-| `last_login_at` | TIMESTAMPTZ | updated by login trigger |
-| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() |
+---
 
-### Table `public.materials` (library uploads)
+## 7. Authentication verification
 
-| Column | Type | Constraints / Default |
-| --- | --- | --- |
-| `id` | UUID PK | DEFAULT `gen_random_uuid()` |
-| `title` | TEXT | NOT NULL |
-| `description` | TEXT | DEFAULT '' |
-| `faculty_id` / `department_id` / `course_id` / `level_id` | UUID FKs | → faculties/departments/courses/levels, SET NULL; resolved automatically from the mirrored name columns |
-| `faculty` / `department` / `level` | TEXT | NOT NULL DEFAULT '' — display mirrors kept in sync with the FK ids by the catalogue-sync trigger |
-| `course_code` / `course_title` | TEXT | e.g. `CSC 201` (canonical title backfilled from the course catalogue) |
-| `semester` / `academic_session` | TEXT | e.g. `First Semester`, `2025/2026` |
-| `material_type` | `material_type` enum | NOT NULL DEFAULT `'Lecture Note'` |
-| `file_url` / `file_path` / `file_name` / `file_size` | TEXT | Storage URL/path/name/size (`file_url` defaults to '' until the upload step attaches it) |
-| `downloads` / `views` | INTEGER | NOT NULL DEFAULT 0 (bumped via RPCs) |
-| `uploaded_by` | UUID | NOT NULL FK → profiles.id CASCADE |
-| `status` | `material_status` | NOT NULL DEFAULT `pending` |
-| `approved_by` | UUID | FK → profiles.id SET NULL |
-| `approved_at` | TIMESTAMPTZ | set on approval/rejection |
-| `rejection_reason` | TEXT | feedback shown to uploader |
-| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() |
+1. **Student login**
+   - Register a test account at `/register` (username + email + password).
+   - Sign out, then log in with the **username** — the app resolves the email via `lookup_login_email` and signs in through Supabase Auth.
+   - The user lands on the student dashboard; `profiles.role` = `student`.
 
-### Table `public.notifications`
+2. **Admin login**
+   - As super-admin, invite an admin (Super Admin Portal → Admins). Register with the invited email — the signup trigger applies `role = admin` and the standard permission set automatically.
+   - Logging in routes to the admin dashboard (`/admin`).
 
-| Column | Type | Constraints / Default |
-| --- | --- | --- |
-| `id` | UUID PK | DEFAULT `gen_random_uuid()` |
-| `user_id` | UUID | NOT NULL FK → profiles.id CASCADE |
-| `title` | TEXT | NOT NULL |
-| `message` | TEXT | NOT NULL DEFAULT '' |
-| `type` | TEXT | NOT NULL DEFAULT `'info'` (`info`/`success`/`warning`) |
-| `link` | TEXT | in-app deep link, e.g. `/materials/<id>` |
-| `is_read` | BOOLEAN | NOT NULL DEFAULT false |
-| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() |
+3. **Super-admin login / bootstrap**
+   - After registering your own account at `/register`, promote it once:
 
-### Table `public.admin_invites` (Super Admin invites future admins)
+     ```sql
+     SELECT public.promote_first_super_admin('you@example.com');
+     ```
 
-| Column | Type | Constraints / Default |
-| --- | --- | --- |
-| `id` | UUID PK | DEFAULT `gen_random_uuid()` |
-| `email` | TEXT | NOT NULL UNIQUE |
-| `full_name` | TEXT | DEFAULT '' |
-| `invited_by` | UUID | FK → profiles.id SET NULL |
-| `accepted` | BOOLEAN | NOT NULL DEFAULT false |
-| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() |
+   - This only works while zero super-admins exist. Log back in — you should land on `/super` and see the *System & maintenance* tab.
 
-### Table `public.ai_conversations`
+4. **Role assignment checks**
 
-| Column | Type | Constraints / Default |
-| --- | --- | --- |
-| `id` | UUID PK | DEFAULT `gen_random_uuid()` |
-| `user_id` | UUID | NOT NULL FK → profiles.id CASCADE |
-| `material_id` | UUID | FK → materials.id SET NULL (per-material chats) |
-| `title` | TEXT | NOT NULL DEFAULT `'New conversation'` |
-| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() |
-
-### Table `public.ai_messages`
-
-| Column | Type | Constraints / Default |
-| --- | --- | --- |
-| `id` | UUID PK | DEFAULT `gen_random_uuid()` |
-| `conversation_id` | UUID | NOT NULL FK → ai_conversations.id CASCADE |
-| `role` | TEXT | NOT NULL, CHECK (`user` \| `assistant`) |
-| `content` | TEXT | NOT NULL |
-| `citations` | JSONB | cited material chunks |
-| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() |
-
-### Table `public.ai_processing_jobs` (one per material)
-
-| Column | Type | Constraints / Default |
-| --- | --- | --- |
-| `id` | UUID PK | DEFAULT `gen_random_uuid()` |
-| `material_id` | UUID | NOT NULL UNIQUE FK → materials.id CASCADE |
-| `status` | TEXT | CHECK (`pending` \| `processing` \| `ready` \| `failed`), DEFAULT `pending` |
-| `chunks_created` | INTEGER | NOT NULL DEFAULT 0 |
-| `attempts` | INTEGER | NOT NULL DEFAULT 0 |
-| `error` | TEXT | failure detail |
-| `created_at` / `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() |
-
-### Table `public.material_chunks` (RAG index; written server-side only)
-
-| Column | Type | Constraints / Default |
-| --- | --- | --- |
-| `id` | UUID PK | DEFAULT `gen_random_uuid()` |
-| `material_id` | UUID | NOT NULL FK → materials.id CASCADE |
-| `chunk_index` | INTEGER | NOT NULL DEFAULT 0 |
-| `content` | TEXT | NOT NULL |
-| `page_number` | INTEGER | nullable |
-| `course_code` | TEXT | nullable |
-| `metadata` | JSONB | DEFAULT '{}' |
-| `embedding` | VECTOR(1536) | IVFFlat cosine index when pgvector present |
-| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() |
-
-### Storage
-
-- Bucket **`library-materials`** (public read) — created by the scripts.
-- Policies: public `SELECT`, authenticated `INSERT` into the bucket, delete by file owner or admin.
-
-### Triggers (created automatically)
-
-| Trigger | Fires | Effect |
-| --- | --- | --- |
-| `on_auth_user_created` on `auth.users` | AFTER INSERT | Creates the matching `profiles` row with role `student` and the username chosen at signup |
-| `on_profile_invite_check` on `profiles` | BEFORE INSERT | Applies any pending `admin_invites` row (promotes to `admin` with default permissions) |
-| `on_auth_login_touch` on `auth.users` | AFTER UPDATE OF last_sign_in_at | Updates `profiles.last_login_at` |
-| `trg_materials_catalogue_sync` on `materials` | BEFORE INSERT/UPDATE | Resolves faculty/department/level/course names ↔ FK ids and backfills canonical titles |
-| `on_material_deleted_notify` on `materials` | AFTER DELETE | Notifies the uploader when someone else (e.g. an admin) removes their material |
-| `set_updated_at` on profiles/faculties/departments/courses/materials/ai_conversations/ai_processing_jobs | BEFORE UPDATE | Keeps `updated_at` fresh |
-
-### RPC functions
-
-| Function | Callable by | Purpose |
-| --- | --- | --- |
-| `lookup_login_email(p_username)` | anon, authenticated | Username → login email resolution (returns nothing for unknown/inactive accounts) |
-| `register_identity_check(p_username, p_email)` | anon, authenticated | Pre-signup duplicate check → `{username_taken, email_taken}` |
-| `get_public_stats()` / `get_library_stats()` | anon, authenticated | Public aggregate counters only (students, verified; approved-material count, downloads, views) |
-| `get_material_status_counts()` | authenticated admins | Pending/approved/rejected breakdown for dashboards |
-| `increment_download_count(id)` / `increment_view_count(id)` | anon, authenticated | Safe engagement bumps for approved materials |
-| `promote_first_super_admin(email)` | authenticated | **Bootstrap** — promotes your first account to Super Admin (works once) |
-| `promote_to_admin(user_id, perms[])` / `demote_admin(user_id)` | Super Admin | Manage administrators |
-| `set_admin_active(user_id, active)` / `update_admin_details(user_id, name)` / `update_admin_permissions(user_id, perms[])` | Super Admin | Admin account management |
-| `create_admin_invite(email, name)` | Super Admin | Invite a new admin by email |
-| `approve_material_rpc(p_material_id, note?)` / `reject_material_rpc(p_material_id, p_reason)` / `notify_material_deleted(title, uploader)` | permitted admins | Review workflow + automatic student notification (parameter names match the app's call sites) |
-| `match_material_chunks(embedding, ...)` | authenticated | Semantic similarity search (requires pgvector) |
-
-Helper functions used inside policies: `is_admin()`, `is_super_admin()`, `has_permission(text)`, `my_stored_role()`, `my_is_active()`, `my_permissions()`.
-
-### Row Level Security (enabled on all 8 tables)
-
-- **profiles**: read/update own row; admins read all; only Super Admin may change others' rows or role/is_active/permissions.
-- **materials**: everyone reads `approved`; owners see their own (any status); admins see all. Students can only insert their own `pending` uploads and can never self-approve. Deletes limited to own non-approved rows or admins with `delete_any_material`.
-- **notifications**: strictly per-user (select/update/delete own).
-- **admin_invites**: Super Admin only.
-- **ai_conversations / ai_messages**: owner-only via `user_id`.
-- **ai_processing_jobs**: admin read-only; **material_chunks**: authenticated read; writes are service-role only.
-
-### Data you must create manually (bootstrap rows)
-
-No seed rows are required — faculties/departments/courses live in `src/data/catalogue.ts`, and materials/uploads are created through the app. Only two manual steps:
-
-1. **Create the Super Admin**: register at `/register` with your owner email, then run once in SQL Editor:
    ```sql
-   select public.promote_first_super_admin('your-owner-email@example.com');
-   ```
-2. **(Optional) Invite additional admins**: sign in at `/super/login` → Admin Accounts → invite by email, or:
-   ```sql
-   select public.create_admin_invite('staff@fuw.edu.ng', 'Staff Full Name');
+   SELECT email, username, role, is_active, permissions
+   FROM public.profiles ORDER BY created_at DESC LIMIT 10;
    ```
 
-> Passwords are never stored in any of these tables — they live only in Supabase Auth's managed `auth.users` (hashed server-side).
+5. **Routing sanity** — students never reach `/admin` or `/super`; admins cannot open `/super`; the client derives access purely from `my_stored_role()` / `is_admin()` results served by RLS-backed queries.
 
-## AI pipeline
+---
 
-Approved material → `ai-process` extracts text (PDF via unpdf, DOCX via mammoth, plain text) → chunks embedded (`text-embedding-3-small`) into `material_chunks` (pgvector, IVFFlat index) → `ai-chat` / `ai-search` retrieve the closest chunks per query/material and answer with citations. Only approved materials are indexed; students' pending uploads never reach the AI. Chat is rate-limited per user (40 messages/hour) and all provider keys stay server-side.
+## 8. Permission verification
+
+Test with the SQL Editor's role switcher or by exercising the UI:
+
+| Check | How |
+|---|---|
+| Students read appropriate data | Anonymous/incognito visit shows approved materials only (`materials_public_read_policy`). |
+| Students can upload | Upload via the student portal → row appears with `status = 'pending'`, `uploaded_by` = self (enforced by `materials_insert_policy`). |
+| Students view own uploads | `/student/uploads` lists their pending/approved/rejected submissions. |
+| Students cannot edit others | Attempting an UPDATE/DELETE on another user's material returns 0 rows / RLS error. |
+| Admins approve/reject | With `approve_materials` permission, use the UI approve button (calls `approve_material_rpc`); uploader receives a notification row. |
+| Permission-less admin blocked | Remove `approve_materials` via `update_admin_permissions` → approval RPC raises *"You do not have permission..."*. |
+| Super-admin manages admins | Promote/demote/activate/edit permissions all succeed only when called by the super-admin account. |
+| Super-admin manages catalogue/maintenance | Editing faculties/courses works only for super-admin; toggling maintenance mode requires `is_super_admin()` (RPC enforced server-side). |
+| Unauthorized users blocked | Any anon INSERT/UPDATE/DELETE attempt fails at the grant level (`REVOKE ... FROM anon`). |
+
+Quick SQL probes (run as authenticated user via the app context):
+
+```sql
+SELECT public.is_admin(), public.is_super_admin(), public.has_permission('approve_materials');
+SELECT * FROM public.get_material_status_counts();  -- admins only see real counts
+```
+
+---
+
+## 9. Troubleshooting
+
+| Error | Cause | Fix |
+|---|---|---|
+| `operator does not exist: text = boolean` | A legacy policy/function compared a text column against a boolean expression. | Re-run `script2.sql`; it recreates every policy from scratch with typed helpers. Ensure no custom policy compares `is_active`(boolean) to text values. |
+| `operator does not exist: material_status = text` | Comparing the enum column to untyped/legacy text without a cast. | Re-run `script2.sql` — all comparisons now cast explicitly (`status = 'approved'::public.material_status`). If a column is genuinely TEXT, `script1.sql` section 5 converts it to the proper enum first. |
+| `cannot alter type of a column used in a policy definition` | Altering a column type while policies reference it. | `script1.sql` drops all stale policies **before** any type alignment and `script2.sql` recreates them afterwards. Never hand-run `ALTER COLUMN TYPE` between the two scripts. |
+| `permission denied for table profiles` | Missing table-level GRANTs for `authenticated`/`service_role`. | Re-run `script2.sql` section 10 (grants + default privileges). Verify with `SELECT has_table_privilege('authenticated','public.profiles','SELECT');` |
+| `duplicate policy` | Policy already exists under the same name. | Impossible after re-running the scripts: each CREATE is preceded by `DROP POLICY IF EXISTS`. For hand-made policies, drop them first. |
+| `duplicate key value violates unique constraint` | Inserting a row whose natural key already exists (e.g., same faculty name, same course code in a department). | Expected protection — seeds use `ON CONFLICT DO UPDATE/NOTHING`, so re-running `script3.sql` is harmless. For manual inserts, use `ON CONFLICT` too or update the existing row instead. |
+| `duplicate enum` (`type "app_role" already exists`) | Creating an enum that already exists. | Scripts guard with `pg_type` existence checks. If you wrote your own `CREATE TYPE`, wrap it the same way or skip it. |
+| `new row violates row-level security policy` | Writing data the acting role isn't allowed to write (e.g., inserting materials with someone else's `uploaded_by`, or non-super-admin editing catalogue). | Log in as the correct role, keep `uploaded_by = auth.uid()` on inserts, and perform privileged writes via the provided RPCs. |
+| `insert or update on table ... violates foreign key constraint` | Referencing a nonexistent id (e.g., `department_id` not in `departments`, or `uploaded_by` not yet registered). | Create/link the parent row first, or let the catalogue-sync trigger resolve names — pass `faculty`/`department`/`level`/`course_code` text instead of ids. |
+
+General rule: every script is idempotent — when in doubt, re-run the failing script from the top after fixing the root cause.
+
+---
+
+## 10. Post-migration checklist
+
+- [ ] `script1.sql` ran with its success notice (no exception).
+- [ ] `script2.sql` ran with its success notice (RLS 13/13).
+- [ ] `script3.sql` ran with `SEED COMPLETE` (≥14 faculties, ≥60 departments, ≥400 courses).
+- [ ] Verification queries in §6 all return expected results.
+- [ ] Levels show only 100–600; semesters show only First/Second Semester.
+- [ ] `material_type` exposes Test Questions, Exam Past Questions, Projects, Handouts.
+- [ ] Storage bucket `library-materials` exists (Storage → Buckets).
+- [ ] Owner account registered and promoted via `promote_first_super_admin(...)`.
+- [ ] Student signup/login works; username login resolves correctly.
+- [ ] Admin invite → registration → admin dashboard flow works.
+- [ ] Student upload appears as pending; admin approval flips it to approved and notifies the uploader.
+- [ ] Super-admin can toggle maintenance mode (Super Admin Portal → System & maintenance) and the gate reflects it app-wide.
+- [ ] Search (⌘K dashboard search) returns results across materials/people/invites/notifications.
+- [ ] A fresh anonymous session sees only approved materials and no private profiles.
+
+The database is ready for the FUW E-Library application once every box is ticked.

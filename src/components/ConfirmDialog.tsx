@@ -13,6 +13,10 @@ export interface ConfirmDialogState {
 
 interface ConfirmDialogProps extends ConfirmDialogState {
   onClose: () => void;
+  /** Optional icon override for the header bubble (defaults to AlertTriangle). */
+  icon?: React.ComponentType<{ size?: number | string }>;
+  /** Optional icon rendered inside the confirmation button. */
+  confirmIcon?: React.ComponentType<{ size?: number | string }>;
 }
 
 /**
@@ -28,9 +32,13 @@ export function ConfirmDialog({
   cancelLabel = 'Cancel',
   tone = 'default',
   onConfirm,
-  onClose
+  onClose,
+  icon: HeaderIcon,
+  confirmIcon: ConfirmIcon
 }: ConfirmDialogProps) {
   if (!open) return null;
+
+  const BubbleIcon = HeaderIcon || AlertTriangle;
 
   const handleConfirm = async () => {
     await onConfirm();
@@ -47,7 +55,7 @@ export function ConfirmDialog({
         onClick={(e) => e.stopPropagation()}
       >
         <div className={`confirm-dialog-icon ${tone === 'danger' ? 'is-danger' : ''}`}>
-          <AlertTriangle size={26} />
+          <BubbleIcon size={26} />
         </div>
         <h3 id="confirm-dialog-title">{title}</h3>
         <p className="confirm-dialog-message">{message}</p>
@@ -60,6 +68,7 @@ export function ConfirmDialog({
             className={tone === 'danger' ? 'btn-danger' : 'btn-primary'}
             onClick={handleConfirm}
           >
+            {ConfirmIcon && <ConfirmIcon size={16} />}
             {confirmLabel}
           </button>
         </div>

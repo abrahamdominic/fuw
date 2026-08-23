@@ -13,6 +13,7 @@ import {
   LogOut,
   ChevronRight,
   Search,
+  Loader2,
   CheckCircle2,
   AlertCircle,
   Plus,
@@ -86,11 +87,14 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
   // Notification centre state
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [notifOpen, setNotifOpen] = useState(false);
-  // Server-side paginated "My Uploads"
+  const [notifFilter, setNotifFilter] = useState('');
+  // Server-side paginated + searched "My Uploads"
   const [uploadsPage, setUploadsPage] = useState(0);
   const [pagedUploads, setPagedUploads] = useState<MaterialItem[]>([]);
   const [uploadsTotal, setUploadsTotal] = useState(0);
   const [uploadsVersion, setUploadsVersion] = useState(0);
+  const [uploadsSearch, setUploadsSearch] = useState('');
+  const [uploadsLoading, setUploadsLoading] = useState(true);
   const [pendingDelete, setPendingDelete] = useState<MaterialItem | null>(null);
   // Material the student chose to "Ask AI" about
   const [aiFocusMaterial, setAiFocusMaterial] = useState<MaterialItem | null>(null);
@@ -122,6 +126,15 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
 
   const unreadNotifCount = notifications.filter((n) => !n.read).length;
 
+  const visibleNotifications = notifications.filter((n) => {
+    if (!notifFilter.trim()) return true;
+    const q = notifFilter.trim().toLowerCase();
+    return (
+      n.title.toLowerCase().includes(q) ||
+      (n.body || '').toLowerCase().includes(q)
+    );
+  });
+
   // Load notifications once + subscribe to live inserts.
   useEffect(() => {
     if (!user?.id) return;
@@ -144,26 +157,39 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
     };
   }, [user?.id]);
 
-  // Server-paginated uploads listing (keeps performance stable as history grows).
+  // Server-paginated + searched uploads listing (keeps performance stable as
+  // history grows). The search term is debounced before hitting Supabase.
+  useEffect(() => {
+    setUploadsPage(0);
+  }, [uploadsVersion]);
+
   useEffect(() => {
     if (!currentUser.id) return;
     let cancelled = false;
-    fetchMyMaterials(currentUser.id, uploadsPage, UPLOADS_PAGE_SIZE)
-      .then((res) => {
-        if (cancelled) return;
-        setPagedUploads(res.items);
-        setUploadsTotal(res.total);
-        if (res.items.length === 0 && res.total > 0 && uploadsPage > 0) {
-          // Page shrank below our cursor (e.g. after deletion) — step back.
-          setUploadsPage(Math.max(0, Math.ceil(res.total / UPLOADS_PAGE_SIZE) - 1));
-        }
-      })
-      .catch(() => {});
+    const trimmedSearch = uploadsSearch.trim();
+    const timer = window.setTimeout(() => {
+      setUploadsLoading(true);
+      fetchMyMaterials(currentUser.id, uploadsPage, UPLOADS_PAGE_SIZE, trimmedSearch || undefined)
+        .then((res) => {
+          if (cancelled) return;
+          setPagedUploads(res.items);
+          setUploadsTotal(res.total);
+          setUploadsLoading(false);
+          if (res.items.length === 0 && res.total > 0 && uploadsPage > 0) {
+            // Page shrank below our cursor (e.g. after deletion) — step back.
+            setUploadsPage(Math.max(0, Math.ceil(res.total / UPLOADS_PAGE_SIZE) - 1));
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setUploadsLoading(false);
+        });
+    }, trimmedSearch === uploadsSearch ? 0 : 300);
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser.id, uploadsPage, uploadsVersion]);
+  }, [currentUser.id, uploadsPage, uploadsVersion, uploadsSearch]);
 
   /** Jump into the AI assistant pre-focused on a specific material. */
   const handleAskAi = (m: MaterialItem) => {
@@ -260,6 +286,16 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
         </div>
       </aside>
 
+      {/* Tap-away backdrop for the mobile drawer */}
+      {mobileMenuOpen && (
+        <button
+          type="button"
+          className="portal-scrim"
+          aria-label="Close navigation"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
       {/* Main Content Viewport */}
       <main className="portal-main">
         {/* Notification centre */}
@@ -298,11 +334,34 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
                   </button>
                 </div>
               </div>
+              {notifications.length > 3 && (
+                <div className="notif-filter-row">
+                  <Search size={14} aria-hidden="true" />
+                  <input
+                    type="text"
+                    value={notifFilter}
+                    onChange={(e) => setNotifFilter(e.target.value)}
+                    placeholder="Filter notifications..."
+                    aria-label="Filter notifications by title or message"
+                  />
+                  {notifFilter && (
+                    <button
+                      type="button"
+                      onClick={() => setNotifFilter('')}
+                      aria-label="Clear notification filter"
+                    >
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+              )}
               <div className="notif-list">
                 {notifications.length === 0 ? (
                   <p className="notif-empty">You're all caught up — no notifications yet.</p>
+                ) : visibleNotifications.length === 0 ? (
+                  <p className="notif-empty">No notifications match “{notifFilter.trim()}”.</p>
                 ) : (
-                  notifications.map((n) => (
+                  visibleNotifications.map((n) => (
                     <div key={n.id} className={`notif-item ${n.read ? '' : 'unread'}`}>
                       <button
                         type="button"
@@ -376,6 +435,9 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
             page={uploadsPage}
             pageSize={UPLOADS_PAGE_SIZE}
             onPageChange={setUploadsPage}
+            search={uploadsSearch}
+            onSearchChange={setUploadsSearch}
+            loading={uploadsLoading}
             stats={{
               total: studentUploads.length,
               approved: studentUploads.filter((m) => m.status === 'approved').length,
@@ -737,6 +799,9 @@ function StudentMyUploadsTab({
   page,
   pageSize,
   onPageChange,
+  search,
+  onSearchChange,
+  loading,
   stats,
   onRequestDelete,
   onReadOnline
@@ -746,11 +811,15 @@ function StudentMyUploadsTab({
   page: number;
   pageSize: number;
   onPageChange: (page: number) => void;
+  search: string;
+  onSearchChange: (term: string) => void;
+  loading: boolean;
   stats: { total: number; approved: number; pending: number; rejected: number; downloads: number };
   onRequestDelete: (m: MaterialItem) => void;
   onReadOnline: (m: MaterialItem) => void;
 }) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const hasQuery = search.trim().length > 0;
 
   return (
     <div className="portal-view-fade">
@@ -792,14 +861,54 @@ function StudentMyUploadsTab({
         </div>
       </div>
 
-      {uploads.length === 0 ? (
+      {(total > 0 || hasQuery) && (
+        <div className="manage-tools compact">
+          <Search size={17} />
+          <input
+            value={search}
+            onChange={(e) => {
+              onSearchChange(e.target.value);
+              if (page !== 0) onPageChange(0);
+            }}
+            placeholder="Search your uploads by title, course, or department..."
+            aria-label="Search your uploaded materials"
+          />
+          {loading && <Loader2 size={15} className="spin-icon" aria-hidden="true" />}
+          {hasQuery && (
+            <button
+              className="clear-search-btn"
+              onClick={() => onSearchChange('')}
+              aria-label="Clear upload search"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="empty-state card-empty">
+          <Loader2 size={30} className="spin-icon" />
+          <b>Loading your uploads…</b>
+          <span>Fetching the latest submission statuses from the library database.</span>
+        </div>
+      ) : uploads.length === 0 ? (
         <div className="empty-state card-empty">
           <FileText size={40} />
-          <b>No uploaded materials yet.</b>
-          <span>Upload your lecture notes, handouts, or past questions to earn academic repository contribution credits.</span>
-          <Link to="/student/upload" className="primary empty-btn">
-            <Upload size={15} /> Upload Your First Material
-          </Link>
+          {hasQuery ? (
+            <>
+              <b>No uploads match “{search.trim()}”.</b>
+              <span>Try a different title or course keyword, or clear the search.</span>
+            </>
+          ) : (
+            <>
+              <b>No uploaded materials yet.</b>
+              <span>Upload your lecture notes, handouts, or past questions to earn academic repository contribution credits.</span>
+              <Link to="/student/upload" className="primary empty-btn">
+                <Upload size={15} /> Upload Your First Material
+              </Link>
+            </>
+          )}
         </div>
       ) : (
         <>

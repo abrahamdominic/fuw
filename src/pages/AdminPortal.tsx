@@ -61,7 +61,9 @@ import {
 } from '../lib/materials';
 import { aiProcessMaterial } from '../lib/ai';
 import { ConfirmDialog, PromptDialog } from '../components/ConfirmDialog';
+import { DashboardSearch } from '../components/DashboardSearch';
 import { useToast } from '../components/Toast';
+import { fetchMaintenanceStatus, MaintenanceStatus } from '../lib/maintenance';
 
 interface AdminPortalProps {
   onReadOnline: (material: MaterialItem) => void;
@@ -86,7 +88,7 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { signOut, profile, hasPermission, role } = useAuth();
+  const { signOut, profile, hasPermission, role, isSuperAdmin } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   // Confirmation dialog for destructive actions
   const [confirmState, setConfirmState] = useState<{
@@ -223,6 +225,17 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
         </nav>
 
         <div className="side-footer-actions">
+          {isSuperAdmin && (
+            <NavLink
+              to="/super"
+              className="side-link back-super-link"
+              onClick={() => setMobileMenuOpen(false)}
+              title="Return to the Super Admin dashboard (same session)"
+            >
+              <ShieldCheck size={17} />
+              <span>Back to Super Admin</span>
+            </NavLink>
+          )}
           <button
             type="button"
             onClick={handleAdminLogout}
@@ -234,6 +247,16 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
           </button>
         </div>
       </aside>
+
+      {/* Tap-away backdrop for the mobile drawer */}
+      {mobileMenuOpen && (
+        <button
+          type="button"
+          className="portal-scrim"
+          aria-label="Close admin navigation"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
 
       {/* Main Admin Viewport */}
       <main className="portal-main">
@@ -252,6 +275,9 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
             <Upload size={16} />
           </Link>
         </div>
+
+        {/* Global dashboard search (desktop bar / mobile expanding icon) */}
+        <DashboardSearch scope="admin" />
 
         {/* Dynamic Admin Subpages */}
         {currentPath === '/admin' || currentPath === '/admin/' ? (
@@ -721,9 +747,10 @@ function AdminMaterialsTab({
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           placeholder="Search materials by title, course code, department, or submitter..."
+          aria-label="Search materials by title, course code, department, or submitter"
         />
         {searchTerm && (
-          <button className="clear-search-btn" onClick={() => setSearchTerm('')}>
+          <button className="clear-search-btn" onClick={() => setSearchTerm('')} aria-label="Clear material search">
             Clear
           </button>
         )}
@@ -1069,9 +1096,10 @@ function AdminAiManagementTab() {
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           placeholder="Search approved materials to process..."
+          aria-label="Search approved materials to process"
         />
         {searchTerm && (
-          <button className="clear-search-btn" onClick={() => setSearchTerm('')}>
+          <button className="clear-search-btn" onClick={() => setSearchTerm('')} aria-label="Clear AI material search">
             Clear
           </button>
         )}
@@ -1181,6 +1209,7 @@ function AdminUsersTab() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [roleChangeTarget, setRoleChangeTarget] = useState<AdminUserRow | null>(null);
 
   const loadUsers = async () => {
     if (!supabase) {
@@ -1219,10 +1248,6 @@ function AdminUsersTab() {
   const handleToggleRole = async (u: AdminUserRow) => {
     if (!supabase) return;
     const nextRole = u.role === 'admin' ? 'student' : 'admin';
-    const confirmed = window.confirm(
-      `Change ${u.full_name || u.email} from "${u.role}" to "${nextRole}"?`
-    );
-    if (!confirmed) return;
 
     setBusyId(u.id);
     try {
@@ -1270,9 +1295,10 @@ function AdminUsersTab() {
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           placeholder="Search by full name, email, matric number, or department..."
+          aria-label="Search users by full name, email, matric number, or department"
         />
         {searchTerm && (
-          <button className="clear-search-btn" onClick={() => setSearchTerm('')}>
+          <button className="clear-search-btn" onClick={() => setSearchTerm('')} aria-label="Clear user search">
             Clear
           </button>
         )}
@@ -1338,7 +1364,7 @@ function AdminUsersTab() {
                   <button
                     className="table-action-btn"
                     disabled={busyId === u.id}
-                    onClick={() => handleToggleRole(u)}
+                    onClick={() => setRoleChangeTarget(u)}
                     title={u.role === 'admin' ? 'Demote this account to student' : 'Promote this account to administrator'}
                   >
                     {busyId === u.id ? 'Updating…' : u.role === 'admin' ? 'Set as Student' : 'Make Admin'}
@@ -1349,6 +1375,24 @@ function AdminUsersTab() {
           })
         )}
       </div>
+
+      {/* Role change confirmation */}
+      <ConfirmDialog
+        open={!!roleChangeTarget}
+        title={roleChangeTarget?.role === 'admin' ? 'Demote this account?' : 'Grant administrator rights?'}
+        tone={roleChangeTarget?.role === 'admin' ? 'danger' : 'default'}
+        confirmLabel={roleChangeTarget?.role === 'admin' ? 'Set as Student' : 'Make Admin'}
+        message={
+          roleChangeTarget
+            ? `Change ${roleChangeTarget.full_name || roleChangeTarget.email} from "${roleChangeTarget.role}" to "${roleChangeTarget.role === 'admin' ? 'student' : 'admin'}"? Database security policies still protect this action.`
+            : ''
+        }
+        onConfirm={() => {
+          if (roleChangeTarget) void handleToggleRole(roleChangeTarget);
+          setRoleChangeTarget(null);
+        }}
+        onClose={() => setRoleChangeTarget(null)}
+      />
     </div>
   );
 }
@@ -1384,6 +1428,7 @@ function AdminFacultiesTab() {
 
 // 6. Admin Departments Tab
 function AdminDepartmentsTab() {
+  const [searchTerm, setSearchTerm] = useState('');
   const allDepts = catalogue.flatMap((f) =>
     f.departments.map((d) => ({
       faculty: f.name,
@@ -1392,6 +1437,12 @@ function AdminDepartmentsTab() {
       coursesCount: d.courses.length
     }))
   );
+
+  const displayed = allDepts.filter((d) => {
+    if (!searchTerm.trim()) return true;
+    const q = searchTerm.trim().toLowerCase();
+    return d.name.toLowerCase().includes(q) || d.faculty.toLowerCase().includes(q);
+  });
 
   return (
     <div className="portal-view-fade">
@@ -1403,6 +1454,28 @@ function AdminDepartmentsTab() {
         </div>
       </div>
 
+      <div className="manage-tools compact">
+        <Search size={17} />
+        <input
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Search departments by name or faculty..."
+          aria-label="Search departments by name or faculty"
+        />
+        {searchTerm && (
+          <button className="clear-search-btn" onClick={() => setSearchTerm('')} aria-label="Clear department search">
+            Clear
+          </button>
+        )}
+      </div>
+
+      {displayed.length === 0 ? (
+        <div className="empty-state card-empty">
+          <Building2 size={32} />
+          <b>No departments match “{searchTerm.trim()}”.</b>
+          <span>Check the spelling or clear the search to see all departments.</span>
+        </div>
+      ) : (
       <div className="table">
         <div className="tr head depts-table-grid">
           <span>Department Name</span>
@@ -1412,7 +1485,7 @@ function AdminDepartmentsTab() {
           <span>Action</span>
         </div>
 
-        {allDepts.map((d) => (
+        {displayed.map((d) => (
           <div className="tr depts-table-grid" key={d.name}>
             <span>
               <b>{d.name}</b>
@@ -1431,12 +1504,14 @@ function AdminDepartmentsTab() {
           </div>
         ))}
       </div>
+      )}
     </div>
   );
 }
 
 // 7. Admin Courses Tab
 function AdminCoursesTab() {
+  const [searchTerm, setSearchTerm] = useState('');
   const allCourses = catalogue.flatMap((f) =>
     f.departments.flatMap((d) =>
       d.courses.map((c) => ({
@@ -1450,16 +1525,49 @@ function AdminCoursesTab() {
     )
   );
 
+  const displayed = allCourses.filter((c) => {
+    if (!searchTerm.trim()) return true;
+    const q = searchTerm.trim().toLowerCase();
+    return (
+      c.code.toLowerCase().includes(q) ||
+      c.name.toLowerCase().includes(q) ||
+      c.dept.toLowerCase().includes(q) ||
+      c.level.toLowerCase().includes(q)
+    );
+  });
+
   return (
     <div className="portal-view-fade">
       <div className="portal-top">
         <div>
           <p className="kicker">CURRICULUM DIRECTORY</p>
-          <h1>Courses & curriculum levels</h1>
+          <h1>Courses & curriculum levels ({allCourses.length})</h1>
           <p className="subtitle">Accredited course codes mapped across departments and academic semesters.</p>
         </div>
       </div>
 
+      <div className="manage-tools compact">
+        <Search size={17} />
+        <input
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Search courses by code, title, department, or level..."
+          aria-label="Search courses by code, title, department, or level"
+        />
+        {searchTerm && (
+          <button className="clear-search-btn" onClick={() => setSearchTerm('')} aria-label="Clear course search">
+            Clear
+          </button>
+        )}
+      </div>
+
+      {displayed.length === 0 ? (
+        <div className="empty-state card-empty">
+          <GraduationCap size={32} />
+          <b>No courses match “{searchTerm.trim()}”.</b>
+          <span>Try a course code like “CSC 201”, a title keyword, or clear the search.</span>
+        </div>
+      ) : (
       <div className="table">
         <div className="tr head courses-table-grid">
           <span>Course Code</span>
@@ -1470,7 +1578,7 @@ function AdminCoursesTab() {
           <span>Library Resources</span>
         </div>
 
-        {allCourses.map((c) => (
+        {displayed.map((c) => (
           <div className="tr courses-table-grid" key={c.code}>
             <span>
               <b className="course-code-highlight">{c.code}</b>
@@ -1487,6 +1595,7 @@ function AdminCoursesTab() {
           </div>
         ))}
       </div>
+      )}
     </div>
   );
 }
@@ -1534,6 +1643,19 @@ function AdminCategoriesTab() {
 
 // 9. Admin Audit Logs Tab
 function AdminAuditLogsTab({ logs }: { logs: any[] }) {
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const displayed = logs.filter((log) => {
+    if (!searchTerm.trim()) return true;
+    const q = searchTerm.trim().toLowerCase();
+    return (
+      (log.action || '').toLowerCase().includes(q) ||
+      (log.performedBy || '').toLowerCase().includes(q) ||
+      (log.entity || '').toLowerCase().includes(q) ||
+      (log.details || '').toLowerCase().includes(q)
+    );
+  });
+
   return (
     <div className="portal-view-fade">
       <div className="portal-top">
@@ -1544,6 +1666,23 @@ function AdminAuditLogsTab({ logs }: { logs: any[] }) {
         </div>
       </div>
 
+      {logs.length > 0 && (
+        <div className="manage-tools compact">
+          <Search size={17} />
+          <input
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search logs by action, operator, resource, or details..."
+            aria-label="Search audit logs"
+          />
+          {searchTerm && (
+            <button className="clear-search-btn" onClick={() => setSearchTerm('')} aria-label="Clear audit log search">
+              Clear
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="table">
         <div className="tr head audit-table-grid">
           <span>Action Performed</span>
@@ -1553,21 +1692,86 @@ function AdminAuditLogsTab({ logs }: { logs: any[] }) {
           <span>Record State</span>
         </div>
 
-        {logs.map((log) => (
-          <div className="tr audit-table-grid" key={log.id}>
-            <span>
-              <b>{log.action}</b>
-              <small>{log.details || 'Database record'}</small>
-            </span>
-            <span>{log.performedBy}</span>
-            <span>{log.entity}</span>
-            <span>{new Date(log.timestamp).toLocaleString()}</span>
-            <span>
-              <span className="status-badge approved">Verified Record</span>
-            </span>
+        {logs.length === 0 ? (
+          <div className="empty-state">
+            <ShieldAlert size={32} />
+            <b>No audit records yet.</b>
+            <span>Approvals, publications and administrative actions will be recorded here.</span>
           </div>
-        ))}
+        ) : displayed.length === 0 ? (
+          <div className="empty-state">
+            <Search size={32} />
+            <b>No log entries match “{searchTerm.trim()}”.</b>
+            <span>Adjust or clear the search to see all recorded activity.</span>
+          </div>
+        ) : (
+          displayed.map((log) => (
+            <div className="tr audit-table-grid" key={log.id}>
+              <span>
+                <b>{log.action}</b>
+                <small>{log.details || 'Database record'}</small>
+              </span>
+              <span>{log.performedBy}</span>
+              <span>{log.entity}</span>
+              <span>{new Date(log.timestamp).toLocaleString()}</span>
+              <span>
+                <span className="status-badge approved">Verified Record</span>
+              </span>
+            </div>
+          ))
+        )}
       </div>
+    </div>
+  );
+}
+
+// 9b. Live maintenance status card (real state lives in Supabase, controlled
+// by the Super Admin under /super/system — admins here see it read-only).
+function MaintenanceStatusCard() {
+  const [status, setStatus] = useState<MaintenanceStatus | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const { isSuperAdmin } = useAuth();
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchMaintenanceStatus()
+      .then((s) => {
+        if (!cancelled) {
+          setStatus(s);
+          setLoaded(true);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const active = status?.enabled ?? false;
+
+  return (
+    <div className={`maintenance-status-card ${active ? 'is-active' : ''}`}>
+      <span className={`maintenance-status-dot ${active ? 'on' : ''}`} aria-hidden="true" />
+      <div className="switch-info">
+        <b>Maintenance Mode {loaded ? (active ? '· Active' : '· Inactive') : ''}</b>
+        <span>
+          Global platform availability is managed centrally.{' '}
+          {isSuperAdmin
+            ? 'Open "System & maintenance" in the Super Admin dashboard to change it.'
+            : 'Only a Super Administrator can enable or disable it.'}
+        </span>
+        {status?.updatedAt && (
+          <small>Last updated {new Date(status.updatedAt).toLocaleString()}</small>
+        )}
+      </div>
+      {isSuperAdmin && (
+        <Link to="/super/system" className="secondary-btn maintenance-manage-link">
+          <ShieldCheck size={15} />
+          <span>Manage</span>
+        </Link>
+      )}
     </div>
   );
 }
@@ -1838,24 +2042,7 @@ function AdminSettingsTab() {
                   />
                 </label>
 
-                <div className="switch-group" style={{ marginTop: '12px' }}>
-                  <label className="switch-row">
-                    <div className="switch-info">
-                      <b>Maintenance Mode</b>
-                      <span>Temporarily display an under-maintenance message to public visitors while allowing administrator logins.</span>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={settings.general.maintenanceMode}
-                      onChange={(e) =>
-                        setSettings({
-                          ...settings,
-                          general: { ...settings.general, maintenanceMode: e.target.checked }
-                        })
-                      }
-                    />
-                  </label>
-                </div>
+                <MaintenanceStatusCard />
 
                 <div className="settings-actions-bar">
                   <button type="submit" className="primary save-btn">

@@ -65,7 +65,6 @@ export interface AdminSettings {
     supportPhone: string;
     academicSession: string;
     campusLocation: string;
-    maintenanceMode: boolean;
     announcementText: string;
   };
   materials: {
@@ -122,7 +121,6 @@ export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
     supportPhone: '+234 800 FUW LIBS',
     academicSession: '2025/2026',
     campusLocation: 'Kastina-Ala Road, PMB 1020, Wukari, Taraba State',
-    maintenanceMode: false,
     announcementText: 'Welcome to the updated FUW E-Library platform. First Semester 2025/2026 course notes are now online!'
   },
   materials: {

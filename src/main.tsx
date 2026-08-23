@@ -23,9 +23,11 @@ import {
 import { StudentPortal } from './pages/StudentPortal';
 import { AdminPortal } from './pages/AdminPortal';
 import { SuperAdminPortal } from './pages/SuperAdminPortal';
+import { MaintenancePage } from './pages/MaintenancePage';
 
 import { AuthProvider } from './lib/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { MaintenanceGate } from './components/MaintenanceGate';
 
 function PublicLayout({
   children,
@@ -53,162 +55,167 @@ function App() {
   return (
     <AuthProvider>
       <ToastProvider>
-        <Routes>
-          {/* Protected Student Portal Routes */}
-          <Route
-            path="/student/*"
-            element={
-              <ProtectedRoute>
-                <StudentPortal onReadOnline={handleReadOnline} />
-              </ProtectedRoute>
-            }
-          />
+        <MaintenanceGate>
+          <Routes>
+            {/* Global maintenance screen — reachable for everyone */}
+            <Route path="/maintenance" element={<MaintenancePage />} />
 
-          {/* Protected Admin Portal Routes */}
-          <Route
-            path="/admin/login"
-            element={<AdminLoginPage />}
-          />
-          <Route
-            path="/admin/*"
-            element={
-              <ProtectedRoute adminOnly>
-                <AdminPortal onReadOnline={handleReadOnline} />
-              </ProtectedRoute>
-            }
-          />
+            {/* Protected Student Portal Routes */}
+            <Route
+              path="/student/*"
+              element={
+                <ProtectedRoute>
+                  <StudentPortal onReadOnline={handleReadOnline} />
+                </ProtectedRoute>
+              }
+            />
 
-          {/* Protected Super Admin Portal (owner only) */}
-          <Route
-            path="/super/login"
-            element={<AdminLoginPage />}
-          />
-          <Route
-            path="/super"
-            element={
-              <ProtectedRoute superAdminOnly>
-                <SuperAdminPortal />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/super/*"
-            element={
-              <ProtectedRoute superAdminOnly>
-                <SuperAdminPortal />
-              </ProtectedRoute>
-            }
-          />
+            {/* Protected Admin Portal Routes */}
+            <Route
+              path="/admin/login"
+              element={<AdminLoginPage />}
+            />
+            <Route
+              path="/admin/*"
+              element={
+                <ProtectedRoute adminOnly>
+                  <AdminPortal onReadOnline={handleReadOnline} />
+                </ProtectedRoute>
+              }
+            />
 
-          {/* Friendly Route Aliases */}
-          <Route path="/dashboard" element={<Navigate to="/student" replace />} />
-          <Route path="/profile" element={<Navigate to="/student/profile" replace />} />
-          <Route path="/settings" element={<Navigate to="/student/settings" replace />} />
-          <Route path="/super-admin" element={<Navigate to="/super" replace />} />
-          <Route path="/superadmin" element={<Navigate to="/super" replace />} />
+            {/* Protected Super Admin Portal (owner only) */}
+            <Route
+              path="/super/login"
+              element={<AdminLoginPage />}
+            />
+            <Route
+              path="/super"
+              element={
+                <ProtectedRoute superAdminOnly>
+                  <SuperAdminPortal />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/super/*"
+              element={
+                <ProtectedRoute superAdminOnly>
+                  <SuperAdminPortal />
+                </ProtectedRoute>
+              }
+            />
 
-          {/* Public Pages Layout */}
-          <Route
-            path="/"
-            element={
-              <PublicLayout onReadOnline={handleReadOnline}>
-                <HomePage onReadOnline={handleReadOnline} />
-              </PublicLayout>
-            }
-          />
-          <Route
-            path="/library"
-            element={
-              <PublicLayout onReadOnline={handleReadOnline}>
-                <LibraryPage onReadOnline={handleReadOnline} />
-              </PublicLayout>
-            }
-          />
-          <Route
-            path="/faculties"
-            element={
-              <PublicLayout onReadOnline={handleReadOnline}>
-                <FacultiesPage />
-              </PublicLayout>
-            }
-          />
-          <Route
-            path="/departments"
-            element={
-              <PublicLayout onReadOnline={handleReadOnline}>
-                <FacultiesPage />
-              </PublicLayout>
-            }
-          />
-          <Route
-            path="/courses"
-            element={
-              <PublicLayout onReadOnline={handleReadOnline}>
-                <CoursesPage />
-              </PublicLayout>
-            }
-          />
-          <Route
-            path="/materials/:id"
-            element={
-              <PublicLayout onReadOnline={handleReadOnline}>
-                <MaterialDetailPage onReadOnline={handleReadOnline} />
-              </PublicLayout>
-            }
-          />
-          <Route
-            path="/about"
-            element={
-              <PublicLayout onReadOnline={handleReadOnline}>
-                <AboutPage />
-              </PublicLayout>
-            }
-          />
-          <Route
-            path="/contact"
-            element={
-              <PublicLayout onReadOnline={handleReadOnline}>
-                <AboutPage contact />
-              </PublicLayout>
-            }
-          />
-          <Route
-            path="/login"
-            element={
-              <PublicLayout onReadOnline={handleReadOnline}>
-                <LoginPage />
-              </PublicLayout>
-            }
-          />
-          <Route
-            path="/register"
-            element={
-              <PublicLayout onReadOnline={handleReadOnline}>
-                <LoginPage register />
-              </PublicLayout>
-            }
-          />
-          <Route
-            path="/forgot-password"
-            element={
-              <PublicLayout onReadOnline={handleReadOnline}>
-                <LoginPage />
-              </PublicLayout>
-            }
-          />
-          <Route
-            path="*"
-            element={<Navigate to="/library" replace />}
-          />
-        </Routes>
+            {/* Friendly Route Aliases */}
+            <Route path="/dashboard" element={<Navigate to="/student" replace />} />
+            <Route path="/profile" element={<Navigate to="/student/profile" replace />} />
+            <Route path="/settings" element={<Navigate to="/student/settings" replace />} />
+            <Route path="/super-admin" element={<Navigate to="/super" replace />} />
+            <Route path="/superadmin" element={<Navigate to="/super" replace />} />
 
-        {/* Global Interactive Document Reader Modal */}
-        {readingMaterial && (
-          <DocumentReaderModal
-            material={readingMaterial}
-            onClose={() => setReadingMaterial(null)}
-          />
-        )}
+            {/* Public Pages Layout */}
+            <Route
+              path="/"
+              element={
+                <PublicLayout onReadOnline={handleReadOnline}>
+                  <HomePage onReadOnline={handleReadOnline} />
+                </PublicLayout>
+              }
+            />
+            <Route
+              path="/library"
+              element={
+                <PublicLayout onReadOnline={handleReadOnline}>
+                  <LibraryPage onReadOnline={handleReadOnline} />
+                </PublicLayout>
+              }
+            />
+            <Route
+              path="/faculties"
+              element={
+                <PublicLayout onReadOnline={handleReadOnline}>
+                  <FacultiesPage />
+                </PublicLayout>
+              }
+            />
+            <Route
+              path="/departments"
+              element={
+                <PublicLayout onReadOnline={handleReadOnline}>
+                  <FacultiesPage />
+                </PublicLayout>
+              }
+            />
+            <Route
+              path="/courses"
+              element={
+                <PublicLayout onReadOnline={handleReadOnline}>
+                  <CoursesPage />
+                </PublicLayout>
+              }
+            />
+            <Route
+              path="/materials/:id"
+              element={
+                <PublicLayout onReadOnline={handleReadOnline}>
+                  <MaterialDetailPage onReadOnline={handleReadOnline} />
+                </PublicLayout>
+              }
+            />
+            <Route
+              path="/about"
+              element={
+                <PublicLayout onReadOnline={handleReadOnline}>
+                  <AboutPage />
+                </PublicLayout>
+              }
+            />
+            <Route
+              path="/contact"
+              element={
+                <PublicLayout onReadOnline={handleReadOnline}>
+                  <AboutPage contact />
+                </PublicLayout>
+              }
+            />
+            <Route
+              path="/login"
+              element={
+                <PublicLayout onReadOnline={handleReadOnline}>
+                  <LoginPage />
+                </PublicLayout>
+              }
+            />
+            <Route
+              path="/register"
+              element={
+                <PublicLayout onReadOnline={handleReadOnline}>
+                  <LoginPage register />
+                </PublicLayout>
+              }
+            />
+            <Route
+              path="/forgot-password"
+              element={
+                <PublicLayout onReadOnline={handleReadOnline}>
+                  <LoginPage />
+                </PublicLayout>
+              }
+            />
+            <Route
+              path="*"
+              element={<Navigate to="/library" replace />}
+            />
+          </Routes>
+
+          {/* Global Interactive Document Reader Modal */}
+          {readingMaterial && (
+            <DocumentReaderModal
+              material={readingMaterial}
+              onClose={() => setReadingMaterial(null)}
+            />
+          )}
+        </MaintenanceGate>
       </ToastProvider>
     </AuthProvider>
   );
@@ -222,4 +229,3 @@ if (rootEl) {
     </BrowserRouter>
   );
 }
-

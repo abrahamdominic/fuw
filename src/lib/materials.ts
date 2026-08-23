@@ -140,9 +140,14 @@ export async function fetchMaterials(
   return { items, total, hasMore: to + 1 < total };
 }
 
-/** Convenience wrapper for "My Uploads" pages. */
-export function fetchMyMaterials(userId: string, page = 0, pageSize = 10): Promise<PaginatedResult> {
-  return fetchMaterials({ uploadedBy: userId }, {}, page, pageSize);
+/** Convenience wrapper for "My Uploads" pages (optionally server-side searched). */
+export function fetchMyMaterials(
+  userId: string,
+  page = 0,
+  pageSize = 10,
+  search?: string
+): Promise<PaginatedResult> {
+  return fetchMaterials({ uploadedBy: userId, search }, {}, page, pageSize);
 }
 
 export interface MaterialCounts {

@@ -7,6 +7,7 @@ import {
   LogOut,
   Menu,
   X,
+  Power,
   Search,
   CheckCircle2,
   XCircle,
@@ -19,17 +20,24 @@ import {
   Save,
   Users,
   FileText,
-  ChevronRight,
   Settings2,
-  Ban
+  Ban,
+  Wrench,
+  Loader2
 } from 'lucide-react';
 import { requireSupabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { useToast } from '../components/Toast';
 import { ConfirmDialog, PromptDialog } from '../components/ConfirmDialog';
+import { DashboardSearch } from '../components/DashboardSearch';
 import { Logo } from '../components/Logo';
 import { ALL_PERMISSIONS, DEFAULT_ADMIN_PERMISSIONS, roleLabel } from '../lib/rbac';
 import { fetchMaterialCounts } from '../lib/materials';
+import {
+  fetchMaintenanceStatus,
+  setMaintenanceMode,
+  MaintenanceStatus
+} from '../lib/maintenance';
 
 interface AdminRow {
   id: string;
@@ -53,7 +61,8 @@ interface InviteRow {
 const superNavItems = [
   { label: 'Overview', path: '/super', icon: LayoutDashboard, exact: true },
   { label: 'Administrators', path: '/super/admins', icon: ShieldCheck },
-  { label: 'Admin invites', path: '/super/invites', icon: MailPlus }
+  { label: 'Admin invites', path: '/super/invites', icon: MailPlus },
+  { label: 'System & maintenance', path: '/super/system', icon: Wrench }
 ];
 
 export function SuperAdminPortal() {
@@ -212,6 +221,16 @@ export function SuperAdminPortal() {
         </div>
       </aside>
 
+      {/* Tap-away backdrop for the mobile drawer */}
+      {mobileMenuOpen && (
+        <button
+          type="button"
+          className="portal-scrim"
+          aria-label="Close navigation"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
       {/* Main Viewport */}
       <main className="portal-main">
         <div className="portal-mobile-bar">
@@ -227,7 +246,12 @@ export function SuperAdminPortal() {
           <span />
         </div>
 
-        {currentPath.startsWith('/super/admins') ? (
+        {/* Global dashboard search (desktop bar / mobile expanding icon) */}
+        <DashboardSearch scope="super" />
+
+        {currentPath.startsWith('/super/system') ? (
+          <MaintenanceControlTab />
+        ) : currentPath.startsWith('/super/admins') ? (
           <AdminManagementTab
             admins={admins}
             loading={loading}
@@ -432,31 +456,61 @@ function AdminManagementTab({
   const [search, setSearch] = useState('');
   const [results, setResults] = useState<Array<{ id: string; full_name: string | null; email: string | null }>>([]);
   const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [searched, setSearched] = useState(false);
 
-  const handleSearch = async () => {
+  // Debounced live student lookup — results update as the super admin types.
+  useEffect(() => {
     const q = search.trim();
     if (q.length < 3) {
-      toast('Type at least 3 characters of a name or email.', 'info');
+      setResults([]);
+      setSearchError(null);
+      setSearching(false);
+      setSearched(false);
       return;
     }
+    let cancelled = false;
     setSearching(true);
-    try {
-      const escaped = q.replace(/[%_,()]/g, (ch) => `\\${ch}`);
-      const { data, error } = await requireSupabase()
-        .from('profiles')
-        .select('id, full_name, email, role')
-        .eq('role', 'student')
-        .or(`email.ilike.%${escaped}%,full_name.ilike.%${escaped}%`)
-        .limit(10);
-      if (error) throw new Error(error.message);
-      setResults((data ?? []) as any);
-      if ((data ?? []).length === 0) toast('No student accounts matched that search.', 'info');
-    } catch (err: any) {
-      toast(err?.message || 'Search failed.', 'error');
-    } finally {
-      setSearching(false);
-    }
-  };
+    const timer = window.setTimeout(async () => {
+      try {
+        const escaped = q.replace(/[%_,()\\]/g, (ch) => `\\${ch}`);
+        const { data, error } = await requireSupabase()
+          .from('profiles')
+          .select('id, full_name, email')
+          .eq('role', 'student')
+          .or(`email.ilike.%${escaped}%,full_name.ilike.%${escaped}%`)
+          .limit(10);
+        if (cancelled) return;
+        if (error) throw new Error(error.message);
+        setResults((data ?? []) as any);
+        setSearchError(null);
+        setSearched(true);
+      } catch (err: any) {
+        if (!cancelled) {
+          setResults([]);
+          setSearchError(err?.message || 'Search failed.');
+          setSearched(true);
+        }
+      } finally {
+        if (!cancelled) setSearching(false);
+      }
+    }, 300);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [search]);
+
+  const [adminFilter, setAdminFilter] = useState('');
+  const filteredAdmins = admins.filter((a) => {
+    if (!adminFilter.trim()) return true;
+    const q = adminFilter.trim().toLowerCase();
+    return (
+      (a.full_name || '').toLowerCase().includes(q) ||
+      (a.email || '').toLowerCase().includes(q) ||
+      roleLabel(a.role).toLowerCase().includes(q)
+    );
+  });
 
   return (
     <div className="portal-view-fade">
@@ -481,13 +535,36 @@ function AdminManagementTab({
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            onKeyDown={(e) => e.key === 'Escape' && search && setSearch('')}
             placeholder="Search students by name or email..."
+            aria-label="Search students by name or email"
           />
-          <button className="primary" onClick={handleSearch} disabled={searching}>
-            {searching ? 'Searching…' : 'Search'}
-          </button>
+          {searching && <Loader2 size={15} className="spin-icon" aria-hidden="true" />}
+          {search && (
+            <button
+              className="clear-search-btn"
+              onClick={() => setSearch('')}
+              aria-label="Clear student search"
+            >
+              Clear
+            </button>
+          )}
         </div>
+
+        {searchError && (
+          <div className="form-feedback-box error">
+            <AlertCircle size={18} />
+            <p>{searchError}</p>
+          </div>
+        )}
+
+        {!searchError && searched && !searching && results.length === 0 && (
+          <div className="empty-state card-empty">
+            <Users size={30} />
+            <b>No student accounts matched “{search.trim()}”.</b>
+            <span>Try a different name, matric-style email, or check the spelling.</span>
+          </div>
+        )}
 
         {results.length > 0 && (
           <div className="table">
@@ -524,6 +601,27 @@ function AdminManagementTab({
           </button>
         </div>
 
+        {!loading && (
+          <div className="manage-tools compact">
+            <Search size={17} />
+            <input
+              value={adminFilter}
+              onChange={(e) => setAdminFilter(e.target.value)}
+              placeholder="Filter staff by name, email, or role..."
+              aria-label="Filter administrator accounts"
+            />
+            {adminFilter && (
+              <button
+                className="clear-search-btn"
+                onClick={() => setAdminFilter('')}
+                aria-label="Clear staff filter"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        )}
+
         {loading ? (
           <p className="muted">Loading administrator accounts…</p>
         ) : (
@@ -536,7 +634,7 @@ function AdminManagementTab({
               <span>Actions</span>
             </div>
 
-            {admins.map((a) => (
+            {filteredAdmins.map((a) => (
               <div className="tr super-admin-table-grid" key={a.id}>
                 <span>
                   <b>{a.full_name || 'Unnamed admin'}</b>
@@ -582,6 +680,14 @@ function AdminManagementTab({
                 </span>
               </div>
             ))}
+
+            {filteredAdmins.length === 0 && admins.length > 0 && (
+              <div className="empty-state">
+                <Search size={30} />
+                <b>No staff accounts match “{adminFilter.trim()}”.</b>
+                <span>Adjust the filter above to see all administrator accounts.</span>
+              </div>
+            )}
 
             {admins.length === 0 && (
               <div className="empty-state">
@@ -675,6 +781,17 @@ function InviteManagementTab() {
   const [fullName, setFullName] = useState('');
   const [busy, setBusy] = useState(false);
   const [invites, setInvites] = useState<InviteRow[]>([]);
+  const [inviteFilter, setInviteFilter] = useState('');
+
+  const filteredInvites = invites.filter((i) => {
+    if (!inviteFilter.trim()) return true;
+    const q = inviteFilter.trim().toLowerCase();
+    return (
+      i.email.toLowerCase().includes(q) ||
+      (i.full_name || '').toLowerCase().includes(q) ||
+      (i.accepted ? 'accepted' : 'waiting').includes(q)
+    );
+  });
 
   const loadInvites = async () => {
     try {
@@ -770,14 +887,40 @@ function InviteManagementTab() {
             <p className="kicker">INVITE LOG</p>
             <h2>Recent invitations</h2>
           </div>
-          <ChevronRight size={16} />
         </div>
+
+        {invites.length > 0 && (
+          <div className="manage-tools compact">
+            <Search size={17} />
+            <input
+              value={inviteFilter}
+              onChange={(e) => setInviteFilter(e.target.value)}
+              placeholder="Filter invites by email, name, or status..."
+              aria-label="Filter admin invites"
+            />
+            {inviteFilter && (
+              <button
+                className="clear-search-btn"
+                onClick={() => setInviteFilter('')}
+                aria-label="Clear invite filter"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        )}
 
         {invites.length === 0 ? (
           <div className="empty-state card-empty">
             <MailPlus size={36} />
             <b>No invites yet.</b>
             <span>Create your first invite above — it activates when the person signs up.</span>
+          </div>
+        ) : filteredInvites.length === 0 ? (
+          <div className="empty-state card-empty">
+            <Search size={30} />
+            <b>No invites match “{inviteFilter.trim()}”.</b>
+            <span>Adjust or clear the filter to see all {invites.length} invitation{invites.length !== 1 ? 's' : ''}.</span>
           </div>
         ) : (
           <div className="table">
@@ -787,7 +930,7 @@ function InviteManagementTab() {
               <span>Status</span>
               <span>Created</span>
             </div>
-            {invites.map((i) => (
+            {filteredInvites.map((i) => (
               <div className="tr super-invite-grid" key={i.id}>
                 <span><b>{i.email}</b></span>
                 <span>{i.full_name || '—'}</span>
@@ -804,6 +947,198 @@ function InviteManagementTab() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// System & maintenance tab (persistent Supabase-backed maintenance mode)
+// ---------------------------------------------------------------------------
+function MaintenanceControlTab() {
+  const { toast } = useToast();
+  const [status, setStatus] = useState<MaintenanceStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [messageDraft, setMessageDraft] = useState('');
+  const [savingMessage, setSavingMessage] = useState(false);
+  const [confirmToggle, setConfirmToggle] = useState<'enable' | 'disable' | null>(null);
+
+  const loadStatus = async () => {
+    setLoading(true);
+    try {
+      const next = await fetchMaintenanceStatus();
+      setStatus(next);
+      setMessageDraft(next.message || '');
+    } catch {
+      toast('Could not load the current maintenance status.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleSaveMessage = async () => {
+    setSavingMessage(true);
+    try {
+      await setMaintenanceMode(status?.enabled ?? false, messageDraft);
+      toast('Maintenance page message updated.', 'success');
+      await loadStatus();
+    } catch (err: any) {
+      toast(err?.message || 'Could not update the maintenance message.', 'error');
+    } finally {
+      setSavingMessage(false);
+    }
+  };
+
+  const handleToggle = async () => {
+    if (!confirmToggle) return;
+    const enabling = confirmToggle === 'enable';
+    setBusy(true);
+    try {
+      await setMaintenanceMode(enabling, messageDraft.trim() || undefined);
+      toast(
+        enabling
+          ? 'Maintenance mode enabled — students and visitors now see the maintenance page.'
+          : 'Maintenance mode disabled — everyone has full access again.',
+        'success'
+      );
+      setConfirmToggle(null);
+      await loadStatus();
+    } catch (err: any) {
+      toast(err?.message || 'Could not update maintenance mode.', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const active = status?.enabled ?? false;
+
+  return (
+    <div className="portal-view-fade">
+      <div className="portal-top">
+        <div>
+          <p className="kicker">PLATFORM AVAILABILITY</p>
+          <h1>System &amp; maintenance</h1>
+          <p className="subtitle">
+            Temporarily close FUW E-Library for upgrades. Students and visitors are redirected to a
+            branded maintenance page while you keep full access. The state is stored in Supabase, so it
+            persists across refreshes, devices and deployments.
+          </p>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="empty-state card-empty">
+          <Loader2 size={28} className="spin-icon" />
+          <b>Loading maintenance status…</b>
+        </div>
+      ) : (
+        <>
+          <div className="admin-section-block">
+            <div className="section-head">
+              <div>
+                <p className="kicker">GLOBAL ACCESS CONTROL</p>
+                <h2>Maintenance mode</h2>
+              </div>
+            </div>
+
+            <div className={`maintenance-control-card ${active ? 'is-active' : ''}`}>
+              <div className="maintenance-status-row">
+                <span className={`maintenance-status-dot ${active ? 'on' : ''}`} aria-hidden="true" />
+                <div className="maintenance-status-text">
+                  <b>Maintenance Mode</b>
+                  <span className={`maintenance-status-value ${active ? 'active' : ''}`}>
+                    {active ? '● Active' : '○ Inactive'}
+                  </span>
+                  <small>
+                    {active
+                      ? 'Students and visitors are redirected to /maintenance.'
+                      : 'The full library is online and reachable.'}
+                  </small>
+                </div>
+                <button
+                  type="button"
+                  className={active ? 'danger-btn-outline' : 'primary'}
+                  onClick={() => setConfirmToggle(active ? 'disable' : 'enable')}
+                  disabled={busy}
+                >
+                  {busy && confirmToggle ? (
+                    <Loader2 size={15} className="spin-icon" />
+                  ) : active ? (
+                    <CheckCircle2 size={15} />
+                  ) : (
+                    <Wrench size={15} />
+                  )}
+                  <span>{active ? 'Disable Maintenance Mode' : 'Enable Maintenance Mode'}</span>
+                </button>
+              </div>
+
+              <label className="maintenance-message-label">
+                Custom message shown on the maintenance page (optional)
+                <textarea
+                  rows={3}
+                  value={messageDraft}
+                  onChange={(e) => setMessageDraft(e.target.value)}
+                  placeholder="e.g. We are upgrading the repository servers. Back online by 4:00 PM."
+                  disabled={busy || savingMessage}
+                />
+              </label>
+              {messageDraft !== (status?.message ?? '') && (
+                <button
+                  type="button"
+                  className="secondary-btn maintenance-save-message-btn"
+                  onClick={handleSaveMessage}
+                  disabled={savingMessage || busy}
+                >
+                  {savingMessage ? <Loader2 size={15} className="spin-icon" /> : <Save size={15} />}
+                  <span>{savingMessage ? 'Saving…' : 'Save message'}</span>
+                </button>
+              )}
+
+              {status?.updatedAt && (
+                <small className="maintenance-updated">
+                  Last updated {new Date(status.updatedAt).toLocaleString()}
+                </small>
+              )}
+            </div>
+          </div>
+
+          <div className="super-help-list-block admin-section-block">
+            <div className="section-head">
+              <div>
+                <p className="kicker">GOOD TO KNOW</p>
+                <h2>How maintenance mode behaves</h2>
+              </div>
+            </div>
+            <ul className="super-help-list">
+              <li><b>Persisted:</b> stored in the <code>system_settings</code> table — survives refreshes, browsers, devices and deployments.</li>
+              <li><b>Global redirect:</b> every route except <code>/maintenance</code> sends normal users there automatically.</li>
+              <li><b>Super Admin bypass:</b> you always keep full access to this dashboard and can disable the mode instantly.</li>
+              <li><b>Instant recovery:</b> disabling restores access immediately; clients re-check within seconds.</li>
+            </ul>
+          </div>
+        </>
+      )}
+
+      <ConfirmDialog
+        open={confirmToggle !== null}
+        title={confirmToggle === 'enable' ? 'Enable maintenance mode?' : 'Disable maintenance mode?'}
+        tone={confirmToggle === 'enable' ? 'danger' : 'default'}
+        confirmLabel={confirmToggle === 'enable' ? 'Yes, enable maintenance' : 'Yes, disable maintenance'}
+        icon={confirmToggle === 'disable' ? Power : undefined}
+        confirmIcon={confirmToggle === 'disable' ? CheckCircle2 : undefined}
+        message={
+          confirmToggle === 'enable'
+            ? 'All students and public visitors will immediately be redirected to the maintenance page until you disable it. You will retain full Super Admin access.'
+            : 'Normal users will immediately regain access to the library and their dashboards.'
+        }
+        onConfirm={handleToggle}
+        onClose={() => setConfirmToggle(null)}
+      />
     </div>
   );
 }
