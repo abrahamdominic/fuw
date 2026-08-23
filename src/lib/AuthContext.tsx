@@ -278,14 +278,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(data.session);
 
         const prof = await fetchProfile(data.user.id, data.user.email);
-        if (prof && !prof.isActive) {
+        if (!prof) {
+          // Authorization could not be verified — never silently fall back to
+          // the student role. End the session and surface a clear error.
+          await supabase.auth.signOut();
+          setProfile(null);
+          syncToStore(null, null);
+          return {
+            error: new Error(
+              'We could not verify your account permissions. Please try again in a moment or contact the library administrator.'
+            )
+          };
+        }
+        if (!prof.isActive) {
           await supabase.auth.signOut();
           setProfile(null);
           syncToStore(null, null);
           return { error: new Error('This account has been deactivated. Contact the library administrator.') };
         }
-        if (prof) syncToStore(prof, data.user);
-        return { error: null, role: (prof?.role ?? 'student') as AppRole };
+        syncToStore(prof, data.user);
+        return { error: null, role: prof.role };
       }
 
       return { error: new Error('Sign-in failed. Please try again.') };

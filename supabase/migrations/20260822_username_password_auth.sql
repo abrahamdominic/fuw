@@ -220,7 +220,7 @@ FROM PUBLIC;
 -- Allow the authentication flow to call it.
 GRANT EXECUTE
 ON FUNCTION public.lookup_login_email(TEXT)
-TO anon, authenticated;
+TO anon, authenticated, service_role;
 
 
 -- =====================================================================
@@ -277,7 +277,7 @@ FROM PUBLIC;
 
 GRANT EXECUTE
 ON FUNCTION public.register_identity_check(TEXT, TEXT)
-TO anon, authenticated;
+TO anon, authenticated, service_role;
 
 
 -- =====================================================================
@@ -409,7 +409,7 @@ FROM PUBLIC;
 
 GRANT EXECUTE
 ON FUNCTION public.is_valid_username(TEXT)
-TO anon, authenticated;
+TO anon, authenticated, service_role;
 
 
 -- =====================================================================

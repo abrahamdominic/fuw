@@ -46,14 +46,18 @@ src/
                            catalogue with shared/common course expansion
 
 supabase/
-  schema.sql               Base tables (profiles, materials, notifications…)
+  reset_database.sql       Clean-slate reset: drops all E-Library tables,
+                           functions, policies, triggers and storage objects
+                           while preserving auth.users accounts & extensions
+  schema.sql               Legacy base tables (superseded by the rebuild)
   migrations/
-    20260822_upgrade_rbac_ai.sql        RBAC RPCs, RLS policies, invites,
-                                        pgvector AI tables, similarity search
-    20260822_faculties_levels_format.sql Faculty restructure + level format
-                                        normalization ("1000 Level" → "100 Level")
-    20260822_username_password_auth.sql Unique profile usernames (+backfill),
-                                        username→email lookup RPC, signup checks
+    20260824_rebuild_full_schema.sql    ★ Single clean-install migration:
+                                        complete schema (roles, RBAC, review
+                                        workflow, AI/RAG, RLS, grants, storage)
+    20260822_upgrade_rbac_ai.sql        Legacy — superseded by rebuild
+    20260822_faculties_levels_format.sql Legacy — superseded by rebuild
+    20260822_username_password_auth.sql Legacy — folded into the rebuild
+    20260823_fix_profiles_role_type.sql Legacy repair script (TEXT→enum)
   functions/
     ai-chat/               RAG chat (rate-limited, conversation persistence)
     ai-search/             Semantic search over approved materials
@@ -90,7 +94,8 @@ Authorization is enforced twice: in React (`ProtectedRoute` with `adminOnly` / `
 
 ## Run locally
 
-1. Create a Supabase project, then run `supabase/schema.sql` and every migration in `supabase/migrations/` in filename order.
+1. Create a Supabase project, then run the two clean-install scripts in order:
+   `supabase/reset_database.sql` → `supabase/migrations/20260824_rebuild_full_schema.sql`.
 2. Copy `.env.example` to `.env` and fill in your project URL and anon key.
 3. `npm install && npm run dev` (frontend on http://localhost:5173).
 4. Deploy the edge functions (`supabase/functions/*`) and set their secrets:
@@ -101,12 +106,22 @@ The legacy Express/Prisma API (`npm run server`) is kept for reference but is no
 
 ## Database setup — everything to create in Supabase
 
-Run these scripts **in order** in Dashboard → SQL Editor (each is idempotent, safe to re-run):
+### Recommended: clean install (2 scripts)
 
-1. `supabase/schema.sql`
-2. `supabase/migrations/20260822_upgrade_rbac_ai.sql`
-3. `supabase/migrations/20260822_faculties_levels_format.sql`
-4. `supabase/migrations/20260822_username_password_auth.sql` ← **required for username login**
+Run these **in order** in Dashboard → SQL Editor:
+
+1. `supabase/reset_database.sql` — drops every E-Library table, function, policy, trigger and storage object. Auth accounts (`auth.users`), extensions and unrelated resources are preserved.
+2. `supabase/migrations/20260824_rebuild_full_schema.sql` — recreates the complete schema from scratch: enums, all 8 tables, indexes, SECURITY DEFINER helpers, admin/review/auth RPCs, triggers, RLS policies, grants, the `library-materials` storage bucket, and loud final verification.
+
+Both are idempotent; script 2 ends with a verification block that raises an exception if anything failed to build.
+
+### Legacy deployments
+
+The following older scripts were used historically and are kept for reference only — do **not** run them on a fresh project (the rebuild above replaces them):
+
+- `schema.sql`, `20260822_upgrade_rbac_ai.sql`, `20260822_faculties_levels_format.sql`, `20260822_username_password_auth.sql`, `20260823_fix_profiles_role_type.sql`.
+
+If your project predates the rebuild and you hit errors like `return type mismatch in function declared to return app_role`, missing-table `PGRST205` errors or `permission denied` API errors, the fastest fix is the clean-install path above — it resets everything and rebuilds correctly in one pass.
 
 Then configure **Authentication → Providers → Email** (enable *Confirm email* as desired) and **Authentication → Policies** minimum password length (app enforces 8+ chars with a letter and number).
 
@@ -123,6 +138,13 @@ Then configure **Authentication → Providers → Email** (enable *Confirm email
 | --- | --- |
 | `public.app_role` | `student`, `admin`, `super_admin` |
 | `public.material_status` | `pending`, `approved`, `rejected` |
+| `public.material_type` | `Test Questions`, `Test Past Questions`, `Exam Past Questions`, `Projects`, `Handouts`, `Lecture Note`, `Textbook` |
+
+### Academic catalogue tables (`faculties`, `departments`, `levels`, `courses`)
+
+- Seeded automatically with the official FUW structure (14 faculties → 67 departments → 440+ courses) from the same source as `src/data/catalogue.ts`; levels are strictly **100–600**.
+- `materials` links to them through `faculty_id / department_id / course_id / level_id` foreign keys **plus** mirrored display columns (`faculty`, `department`, `level`) that a trigger (`sync_material_catalogue`) keeps in sync in both directions — clients may send either form.
+- Public read for everyone; only the Super Admin can modify the catalogue.
 
 ### Table `public.profiles` (one row per auth user — created automatically on signup)
 
@@ -153,11 +175,12 @@ Then configure **Authentication → Providers → Email** (enable *Confirm email
 | `id` | UUID PK | DEFAULT `gen_random_uuid()` |
 | `title` | TEXT | NOT NULL |
 | `description` | TEXT | DEFAULT '' |
-| `faculty` / `department` / `level` | TEXT | NOT NULL DEFAULT '' |
-| `course_code` / `course_title` | TEXT | e.g. `CSC 201` |
+| `faculty_id` / `department_id` / `course_id` / `level_id` | UUID FKs | → faculties/departments/courses/levels, SET NULL; resolved automatically from the mirrored name columns |
+| `faculty` / `department` / `level` | TEXT | NOT NULL DEFAULT '' — display mirrors kept in sync with the FK ids by the catalogue-sync trigger |
+| `course_code` / `course_title` | TEXT | e.g. `CSC 201` (canonical title backfilled from the course catalogue) |
 | `semester` / `academic_session` | TEXT | e.g. `First Semester`, `2025/2026` |
-| `material_type` | TEXT | DEFAULT `'Lecture Note'` |
-| `file_url` / `file_name` / `file_size` | TEXT | Storage path/name/size |
+| `material_type` | `material_type` enum | NOT NULL DEFAULT `'Lecture Note'` |
+| `file_url` / `file_path` / `file_name` / `file_size` | TEXT | Storage URL/path/name/size (`file_url` defaults to '' until the upload step attaches it) |
 | `downloads` / `views` | INTEGER | NOT NULL DEFAULT 0 (bumped via RPCs) |
 | `uploaded_by` | UUID | NOT NULL FK → profiles.id CASCADE |
 | `status` | `material_status` | NOT NULL DEFAULT `pending` |
@@ -249,7 +272,9 @@ Then configure **Authentication → Providers → Email** (enable *Confirm email
 | `on_auth_user_created` on `auth.users` | AFTER INSERT | Creates the matching `profiles` row with role `student` and the username chosen at signup |
 | `on_profile_invite_check` on `profiles` | BEFORE INSERT | Applies any pending `admin_invites` row (promotes to `admin` with default permissions) |
 | `on_auth_login_touch` on `auth.users` | AFTER UPDATE OF last_sign_in_at | Updates `profiles.last_login_at` |
-| `set_*_updated_at` on profiles/materials/ai_conversations/ai_processing_jobs | BEFORE UPDATE | Keeps `updated_at` fresh |
+| `trg_materials_catalogue_sync` on `materials` | BEFORE INSERT/UPDATE | Resolves faculty/department/level/course names ↔ FK ids and backfills canonical titles |
+| `on_material_deleted_notify` on `materials` | AFTER DELETE | Notifies the uploader when someone else (e.g. an admin) removes their material |
+| `set_updated_at` on profiles/faculties/departments/courses/materials/ai_conversations/ai_processing_jobs | BEFORE UPDATE | Keeps `updated_at` fresh |
 
 ### RPC functions
 
@@ -257,13 +282,14 @@ Then configure **Authentication → Providers → Email** (enable *Confirm email
 | --- | --- | --- |
 | `lookup_login_email(p_username)` | anon, authenticated | Username → login email resolution (returns nothing for unknown/inactive accounts) |
 | `register_identity_check(p_username, p_email)` | anon, authenticated | Pre-signup duplicate check → `{username_taken, email_taken}` |
-| `get_public_stats()` / `get_library_stats()` | anon, authenticated | Public aggregate counters only |
+| `get_public_stats()` / `get_library_stats()` | anon, authenticated | Public aggregate counters only (students, verified; approved-material count, downloads, views) |
+| `get_material_status_counts()` | authenticated admins | Pending/approved/rejected breakdown for dashboards |
 | `increment_download_count(id)` / `increment_view_count(id)` | anon, authenticated | Safe engagement bumps for approved materials |
 | `promote_first_super_admin(email)` | authenticated | **Bootstrap** — promotes your first account to Super Admin (works once) |
 | `promote_to_admin(user_id, perms[])` / `demote_admin(user_id)` | Super Admin | Manage administrators |
 | `set_admin_active(user_id, active)` / `update_admin_details(user_id, name)` / `update_admin_permissions(user_id, perms[])` | Super Admin | Admin account management |
 | `create_admin_invite(email, name)` | Super Admin | Invite a new admin by email |
-| `approve_material_rpc(id, note)` / `reject_material_rpc(id, reason)` / `notify_material_deleted(title, uploader)` | permitted admins | Review workflow + automatic student notification |
+| `approve_material_rpc(p_material_id, note?)` / `reject_material_rpc(p_material_id, p_reason)` / `notify_material_deleted(title, uploader)` | permitted admins | Review workflow + automatic student notification (parameter names match the app's call sites) |
 | `match_material_chunks(embedding, ...)` | authenticated | Semantic similarity search (requires pgvector) |
 
 Helper functions used inside policies: `is_admin()`, `is_super_admin()`, `has_permission(text)`, `my_stored_role()`, `my_is_active()`, `my_permissions()`.

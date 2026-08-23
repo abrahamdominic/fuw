@@ -12,7 +12,7 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, adminOnly = false, superAdminOnly = false }: ProtectedRouteProps) {
-  const { user, profile, isLoading, isAuthenticated, isAdmin, isSuperAdmin } = useAuth();
+  const { user, profile, isLoading, isAuthenticated, isAdmin, isSuperAdmin, signOut } = useAuth();
   const location = useLocation();
 
   if (isLoading) {
@@ -32,6 +32,26 @@ export function ProtectedRoute({ children, adminOnly = false, superAdminOnly = f
   if (!isAuthenticated || !user) {
     const loginTarget = superAdminOnly ? '/admin/login' : adminOnly ? '/admin/login' : '/login';
     return <Navigate to={loginTarget} state={{ from: location }} replace />;
+  }
+
+  // Session exists but the profile/role could not be loaded. Show a clear
+  // authorization error instead of silently treating the user as a student.
+  if (!profile) {
+    return (
+      <div className="auth-loading-screen">
+        <div className="auth-loading-card">
+          <Logo size={48} />
+          <h2>Unable to verify your account</h2>
+          <p>
+            Your session is active but we could not load your account role. Please try signing in
+            again, or contact the library administrator if this keeps happening.
+          </p>
+          <button type="button" className="primary" onClick={() => void signOut()}>
+            Sign out
+          </button>
+        </div>
+      </div>
+    );
   }
 
   // Deactivated accounts are blocked everywhere.

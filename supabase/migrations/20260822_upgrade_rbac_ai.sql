@@ -33,35 +33,109 @@ END $$;
 -- 1. Enums
 -- -----------------------------------------------------------------------------
 DO $$
+DECLARE
+  type_oid  OID;
+  labels    TEXT[];
+  dep_count BIGINT;
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'app_role') THEN
-    CREATE TYPE public.app_role AS ENUM ('student', 'admin');
-  END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'material_status') THEN
     CREATE TYPE public.material_status AS ENUM ('pending', 'approved', 'rejected');
   END IF;
+
+  SELECT oid INTO type_oid FROM pg_type WHERE typname = 'app_role';
+
+  IF type_oid IS NULL THEN
+    CREATE TYPE public.app_role AS ENUM ('student', 'admin', 'super_admin');
+    RETURN;
+  END IF;
+
+  -- NOTE: avoid ALTER TYPE ... ADD VALUE inside this transaction — a value
+  -- added here could not be used by later statements in the SAME
+  -- transaction ("unsafe use of new value"). Recreate instead while free
+  -- of dependents; otherwise instruct the operator precisely.
+  SELECT COALESCE(array_agg(e.enumlabel ORDER BY e.enumlabel), '{}')
+    INTO labels
+  FROM pg_enum e
+  WHERE e.enumtypid = type_oid;
+
+  IF 'student' = ANY(labels) AND 'admin' = ANY(labels) AND 'super_admin' = ANY(labels) THEN
+    RETURN;
+  END IF;
+
+  SELECT COUNT(*) INTO dep_count
+  FROM pg_depend
+  WHERE refclassid = 'pg_type'::regclass
+    AND refobjid = type_oid
+    AND deptype = 'n';
+
+  IF dep_count = 0 THEN
+    DROP TYPE public.app_role;
+    CREATE TYPE public.app_role AS ENUM ('student', 'admin', 'super_admin');
+    RAISE NOTICE 'Recreated enum public.app_role with all three labels.';
+  ELSE
+    RAISE EXCEPTION
+      'Enum public.app_role is missing labels (%) and is still in use. First run this single statement on its own: ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS ''super_admin''; then re-run this script.',
+      array_to_string(labels, ', ');
+  END IF;
 END $$;
 
-ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'super_admin';
-
--- If a legacy `profiles.role` column is plain text/other enum, convert safely.
+-- If a legacy `profiles.role` column is plain text/another enum, convert it
+-- safely. Failures are LOUD (re-raised) so problems surface here instead of
+-- breaking function/policy creation further down the script.
 DO $$
 DECLARE
   col_type text;
 BEGIN
-  SELECT data_type INTO col_type
-  FROM information_schema.columns
-  WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'role';
+  SELECT format_type(a.atttypid, a.atttypmod) INTO col_type
+  FROM pg_attribute a
+  JOIN pg_class c ON c.oid = a.attrelid
+  JOIN pg_namespace n ON n.oid = c.relnamespace
+  WHERE n.nspname = 'public' AND c.relname = 'profiles'
+    AND a.attname = 'role' AND a.attnum > 0 AND NOT a.attisdropped;
 
-  IF col_type IS NOT NULL AND col_type <> 'USER-DEFINED' THEN
-    UPDATE public.profiles SET role = 'student'
-    WHERE role IS NULL OR role::text NOT IN ('student', 'admin', 'super_admin');
+  IF col_type IS NOT NULL AND col_type <> 'app_role' THEN
+    -- RLS policies referencing `role` block ALTER COLUMN TYPE — including
+    -- policies on OTHER tables that query profiles.role. Drop every such
+    -- public-schema policy here; sections 11-15 recreate all app-table
+    -- policies later in this script.
+    DECLARE
+      pol RECORD;
+    BEGIN
+      FOR pol IN
+        SELECT schemaname, tablename, policyname
+        FROM pg_policies
+        WHERE schemaname = 'public'
+          AND (
+               COALESCE(qual, '')        ~* '\mrole\M'
+            OR COALESCE(with_check, '')  ~* '\mrole\M'
+            OR COALESCE(qual, '')        ILIKE '%profiles%'
+            OR COALESCE(with_check, '')  ILIKE '%profiles%'
+          )
+      LOOP
+        EXECUTE format('DROP POLICY IF EXISTS %I ON %I.%I', pol.policyname, pol.schemaname, pol.tablename);
+        RAISE NOTICE 'Dropped RLS policy "%" on %.% (recreated in sections 11-15).', pol.policyname, pol.schemaname, pol.tablename;
+      END LOOP;
+    END;
+
+    -- Map case variants onto canonical labels; unknowns become students.
+    UPDATE public.profiles SET role = CASE lower(trim(role))
+        WHEN 'admin' THEN 'admin'
+        WHEN 'super_admin' THEN 'super_admin'
+        ELSE 'student'
+      END
+    WHERE role IS NOT NULL AND lower(trim(role)) NOT IN ('student', 'admin', 'super_admin');
+    UPDATE public.profiles SET role = 'student' WHERE role IS NULL;
+
     EXECUTE 'ALTER TABLE public.profiles ALTER COLUMN role DROP DEFAULT';
-    EXECUTE 'ALTER TABLE public.profiles ALTER COLUMN role TYPE public.app_role USING role::text::public.app_role';
+    BEGIN
+      EXECUTE 'ALTER TABLE public.profiles ALTER COLUMN role TYPE public.app_role USING role::text::public.app_role';
+    EXCEPTION WHEN OTHERS THEN
+      RAISE EXCEPTION 'Converting public.profiles.role from % to app_role failed: % — run supabase/migrations/20260823_fix_profiles_role_type.sql for diagnosis.',
+        col_type, SQLERRM;
+    END;
+    EXECUTE 'ALTER TABLE public.profiles ALTER COLUMN role SET DEFAULT ''student''';
     RAISE NOTICE 'Converted profiles.role from % to app_role', col_type;
   END IF;
-EXCEPTION WHEN OTHERS THEN
-  RAISE NOTICE 'profiles.role conversion skipped: %', SQLERRM;
 END $$;
 
 -- -----------------------------------------------------------------------------
@@ -338,7 +412,9 @@ END $$;
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.my_stored_role()
 RETURNS public.app_role LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
-  SELECT role FROM public.profiles WHERE id = auth.uid();
+  -- Explicit text round-trip keeps the declared return type correct even if
+  -- the underlying column type differs (e.g. legacy text deployment).
+  SELECT (SELECT role::text FROM public.profiles WHERE id = auth.uid())::public.app_role;
 $$;
 
 CREATE OR REPLACE FUNCTION public.my_is_active()
@@ -858,10 +934,38 @@ CREATE POLICY "Owner delete storage" ON storage.objects
   USING (bucket_id = 'library-materials' AND (owner = auth.uid() OR public.is_admin()));
 
 -- -----------------------------------------------------------------------------
--- 20. Grants repair (service role must retain API access)
+-- 20. Grants repair (RESTORE API privileges)
+-- PostgREST fails with "permission denied for table ..." when table-level
+-- GRANTs are missing — RLS policies alone are not enough. This block restores
+-- Supabase's standard privilege model:
+--   service_role  -> full access (RLS bypassed anyway)
+--   authenticated -> SELECT/INSERT/UPDATE/DELETE (rows still gated by RLS)
+--   anon          -> SELECT only (rows still gated by RLS)
+-- Plus ALTER DEFAULT PRIVILEGES so objects created later never lose them.
 -- -----------------------------------------------------------------------------
 GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+
 GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO service_role;
 GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO service_role;
+
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
+
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon;
+-- Anonymous callers may execute only the intentionally-public RPCs; every
+-- SECURITY DEFINER function re-checks authorization internally.
+GRANT EXECUTE ON FUNCTION public.lookup_login_email(TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.register_identity_check(TEXT, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_public_stats() TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_library_stats() TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.increment_download_count(uuid) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.increment_view_count(uuid) TO anon, authenticated;
+
+-- Future tables/functions/sequences created by later scripts keep working.
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO postgres, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO postgres, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO postgres, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO authenticated;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO authenticated;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO anon;

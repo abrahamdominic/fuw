@@ -369,14 +369,6 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
             onReadOnline={onReadOnline}
             onAskAi={handleAskAi}
           />
-        ) : currentPath.startsWith('/student/upload') ? (
-          <StudentUploadTab
-            onUploaded={() => {
-              setUploadsVersion((v) => v + 1);
-              void store.syncMaterialsFromSupabase();
-              navigate('/student/uploads');
-            }}
-          />
         ) : currentPath.startsWith('/student/uploads') ? (
           <StudentMyUploadsTab
             uploads={pagedUploads}
@@ -393,6 +385,14 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
             }}
             onRequestDelete={setPendingDelete}
             onReadOnline={onReadOnline}
+          />
+        ) : currentPath.startsWith('/student/upload') ? (
+          <StudentUploadTab
+            onUploaded={() => {
+              setUploadsVersion((v) => v + 1);
+              void store.syncMaterialsFromSupabase();
+              navigate('/student/uploads');
+            }}
           />
         ) : currentPath.startsWith('/student/assistant') ? (
           <StudentAiChatTab
