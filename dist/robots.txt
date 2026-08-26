@@ -5,4 +5,4 @@ Disallow: /admin/
 Disallow: /super/
 Disallow: /maintenance
 
-Sitemap: https://library.fuw.edu.ng/sitemap.xml
+Sitemap: https://fuwtest.netlify.app/sitemap.xml

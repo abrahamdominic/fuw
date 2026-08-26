@@ -3871,7 +3871,8 @@ button {
     display: block;
   }
   .library-cards-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
   }
   .detail-grid {
     grid-template-columns: 1fr;
@@ -3985,6 +3986,104 @@ button {
   }
   .document-page-sheet {
     padding: 20px 16px;
+  }
+
+  /* Library page: compact header, full-width cards */
+  .library-header-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .library-header-row .mobile-filter-btn {
+    align-self: flex-start;
+  }
+  .library-search-bar {
+    height: 48px;
+    padding: 0 6px 0 12px;
+    gap: 8px;
+  }
+  .library-search-bar input {
+    font-size: 14px;
+  }
+  .library-search-bar button[type="submit"] {
+    height: 36px;
+    padding: 0 14px;
+    font-size: 12.5px;
+  }
+
+  /* Material cards: bigger, full-width on mobile */
+  .material-card {
+    padding: 18px;
+    border-radius: 14px;
+  }
+  .card-title {
+    font-size: 17px;
+    line-height: 1.3;
+  }
+  .card-course {
+    font-size: 13px;
+  }
+  .card-desc-snippet {
+    font-size: 13px;
+    line-height: 1.5;
+    -webkit-line-clamp: 3;
+    margin: 10px 0 12px;
+  }
+  .card-type-tag {
+    font-size: 11px;
+    margin-bottom: 6px;
+  }
+  .card-foot {
+    padding-top: 10px;
+    font-size: 12px;
+  }
+  .card-action-btn {
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+  .card-view-link {
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+  .file-icon-box {
+    width: 40px;
+    height: 40px;
+  }
+
+  /* Pagination: sticky at bottom, not pushed down */
+  .pagination-controls {
+    position: sticky;
+    bottom: 0;
+    background: #ffffff;
+    margin-top: 12px;
+    padding: 12px 0;
+    border-top: 1px solid #e5ebe6;
+    z-index: 10;
+  }
+
+  /* Library results stream spacing */
+  .library-results-stream {
+    min-width: 0;
+  }
+  .results-top-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .crumb {
+    margin-bottom: 12px;
+  }
+  .subtitle {
+    margin: 6px 0 16px;
+  }
+  .library h1 {
+    font-size: 28px;
+  }
+  .sort-controls {
+    width: 100%;
+  }
+  .sort-controls select {
+    width: 100%;
   }
 }
 
