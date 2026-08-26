@@ -269,7 +269,7 @@ export async function submitMaterial(input: {
       level: input.level,
       semester: input.semester,
       material_type: normalizeMaterialType(input.material_type),
-      academic_session: input.academic_session?.trim() || null,
+      academic_session: input.academic_session?.trim() || '',
       status,
       uploaded_by: user.id
     })

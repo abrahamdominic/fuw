@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /student/
+Disallow: /admin/
+Disallow: /super/
+Disallow: /maintenance
+
+Sitemap: https://fuwtest.netlify.app/sitemap.xml

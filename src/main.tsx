@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Route, Routes, Navigate } from 'react-router-dom';
+import { HelmetProvider } from 'react-helmet-async';
 import './styles.css';
 
 import { MaterialItem } from './lib/store';
@@ -224,8 +225,10 @@ function App() {
 const rootEl = document.getElementById('root');
 if (rootEl) {
   createRoot(rootEl).render(
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
+    <HelmetProvider>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </HelmetProvider>
   );
 }

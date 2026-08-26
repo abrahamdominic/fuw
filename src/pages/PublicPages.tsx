@@ -35,6 +35,7 @@ import { MaterialCard } from '../components/MaterialCard';
 import { CatalogueFilters, FilterState, EMPTY_FILTERS } from '../components/CatalogueFilters';
 import { Logo } from '../components/Logo';
 import { useToast } from '../components/Toast';
+import { SEO } from '../components/SEO';
 
 
 interface PublicPagesProps {
@@ -57,6 +58,11 @@ export function HomePage({ onReadOnline }: PublicPagesProps) {
 
   return (
     <>
+      <SEO
+        title="Home"
+        description="Federal University Wukari Digital E-Library — access verified lecture notes, past questions, textbooks, and research materials across all faculties and departments."
+        path="/"
+      />
       <HeroSection />
 
       {/* University Stats Bar */}
@@ -274,6 +280,11 @@ export function LibraryPage({ onReadOnline }: PublicPagesProps) {
 
   return (
     <main className="library public-container">
+      <SEO
+        title="Library Collection"
+        description="Browse and search verified academic materials — lecture notes, past questions, textbooks, and theses across all faculties at Federal University Wukari."
+        path="/library"
+      />
       <div className="crumb">
         <Link to="/">Home</Link> <ChevronRight size={14} /> <span>Library Collection</span>
       </div>
@@ -471,6 +482,11 @@ export function FacultiesPage() {
 
   return (
     <main className="faculties public-container">
+      <SEO
+        title="Faculties & Departments"
+        description="Explore academic materials organized across Federal University Wukari's faculties and accredited departments."
+        path="/faculties"
+      />
       <div className="crumb">
         <Link to="/">Home</Link> <ChevronRight size={14} /> <span>Faculties & Departments</span>
       </div>
@@ -561,6 +577,11 @@ export function CoursesPage() {
 
   return (
     <main className="courses-page public-container">
+      <SEO
+        title="Course Directory"
+        description="Find learning resources, past questions, and lecture notes for every course at Federal University Wukari."
+        path="/courses"
+      />
       <div className="crumb">
         <Link to="/">Home</Link> <ChevronRight size={14} /> <span>Course Directory</span>
       </div>
@@ -694,6 +715,12 @@ export function MaterialDetailPage({ onReadOnline }: PublicPagesProps) {
 
   return (
     <main className="detail public-container">
+      <SEO
+        title={material.title}
+        description={`${material.title} — ${material.type} for ${material.course} in ${material.department}, ${material.faculty}. ${material.description.slice(0, 150)}`}
+        path={`/materials/${material.id}`}
+        type="article"
+      />
       <div className="crumb">
         <Link to="/library">Library</Link> <ChevronRight size={14} /> <span>{material.course}</span> <ChevronRight size={14} /> <span>{material.title}</span>
       </div>
@@ -764,6 +791,15 @@ export function AboutPage({ contact = false }: { contact?: boolean }) {
 
   return (
     <main className="info public-container">
+      <SEO
+        title={contact ? 'Contact' : 'About'}
+        description={
+          contact
+            ? 'Get in touch with the Federal University Wukari E-Library helpdesk for support with digital resources and account access.'
+            : 'Learn about the Federal University Wukari Digital E-Library — the primary academic digital repository for all enrolled students.'
+        }
+        path={contact ? '/contact' : '/about'}
+      />
       <p className="kicker">FEDERAL UNIVERSITY WUKARI</p>
       <h1>{contact ? 'Library Helpdesk & Support' : 'Academic Knowledge Within Reach.'}</h1>
       <p className="subtitle">
@@ -1029,6 +1065,12 @@ export function LoginPage({ register: initialRegister = false }: { register?: bo
 
   return (
     <main className="auth">
+      <SEO
+        title={isRegister ? 'Register' : 'Login'}
+        description={isRegister ? 'Create a student account on the FUW E-Library to access and share academic materials.' : 'Sign in to the FUW E-Library to access verified academic materials.'}
+        path={isRegister ? '/register' : '/login'}
+        noindex
+      />
       <div className="auth-panel">
         <div className="brand">
           <Logo size={36} />
