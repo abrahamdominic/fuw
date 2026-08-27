@@ -26,6 +26,8 @@ export interface ProfileData {
   departmentChangesUsed?: number;
   facultyLocked?: boolean;
   departmentLocked?: boolean;
+  gender?: string;
+  phoneNumber?: string;
 }
 
 export interface AuthContextType {
@@ -58,11 +60,15 @@ export interface AuthContextType {
     department: string;
     level: string;
     bio?: string;
+    gender?: string;
+    phoneNumber?: string;
   }) => Promise<{ error: Error | null }>;
   updateProfile: (updates: Partial<ProfileData>) => Promise<{ error: Error | null }>;
   changePassword: (
     newPassword: string
   ) => Promise<{ error: Error | null }>;
+  sendPasswordReset: (emailOrUsername: string) => Promise<{ error: Error | null }>;
+  resetPassword: (newPassword: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<ProfileData | null>;
 }
@@ -145,7 +151,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           facultyChangesUsed: data.faculty_changes_used ?? 0,
           departmentChangesUsed: data.department_changes_used ?? 0,
           facultyLocked: !!data.faculty,
-          departmentLocked: !!data.department
+          departmentLocked: !!data.department,
+          gender: data.gender || '',
+          phoneNumber: data.phone_number || ''
         };
         setProfile(loadedProfile);
         return loadedProfile;
@@ -442,6 +450,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     department: string;
     level: string;
     bio?: string;
+    gender?: string;
+    phoneNumber?: string;
   }) => {
     if (!supabase || !user) {
       return { error: new Error('You must be authenticated to complete your profile.') };
@@ -461,6 +471,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         permissions: profile?.permissions ?? [],
         isActive: true,
         bio: data.bio || '',
+        gender: data.gender || '',
+        phoneNumber: data.phoneNumber || '',
         isVerified: true,
         joinedDate: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
       };
@@ -476,6 +488,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         faculty: newProfile.faculty,
         department: newProfile.department,
         level: newProfile.level,
+        gender: newProfile.gender || null,
+        phone_number: newProfile.phoneNumber || null,
         updated_at: new Date().toISOString()
       });
 
@@ -540,6 +554,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (updates.displayName !== undefined) dbUpdates.display_name = updates.displayName;
       if (updates.level !== undefined) dbUpdates.level = updates.level;
       if (updates.bio !== undefined) dbUpdates.bio = updates.bio;
+      if (updates.gender !== undefined) dbUpdates.gender = updates.gender || null;
+      if (updates.phoneNumber !== undefined) dbUpdates.phone_number = updates.phoneNumber || null;
 
       // Faculty and department are set once and then permanently locked for
       // the student. New students fill them in during profile completion or
@@ -559,6 +575,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             return { error: new Error(`${field} is locked after being set. Submit a profile change request to update it.`) };
           }
           dbUpdates[dbCol] = updates[key];
+        }
+      }
+
+      // Matriculation number behaves like faculty/department: a student who
+      // has not recorded one yet may set it (this covers existing accounts
+      // created before the field existed), but once set it is the verified
+      // institutional identifier and can only be changed via an approved
+      // profile change request.
+      if (updates.matricNumber !== undefined) {
+        const normalized = updates.matricNumber.trim().toUpperCase();
+        if (normalized && normalized !== (currentProfile?.matricNumber || '').toUpperCase()) {
+          if (currentProfile?.matricNumber) {
+            return { error: new Error('Matriculation Number is locked after being set. Submit a profile change request to update it.') };
+          }
+          dbUpdates.matric_number = normalized;
         }
       }
 
@@ -596,6 +627,63 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { error: null };
     } catch (err: any) {
       return { error: new Error(err.message || 'Failed to change password.') };
+    }
+  };
+
+  // Request a password reset email. Accepts either the registered email or a
+  // username (resolved to the account email server-side via the existing
+  // lookup RPC). Always returns a neutral success for unknown accounts so the
+  // endpoint cannot be used to enumerate which usernames/emails exist.
+  const sendPasswordReset = async (emailOrUsername: string): Promise<{ error: Error | null }> => {
+    let email = emailOrUsername.trim().toLowerCase();
+    if (!supabase) {
+      return { error: new Error('Supabase client is not configured.') };
+    }
+
+    if (!email.includes('@')) {
+      try {
+        const { data, error } = await supabase.rpc('lookup_login_email', { p_username: emailOrUsername });
+        if (error || !data) {
+          return { error: null };
+        }
+        email = String(data).toLowerCase();
+      } catch (err) {
+        return { error: null };
+      }
+    }
+
+    if (!email) {
+      return { error: null };
+    }
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`
+      });
+      if (error) {
+        return { error: new Error(error.message) };
+      }
+      return { error: null };
+    } catch (err: any) {
+      return { error: new Error(err.message || 'Failed to send the password reset email.') };
+    }
+  };
+
+  // Set a brand-new password from the password-recovery page (the recovery
+  // token already established an authenticated session, so this is simply a
+  // password update, hashed server-side).
+  const resetPassword = async (newPassword: string): Promise<{ error: Error | null }> => {
+    if (!supabase) {
+      return { error: new Error('Supabase client is not configured.') };
+    }
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) {
+        return { error: new Error(error.message) };
+      }
+      return { error: null };
+    } catch (err: any) {
+      return { error: new Error(err.message || 'Failed to reset your password.') };
     }
   };
 
@@ -660,6 +748,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       completeProfile,
       updateProfile,
       changePassword,
+      sendPasswordReset,
+      resetPassword,
       signOut,
       refreshProfile
     }),

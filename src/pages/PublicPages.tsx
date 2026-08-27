@@ -878,12 +878,27 @@ function PasswordField({
 }
 
 // 7. AUTH PAGES (Supabase username + password authentication)
-export function LoginPage({ register: initialRegister = false }: { register?: boolean }) {
+export function LoginPage({
+  register: initialRegister = false,
+  forgot: initialForgot = false
+}: {
+  register?: boolean;
+  forgot?: boolean;
+}) {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { signInWithUsername, signUpWithPassword, completeProfile, isAuthenticated, isProfileComplete, profile } = useAuth();
+  const {
+    signInWithUsername,
+    signUpWithPassword,
+    completeProfile,
+    sendPasswordReset,
+    isAuthenticated,
+    isProfileComplete,
+    profile
+  } = useAuth();
 
   const [isRegister, setIsRegister] = useState(initialRegister);
+  const [showForgot, setShowForgot] = useState(initialForgot);
   const [step, setStep] = useState<'credentials' | 'profile'>('credentials');
   const [busy, setBusy] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -896,6 +911,9 @@ export function LoginPage({ register: initialRegister = false }: { register?: bo
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
+  // Forgot-password recovery field (email or username)
+  const [forgotEmail, setForgotEmail] = useState('');
+
   // Academic fields for the post-signup profile completion step
   const [profileData, setProfileData] = useState({
     fullName: '',
@@ -903,6 +921,8 @@ export function LoginPage({ register: initialRegister = false }: { register?: bo
     faculty: catalogue[0]?.name || '',
     department: catalogue[0]?.departments[0]?.name || '',
     level: '100 Level',
+    gender: '',
+    phoneNumber: '',
     bio: ''
   });
 
@@ -959,6 +979,27 @@ export function LoginPage({ register: initialRegister = false }: { register?: bo
     if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       return 'Please enter a valid email address.';
     }
+    if (!profileData.matricNumber.trim()) {
+      return 'Matriculation Number is required.';
+    }
+    const matric = profileData.matricNumber.trim();
+    if (matric.length < 4 || !/[A-Z]/.test(matric) || !/[0-9]/.test(matric)) {
+      return 'Please enter a valid matriculation number (e.g. CIS/CSC/25/145).';
+    }
+    if (!profileData.gender || (profileData.gender !== 'Male' && profileData.gender !== 'Female')) {
+      return 'Please select your gender (Male or Female).';
+    }
+    if (!profileData.phoneNumber.trim()) {
+      return 'Phone Number is required.';
+    }
+    const phone = profileData.phoneNumber.trim();
+    const validPhone =
+      /^\+?[0-9\s()-]{7,20}$/.test(phone) &&
+      (phone.match(/\d/g) || []).length >= 8 &&
+      (phone.match(/\d/g) || []).length <= 15;
+    if (!validPhone) {
+      return 'Please enter a valid phone number (8–15 digits).';
+    }
     if (password.length < 8) return 'Password must be at least 8 characters long.';
     if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
       return 'Password must contain at least one letter and one number.';
@@ -990,6 +1031,32 @@ export function LoginPage({ register: initialRegister = false }: { register?: bo
     } else {
       navigate('/student');
     }
+  };
+
+  // Send a password reset email (username or registered email accepted).
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+    setSuccessMsg(null);
+
+    if (!forgotEmail.trim()) {
+      setErrorMsg('Please enter your registered email address or username.');
+      return;
+    }
+
+    setBusy(true);
+    const res = await sendPasswordReset(forgotEmail);
+    setBusy(false);
+
+    if (res.error) {
+      setErrorMsg(res.error.message);
+      return;
+    }
+
+    setForgotEmail('');
+    setSuccessMsg(
+      'If an account exists for that email, a password reset link has been sent. Check your inbox (and spam folder) for instructions.'
+    );
   };
 
   // Register a new account with email + password (username is stored on the
@@ -1043,6 +1110,23 @@ export function LoginPage({ register: initialRegister = false }: { register?: bo
       setErrorMsg('Matriculation Number is required.');
       return;
     }
+    if (!profileData.gender || (profileData.gender !== 'Male' && profileData.gender !== 'Female')) {
+      setErrorMsg('Please select your gender (Male or Female).');
+      return;
+    }
+    if (!profileData.phoneNumber.trim()) {
+      setErrorMsg('Phone Number is required.');
+      return;
+    }
+    const phone = profileData.phoneNumber.trim();
+    const validPhone =
+      /^\+?[0-9\s()-]{7,20}$/.test(phone) &&
+      (phone.match(/\d/g) || []).length >= 8 &&
+      (phone.match(/\d/g) || []).length <= 15;
+    if (!validPhone) {
+      setErrorMsg('Please enter a valid phone number (8–15 digits).');
+      return;
+    }
 
     setBusy(true);
     const res = await completeProfile({
@@ -1051,6 +1135,8 @@ export function LoginPage({ register: initialRegister = false }: { register?: bo
       faculty: profileData.faculty,
       department: profileData.department,
       level: profileData.level,
+      gender: profileData.gender,
+      phoneNumber: profileData.phoneNumber.trim(),
       bio: profileData.bio
     });
     setBusy(false);
@@ -1066,9 +1152,9 @@ export function LoginPage({ register: initialRegister = false }: { register?: bo
   return (
     <main className="auth">
       <SEO
-        title={isRegister ? 'Register' : 'Login'}
-        description={isRegister ? 'Create a student account on the FUW E-Library to access and share academic materials.' : 'Sign in to the FUW E-Library to access verified academic materials.'}
-        path={isRegister ? '/register' : '/login'}
+        title={isRegister ? 'Register' : showForgot ? 'Forgot Password' : 'Login'}
+        description={isRegister ? 'Create a student account on the FUW E-Library to access and share academic materials.' : showForgot ? 'Reset your FUW E-Library password and regain access to your account.' : 'Sign in to the FUW E-Library to access verified academic materials.'}
+        path={isRegister ? '/register' : showForgot ? '/forgot-password' : '/login'}
         noindex
       />
       <div className="auth-panel">
@@ -1077,8 +1163,8 @@ export function LoginPage({ register: initialRegister = false }: { register?: bo
           <b>FUW</b> E-Library
         </div>
 
-        {/* STEP 1: Credentials (login or register) */}
-        {step === 'credentials' && !isRegister && (
+        {/* STEP 1: Credentials (login) */}
+        {step === 'credentials' && !isRegister && !showForgot && (
           <>
             <p className="kicker">SECURE STUDENT ACCESS</p>
             <h1>Sign in to library</h1>
@@ -1122,6 +1208,20 @@ export function LoginPage({ register: initialRegister = false }: { register?: bo
                 disabled={busy}
               />
 
+              <div className="forgot-row">
+                <button
+                  type="button"
+                  className="auth-link-btn forgot-link"
+                  onClick={() => {
+                    setShowForgot(true);
+                    setErrorMsg(null);
+                    setSuccessMsg(null);
+                  }}
+                >
+                  Forgot password?
+                </button>
+              </div>
+
               <button type="submit" className="primary auth-submit-btn" disabled={busy}>
                 {busy ? (
                   <>
@@ -1143,11 +1243,82 @@ export function LoginPage({ register: initialRegister = false }: { register?: bo
                   className="auth-link-btn"
                   onClick={() => {
                     setIsRegister(true);
+                    setShowForgot(false);
                     setErrorMsg(null);
                     setSuccessMsg(null);
                   }}
                 >
                   Create an account
+                </button>
+              </p>
+            </div>
+          </>
+        )}
+
+        {/* STEP 1b: Forgot Password */}
+        {step === 'credentials' && !isRegister && showForgot && (
+          <>
+            <p className="kicker">ACCOUNT RECOVERY</p>
+            <h1>Reset your password</h1>
+            <p>Enter the email address or username tied to your account and we will send you a reset link.</p>
+
+            {errorMsg && (
+              <div className="form-feedback-box error">
+                <AlertCircle size={17} />
+                <p>{errorMsg}</p>
+              </div>
+            )}
+
+            {successMsg && (
+              <div className="form-feedback-box success">
+                <CheckCircle2 size={17} />
+                <p>{successMsg}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleForgotPassword} className="auth-flow-form">
+              <label className="auth-field-label">
+                <span>Email or Username</span>
+                <input
+                  required
+                  type="text"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  autoComplete="email"
+                  placeholder="your.name@fuw.edu.ng or your.username"
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                  disabled={busy}
+                  autoFocus
+                />
+              </label>
+
+              <button type="submit" className="primary auth-submit-btn" disabled={busy}>
+                {busy ? (
+                  <>
+                    <RefreshCw size={16} className="spin-icon" /> Sending reset link…
+                  </>
+                ) : (
+                  <>
+                    <Mail size={16} /> Send Reset Link
+                  </>
+                )}
+              </button>
+            </form>
+
+            <div className="auth-toggle-row">
+              <p>
+                Remembered your password?{' '}
+                <button
+                  type="button"
+                  className="auth-link-btn"
+                  onClick={() => {
+                    setShowForgot(false);
+                    setErrorMsg(null);
+                    setSuccessMsg(null);
+                  }}
+                >
+                  Back to sign in
                 </button>
               </p>
             </div>
@@ -1218,6 +1389,51 @@ export function LoginPage({ register: initialRegister = false }: { register?: bo
                   disabled={busy}
                 />
               </label>
+
+              <label className="auth-field-label">
+                <span>Matriculation Number *</span>
+                <input
+                  required
+                  type="text"
+                  autoCapitalize="characters"
+                  placeholder="e.g. CIS/CSC/25/145"
+                  value={profileData.matricNumber}
+                  onChange={(e) => setProfileData({ ...profileData, matricNumber: e.target.value.toUpperCase() })}
+                  disabled={busy}
+                />
+              </label>
+
+              <div className="auth-field-row">
+                <label className="auth-field-label">
+                  <span>Gender *</span>
+                  <select
+                    required
+                    value={profileData.gender}
+                    onChange={(e) => setProfileData({ ...profileData, gender: e.target.value })}
+                    disabled={busy}
+                  >
+                    <option value="" disabled>
+                      Select gender…
+                    </option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                  </select>
+                </label>
+
+                <label className="auth-field-label">
+                  <span>Phone Number *</span>
+                  <input
+                    required
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="tel"
+                    placeholder="e.g. 0803 123 4567"
+                    value={profileData.phoneNumber}
+                    onChange={(e) => setProfileData({ ...profileData, phoneNumber: e.target.value })}
+                    disabled={busy}
+                  />
+                </label>
+              </div>
 
               <PasswordField
                 label="Password"
@@ -1312,14 +1528,18 @@ export function LoginPage({ register: initialRegister = false }: { register?: bo
               </label>
 
               <label className="auth-field-label">
-                <span>Matriculation Number *</span>
-                <input
-                  required
-                  placeholder="e.g. FUW/2023/CSC/0142"
-                  value={profileData.matricNumber}
-                  onChange={(e) => setProfileData({ ...profileData, matricNumber: e.target.value.toUpperCase() })}
-                  disabled={busy}
-                />
+                <span>Registration Details (Collected Earlier)</span>
+                <div className="input-with-badge">
+                  <input
+                    type="text"
+                    value={`${profileData.matricNumber.toUpperCase() || 'Not provided'} · ${profileData.gender || '—'} · ${profileData.phoneNumber || '—'}`}
+                    readOnly
+                    className="input-readonly"
+                  />
+                  <span className="readonly-tag">
+                    <ShieldCheck size={12} /> Verified
+                  </span>
+                </div>
               </label>
 
               <label className="auth-field-label">
@@ -1401,7 +1621,172 @@ export function LoginPage({ register: initialRegister = false }: { register?: bo
   );
 }
 
-// 8. ADMIN LOGIN GATEWAY (Supabase username + password authentication + role authorization)
+// 8. PASSWORD RESET PAGE (landing page for the Supabase recovery email link).
+// The recovery link carries a one-time token in the URL hash which supabase-js
+// detects automatically (detectSessionInUrl). Once the session is live we let
+// the student set a fresh password, then clear the session and return to login.
+export function ResetPasswordPage() {
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const { user, resetPassword, signOut } = useAuth();
+
+  const [checked, setChecked] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  // Wait briefly for the recovery session to be recognised; if no session
+  // materialises the link is invalid or expired.
+  useEffect(() => {
+    if (user) {
+      setChecked(true);
+      return;
+    }
+    const t = window.setTimeout(() => setChecked(true), 2500);
+    return () => window.clearTimeout(t);
+  }, [user]);
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+    setSuccessMsg(null);
+
+    if (password.length < 8 || !/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+      setErrorMsg('Password must be at least 8 characters with at least one letter and one number.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setErrorMsg('Passwords do not match.');
+      return;
+    }
+
+    setBusy(true);
+    const res = await resetPassword(password);
+    if (res.error) {
+      setBusy(false);
+      setErrorMsg(res.error.message);
+      return;
+    }
+
+    // Clear the temporary recovery session so the next login uses the new password.
+    await signOut();
+    setBusy(false);
+    setPassword('');
+    setConfirmPassword('');
+    toast('Password updated! Sign in with your new password.', 'success');
+    navigate('/login');
+  };
+
+  const invalidLink = checked && !user;
+
+  return (
+    <main className="auth">
+      <SEO
+        title="Reset Password"
+        description="Set a new password for your FUW E-Library account."
+        path="/reset-password"
+        noindex
+      />
+      <div className="auth-panel">
+        <div className="brand">
+          <Logo size={36} />
+          <b>FUW</b> E-Library
+        </div>
+
+        {invalidLink ? (
+          <>
+            <p className="kicker">ACCOUNT RECOVERY</p>
+            <h1>Link is invalid or expired</h1>
+            <p>This password reset link is no longer valid. Request a fresh one to continue.</p>
+            <div className="empty-state auth-invalid-state">
+              <HelpCircle size={28} />
+              <b>We could not verify this reset link.</b>
+              <span>Reset links expire shortly after being sent.</span>
+            </div>
+            <Link to="/forgot-password" className="primary auth-submit-btn">
+              Request a new reset link
+            </Link>
+          </>
+        ) : !checked ? (
+          <>
+            <p className="kicker">ACCOUNT RECOVERY</p>
+            <h1>Verifying your link</h1>
+            <p>Please wait a moment while we confirm your reset link.</p>
+            <div className="empty-state auth-invalid-state">
+              <RefreshCw size={28} className="spin-icon" />
+              <b>Checking your reset link…</b>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="kicker">ACCOUNT RECOVERY</p>
+            <h1>Choose a new password</h1>
+            <p>Set a strong new password for your FUW E-Library account.</p>
+
+            {errorMsg && (
+              <div className="form-feedback-box error">
+                <AlertCircle size={17} />
+                <p>{errorMsg}</p>
+              </div>
+            )}
+
+            {successMsg && (
+              <div className="form-feedback-box success">
+                <CheckCircle2 size={17} />
+                <p>{successMsg}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleResetPassword} className="auth-flow-form">
+              <PasswordField
+                label="New Password"
+                value={password}
+                onChange={setPassword}
+                placeholder="At least 8 characters with a letter and a number"
+                autoComplete="new-password"
+                disabled={busy}
+              />
+
+              <PasswordField
+                label="Confirm New Password"
+                value={confirmPassword}
+                onChange={setConfirmPassword}
+                placeholder="Re-enter your new password"
+                autoComplete="new-password"
+                disabled={busy}
+              />
+
+              <button type="submit" className="primary auth-submit-btn" disabled={busy}>
+                {busy ? (
+                  <>
+                    <RefreshCw size={16} className="spin-icon" /> Saving new password…
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck size={16} /> Update Password
+                  </>
+                )}
+              </button>
+            </form>
+          </>
+        )}
+
+        <div className="auth-toggle-row">
+          <p>
+            Remembered your password?{' '}
+            <button type="button" className="auth-link-btn" onClick={() => navigate('/login')}>
+              Back to sign in
+            </button>
+          </p>
+        </div>
+      </div>
+    </main>
+  );
+}
+
+// 9. ADMIN LOGIN GATEWAY (Supabase username + password authentication + role authorization)
 export function AdminLoginPage() {
   const navigate = useNavigate();
   const { toast } = useToast();

@@ -243,7 +243,16 @@ export function SuperAdminPortal() {
             <span>Menu</span>
           </button>
           <span className="portal-mobile-title">Platform Governance</span>
-          <span />
+          <div className="portal-mobile-actions">
+            <button
+              type="button"
+              className="portal-mobile-logout"
+              onClick={handleLogout}
+              aria-label="Sign out / Exit"
+            >
+              <LogOut size={16} />
+            </button>
+          </div>
         </div>
 
         {/* Global dashboard search (desktop bar / mobile expanding icon) */}

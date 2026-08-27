@@ -1716,11 +1716,38 @@ button {
 .portal-mobile-upload {
   background: #12603d;
   color: #ffffff;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border-radius: 6px;
   display: grid;
   place-items: center;
+  flex-shrink: 0;
+}
+
+.portal-mobile-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.portal-mobile-logout {
+  background: #fdf2f2;
+  color: #b91c1c;
+  border: 1px solid #f5c6c6;
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, border-color 0.15s;
+}
+.portal-mobile-logout:hover,
+.portal-mobile-logout:active {
+  background: #fbe3e3;
+  border-color: #ef9d9d;
 }
 
 .portal-main {
@@ -3820,6 +3847,185 @@ select.form-input:disabled { background-color: var(--surface-alt); }
   border-radius: 4px 4px 0 0;
 }
 
+/* Analytics (Student Demographics & Material Analytics) */
+.analytics-block {
+  margin-bottom: 30px;
+}
+
+.analytics-block-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 12px;
+}
+
+.analytics-block-head h2 {
+  font: 700 20px 'Playfair Display', serif;
+  color: #112a1d;
+  margin: 2px 0 0;
+}
+
+.analytics-block-head p:not(.kicker) {
+  font-size: 13px;
+  color: #64806b;
+  margin: 0;
+}
+
+.analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 18px;
+}
+
+.analytics-card {
+  background: #ffffff;
+  border: 1px solid #e1ebe3;
+  border-radius: 10px;
+  padding: 20px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
+}
+
+.analytics-card-head {
+  margin-bottom: 16px;
+}
+
+.analytics-card-head h3 {
+  font: 700 16px 'DM Sans', sans-serif;
+  color: #17271e;
+  margin: 0;
+}
+
+.analytics-card-head p {
+  font-size: 12.5px;
+  color: #64806b;
+  margin: 4px 0 0;
+}
+
+/* Vertical bar chart (gender) */
+.vchart {
+  height: 180px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 48px;
+  border-bottom: 1px solid #dce5dd;
+  padding: 20px 10px 0;
+}
+
+.vbar {
+  flex: 0 0 72px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+}
+
+.vbar i {
+  display: block;
+  width: 40px;
+  border-radius: 4px 4px 0 0;
+}
+
+.vbar-count {
+  font-size: 13px;
+  font-weight: 700;
+  color: #12603d;
+}
+
+.vbar b {
+  font-size: 12px;
+  font-weight: 600;
+  color: #3d5945;
+}
+
+/* Horizontal bar chart (faculties / departments) */
+.hchart {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hbar {
+  display: grid;
+  grid-template-columns: minmax(110px, 170px) 1fr 44px;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.hbar-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #233529;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hbar-track {
+  height: 14px;
+  background: #edf3ee;
+  border-radius: 7px;
+  overflow: hidden;
+}
+
+.hbar-track i {
+  display: block;
+  height: 100%;
+  border-radius: 7px;
+}
+
+.hbar-count {
+  font-size: 12px;
+  font-weight: 700;
+  color: #12603d;
+  text-align: right;
+}
+
+/* Loading skeletons */
+.analytics-skeleton {
+  display: flex;
+  gap: 10px;
+}
+
+.analytics-skeleton.v-mode {
+  height: 180px;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 48px;
+  border-bottom: 1px solid #dce5dd;
+  padding: 20px 10px 0;
+}
+
+.analytics-skeleton.v-mode i {
+  width: 40px;
+  height: 62%;
+  border-radius: 4px 4px 0 0;
+}
+
+.analytics-skeleton.h-mode {
+  flex-direction: column;
+}
+
+.analytics-skeleton.h-mode i {
+  height: 14px;
+  border-radius: 7px;
+}
+
+.analytics-skeleton i {
+  display: block;
+  background: linear-gradient(90deg, #eef3ef 25%, #f7faf8 50%, #eef3ef 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s linear infinite;
+}
+
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
 /* Upload Form Styles */
 .upload-container, .profile-layout, .settings-container {
   max-width: 860px;
@@ -5171,6 +5377,53 @@ select.form-input:disabled { background-color: var(--surface-alt); }
 
 .auth-field-label:first-child {
   margin-top: 0;
+}
+
+.auth-field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+@media (max-width: 480px) {
+  .auth-field-row {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .auth-field-row .auth-field-label + .auth-field-label {
+    margin-top: 14px;
+  }
+}
+
+/* Forgot password link under the login form */
+.forgot-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 6px;
+  margin-bottom: 2px;
+}
+
+.forgot-link {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #12603d;
+  text-decoration: none;
+  background: none;
+  border: none;
+  padding: 2px 0;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.forgot-link:hover {
+  color: #0a3d26;
+  text-decoration: underline;
+}
+
+/* Invalid / verifying state inside the auth panel (reset password) */
+.auth-invalid-state {
+  margin: 18px 0 6px;
 }
 
 .auth-field-label input,
@@ -6722,6 +6975,29 @@ select.form-input:disabled { background-color: var(--surface-alt); }
   .super-invite-grid,
   .super-search-grid {
     min-width: 540px;
+  }
+
+  /* Larger, comfortable sign-out target inside the sidebar drawer */
+  .side-footer-actions {
+    padding-top: 14px;
+  }
+  .logout-link {
+    min-height: 46px;
+    padding: 12px 14px;
+    margin: 6px 4px;
+    font-size: 14.5px;
+  }
+
+  /* Keep the compact action buttons comfortably tappable in the mobile bar */
+  .portal-mobile-bar {
+    gap: 10px;
+  }
+  .portal-mobile-title {
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
   }
 
   /* Notification panel becomes a near-fullscreen sheet */

@@ -76,6 +76,8 @@ import { fetchAllDeletionRequests, updateDeletionRequestStatus, DeletionRequest 
 import { fetchConversations, fetchMessages, sendMessage, markConversationRead, startConversation, Conversation, Message } from '../lib/messages';
 import { fetchAllChangeRequests, approveProfileChangeRequest, rejectProfileChangeRequest, ProfileChangeRequest } from '../lib/profileChangeRequests';
 import { fetchAllSessions, terminateSession as terminateSessionDb, ActiveSession } from '../lib/sessions';
+import { fetchGenderCounts, fetchMaterialsByFaculty, fetchMaterialsByDepartment } from '../lib/analytics';
+import { AnalyticsChart, AnalyticsDatum } from '../components/AnalyticsCharts';
 
 interface AdminPortalProps {
   onReadOnline: (material: MaterialItem) => void;
@@ -288,9 +290,19 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
             <span>Admin Menu</span>
           </button>
           <span className="portal-mobile-title">Repository Administration</span>
-          <Link to="/admin/upload" className="portal-mobile-upload">
-            <Upload size={16} />
-          </Link>
+          <div className="portal-mobile-actions">
+            <Link to="/admin/upload" className="portal-mobile-upload">
+              <Upload size={16} />
+            </Link>
+            <button
+              type="button"
+              className="portal-mobile-logout"
+              onClick={handleAdminLogout}
+              aria-label="Sign out / Exit"
+            >
+              <LogOut size={16} />
+            </button>
+          </div>
         </div>
 
         {/* Global dashboard search (desktop bar / mobile expanding icon) */}
@@ -433,6 +445,41 @@ function AdminOverviewTab({
   const maxMonthly = Math.max(1, ...monthlyActivity.map((m) => m.count));
   const totalThisPeriod = monthlyActivity.reduce((acc, m) => acc + m.count, 0);
 
+  // Live analytics: gender distribution + material volume by faculty and
+  // department, aggregated server-side and refreshed on an interval.
+  const analyticsBusy = React.useRef(false);
+  const [analyticsLoading, setAnalyticsLoading] = useState(true);
+  const [genderData, setGenderData] = useState<AnalyticsDatum[]>([]);
+  const [facultyData, setFacultyData] = useState<AnalyticsDatum[]>([]);
+  const [deptData, setDeptData] = useState<AnalyticsDatum[]>([]);
+
+  const loadAnalytics = React.useCallback(async () => {
+    if (analyticsBusy.current) return;
+    analyticsBusy.current = true;
+    try {
+      const [g, f, d] = await Promise.all([
+        fetchGenderCounts(),
+        fetchMaterialsByFaculty(),
+        fetchMaterialsByDepartment()
+      ]);
+      setGenderData(g.map((row) => ({ label: row.gender, value: row.count })));
+      setFacultyData(f.map((row) => ({ label: row.name, value: row.count })));
+      setDeptData(d.map((row) => ({ label: row.name, value: row.count })));
+    } catch (err) {
+      // Keep previous values on a refresh failure; first load falls back to
+      // the empty state so the dashboard never crashes on a hiccup.
+    } finally {
+      analyticsBusy.current = false;
+      setAnalyticsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadAnalytics();
+    const id = window.setInterval(loadAnalytics, 60000);
+    return () => window.clearInterval(id);
+  }, [loadAnalytics]);
+
   return (
     <div className="portal-view-fade">
       <div className="portal-top">
@@ -539,6 +586,60 @@ function AdminOverviewTab({
             ))}
           </div>
         )}
+      </div>
+
+      {/* Student Demographics — real gender distribution from profiles */}
+      <div className="analytics-block">
+        <div className="analytics-block-head">
+          <p className="kicker">LIVE STUDENT DATA</p>
+          <h2>Student Demographics</h2>
+          <p>Distribution of registered student accounts, aggregated live from the database.</p>
+        </div>
+        <div className="analytics-grid">
+          <AnalyticsChart
+            title="Students by Gender"
+            description="Total registered students by gender."
+            items={genderData.map((d) =>
+              d.label === 'Male'
+                ? { ...d, color: 'linear-gradient(180deg, #5aa7f8 0%, #2563eb 100%)' }
+                : d.label === 'Female'
+                  ? { ...d, color: 'linear-gradient(180deg, #f485b8 0%, #db2777 100%)' }
+                  : d
+            )}
+            loading={analyticsLoading}
+            emptyText="No gender data recorded yet."
+            valueLabel="students"
+          />
+        </div>
+      </div>
+
+      {/* Material Analytics — uploaded volume by faculty & department */}
+      <div className="analytics-block">
+        <div className="analytics-block-head">
+          <p className="kicker">REPOSITORY ANALYTICS</p>
+          <h2>Material Analytics</h2>
+          <p>Materials uploaded across the university, grouped by faculty and department.</p>
+        </div>
+        <div className="analytics-grid">
+          <AnalyticsChart
+            title="Materials Uploaded by Faculty"
+            description="Total uploads grouped by faculty."
+            items={facultyData}
+            loading={analyticsLoading}
+            horizontal
+            emptyText="No materials uploaded yet."
+            valueLabel="materials"
+          />
+          <AnalyticsChart
+            title="Materials Uploaded by Department"
+            description="Total uploads grouped by department."
+            items={deptData}
+            loading={analyticsLoading}
+            horizontal
+            emptyText="No materials uploaded yet."
+            valueLabel="materials"
+          />
+        </div>
       </div>
 
       {/* Pending Queue Quick Section */}

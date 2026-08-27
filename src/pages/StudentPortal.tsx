@@ -431,9 +431,19 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
             <span>Menu</span>
           </button>
           <span className="portal-mobile-title">Student Dashboard</span>
-          <Link to="/student/upload" className="portal-mobile-upload">
-            <Upload size={16} />
-          </Link>
+          <div className="portal-mobile-actions">
+            <Link to="/student/upload" className="portal-mobile-upload">
+              <Upload size={16} />
+            </Link>
+            <button
+              type="button"
+              className="portal-mobile-logout"
+              onClick={handleLogout}
+              aria-label="Sign out / Exit"
+            >
+              <LogOut size={16} />
+            </button>
+          </div>
         </div>
 
         {/* Dynamic Subpages based on Path */}
@@ -1709,17 +1719,27 @@ function StudentProfileTab({ currentUser }: { currentUser: any }) {
 
               <label>
                 Matriculation Number
-                <div className="input-with-badge">
+                {formData.matricNumber ? (
+                  <div className="input-with-badge">
+                    <input
+                      value={formData.matricNumber}
+                      readOnly
+                      className="input-readonly"
+                      title="Matriculation number is your verified institutional identifier and cannot be edited once set. Submit a profile change request to update it."
+                    />
+                    <span className="readonly-tag">
+                      <ShieldCheck size={12} /> Locked
+                    </span>
+                  </div>
+                ) : (
                   <input
+                    required
+                    placeholder="e.g. BSC/BCH/24/0142"
                     value={formData.matricNumber}
-                    readOnly
-                    className="input-readonly"
-                    title="Matriculation number is your verified institutional identifier and cannot be edited. Submit a profile change request to update it."
+                    onChange={(e) => setFormData({ ...formData, matricNumber: e.target.value.toUpperCase() })}
+                    title="Enter your matriculation number. It is locked once saved."
                   />
-                  <span className="readonly-tag">
-                    <ShieldCheck size={12} /> Locked
-                  </span>
-                </div>
+                )}
               </label>
             </div>
 
@@ -2088,17 +2108,27 @@ function StudentSettingsTab({ currentUser }: { currentUser: any }) {
                   </label>
                   <label>
                     Matriculation Number
-                    <div className="input-with-badge">
+                    {profileData.matricNumber ? (
+                      <div className="input-with-badge">
+                        <input
+                          value={profileData.matricNumber}
+                          readOnly
+                          className="input-readonly"
+                          title="Matriculation number is your verified institutional identifier and cannot be edited once set. Submit a profile change request to update it."
+                        />
+                        <span className="readonly-tag" title="Institutional Identifier">
+                          <ShieldCheck size={12} /> Locked
+                        </span>
+                      </div>
+                    ) : (
                       <input
+                        required
+                        placeholder="e.g. CIS/CSC/25/145"
                         value={profileData.matricNumber}
-                        readOnly
-                        className="input-readonly"
-                        title="Matriculation number is your verified institutional identifier and cannot be edited. Submit a profile change request to update it."
+                        onChange={(e) => setProfileData({ ...profileData, matricNumber: e.target.value.toUpperCase() })}
+                        title="Enter your matriculation number. It is locked once saved."
                       />
-                      <span className="readonly-tag" title="Institutional Identifier">
-                        <ShieldCheck size={12} /> Locked
-                      </span>
-                    </div>
+                    )}
                   </label>
                 </div>
 

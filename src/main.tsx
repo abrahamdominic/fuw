@@ -18,6 +18,7 @@ import {
   MaterialDetailPage,
   AboutPage,
   LoginPage,
+  ResetPasswordPage,
   AdminLoginPage
 } from './pages/PublicPages';
 
@@ -199,7 +200,15 @@ function App() {
               path="/forgot-password"
               element={
                 <PublicLayout onReadOnline={handleReadOnline}>
-                  <LoginPage />
+                  <LoginPage forgot />
+                </PublicLayout>
+              }
+            />
+            <Route
+              path="/reset-password"
+              element={
+                <PublicLayout onReadOnline={handleReadOnline}>
+                  <ResetPasswordPage />
                 </PublicLayout>
               }
             />
