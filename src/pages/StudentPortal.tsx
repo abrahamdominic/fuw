@@ -36,7 +36,18 @@ import {
   SlidersHorizontal,
   Save,
   Info,
-  Check
+  Check,
+  GraduationCap,
+  List,
+  ArrowLeft,
+  Pencil,
+  MessageSquare,
+  Send,
+  FileWarning,
+  UserCog,
+  Wifi,
+  Monitor,
+  Smartphone as SmartphoneIcon
 } from 'lucide-react';
 import { useStore } from '../lib/useStore';
 import { MaterialItem, getTimeGreeting, getUserTimeZone, formatUserTime } from '../lib/store';
@@ -58,6 +69,12 @@ import { requireSupabase } from '../lib/supabase';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useAuth } from '../lib/AuthContext';
 import { useToast } from '../components/Toast';
+import type { StudentCourse } from '../lib/studentCourses';
+import { submitDeletionRequest, fetchMyDeletionRequests, DeletionRequest } from '../lib/deletionRequests';
+import { fetchMyStudentCourses } from '../lib/studentCourses';
+import { fetchConversations, fetchMessages, sendMessage, markConversationRead, startConversation, Conversation, Message } from '../lib/messages';
+import { submitProfileChangeRequest, fetchMyChangeRequests, ProfileChangeRequest } from '../lib/profileChangeRequests';
+import { fetchMySessions, terminateSession, terminateAllOtherSessions, detectConnection, ActiveSession } from '../lib/sessions';
 
 
 interface StudentPortalProps {
@@ -68,11 +85,16 @@ const studentNavItems = [
   { label: 'Dashboard', path: '/student', icon: LayoutDashboard, exact: true },
   { label: 'Upload material', path: '/student/upload', icon: Upload },
   { label: 'My uploads', path: '/student/uploads', icon: FileText },
+  { label: 'Upload Course Code & Title', path: '/student/course-upload', icon: GraduationCap },
+  { label: 'My courses', path: '/student/courses', icon: List },
   { label: 'AI study assistant', path: '/student/assistant', icon: Sparkles },
   { label: 'Saved materials', path: '/student/saved', icon: Heart },
   { label: 'Recently viewed', path: '/student/recent', icon: Clock },
   { label: 'Downloads', path: '/student/downloads', icon: Download },
   { label: 'Reading history', path: '/student/reading', icon: BookOpen },
+  { label: 'Messages', path: '/student/messages', icon: MessageSquare },
+  { label: 'Request deletion', path: '/student/request-deletion', icon: FileWarning },
+  { label: 'Profile change requests', path: '/student/change-requests', icon: UserCog },
   { label: 'My profile', path: '/student/profile', icon: Users },
   { label: 'Settings', path: '/student/settings', icon: Settings }
 ];
@@ -279,7 +301,7 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
         </nav>
 
         <div className="side-footer-actions">
-          <button type="button" onClick={handleLogout} className="side-link logout-link" style={{ background: 'none', border: 0, width: '100%', cursor: 'pointer', textAlign: 'left' }}>
+          <button type="button" onClick={handleLogout} className="side-link logout-link logout-btn">
             <LogOut size={17} />
             <span>Sign out / Exit</span>
           </button>
@@ -488,6 +510,16 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
           <StudentProfileTab currentUser={currentUser} />
         ) : currentPath.startsWith('/student/settings') ? (
           <StudentSettingsTab currentUser={currentUser} />
+        ) : currentPath.startsWith('/student/course-upload') ? (
+          <StudentCourseUploadTab onSubmitted={() => navigate('/student/courses')} />
+        ) : currentPath.startsWith('/student/courses') ? (
+          <StudentCourseHistoryTab />
+        ) : currentPath.startsWith('/student/messages') ? (
+          <StudentMessagesTab />
+        ) : currentPath.startsWith('/student/request-deletion') ? (
+          <StudentDeletionRequestsTab />
+        ) : currentPath.startsWith('/student/change-requests') ? (
+          <StudentChangeRequestsTab />
         ) : (
           <StudentOverviewTab
             currentUser={currentUser}
@@ -1677,46 +1709,79 @@ function StudentProfileTab({ currentUser }: { currentUser: any }) {
 
               <label>
                 Matriculation Number
-                <input
-                  value={formData.matricNumber}
-                  onChange={(e) => setFormData({ ...formData, matricNumber: e.target.value.toUpperCase() })}
-                  required
-                  disabled={busy}
-                />
+                <div className="input-with-badge">
+                  <input
+                    value={formData.matricNumber}
+                    readOnly
+                    className="input-readonly"
+                    title="Matriculation number is your verified institutional identifier and cannot be edited. Submit a profile change request to update it."
+                  />
+                  <span className="readonly-tag">
+                    <ShieldCheck size={12} /> Locked
+                  </span>
+                </div>
               </label>
             </div>
 
             <div className="form-grid-2">
               <label>
                 Faculty
-                <select
-                  value={formData.faculty}
-                  onChange={(e) => handleFacultyChange(e.target.value)}
-                  disabled={busy}
-                  required
-                >
-                  {catalogue.map((f) => (
-                    <option key={f.name} value={f.name}>
-                      {f.name}
-                    </option>
-                  ))}
-                </select>
+                {profile?.facultyLocked ? (
+                  <div className="input-with-badge">
+                    <input
+                      value={formData.faculty}
+                      readOnly
+                      className="input-readonly"
+                      title="Faculty is locked after being set. Submit a profile change request to update it."
+                    />
+                    <span className="readonly-tag">
+                      <Lock size={12} /> Locked
+                    </span>
+                  </div>
+                ) : (
+                  <select
+                    value={formData.faculty}
+                    onChange={(e) => handleFacultyChange(e.target.value)}
+                    disabled={busy}
+                    required
+                  >
+                    {catalogue.map((f) => (
+                      <option key={f.name} value={f.name}>
+                        {f.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </label>
 
               <label>
                 Department
-                <select
-                  value={formData.department}
-                  onChange={(e) => handleDeptChange(e.target.value)}
-                  disabled={busy}
-                  required
-                >
-                  {currentFaculty.departments.map((d) => (
-                    <option key={d.name} value={d.name}>
-                      {d.name} ({d.duration} Years)
-                    </option>
-                  ))}
-                </select>
+                {profile?.departmentLocked ? (
+                  <div className="input-with-badge">
+                    <input
+                      value={formData.department}
+                      readOnly
+                      className="input-readonly"
+                      title="Department is locked after being set. Submit a profile change request to update it."
+                    />
+                    <span className="readonly-tag">
+                      <Lock size={12} /> Locked
+                    </span>
+                  </div>
+                ) : (
+                  <select
+                    value={formData.department}
+                    onChange={(e) => handleDeptChange(e.target.value)}
+                    disabled={busy}
+                    required
+                  >
+                    {currentFaculty.departments.map((d) => (
+                      <option key={d.name} value={d.name}>
+                        {d.name} ({d.duration} Years)
+                      </option>
+                    ))}
+                  </select>
+                )}
               </label>
             </div>
 
@@ -1851,8 +1916,46 @@ function StudentSettingsTab({ currentUser }: { currentUser: any }) {
     toast('Password updated successfully!', 'success');
   };
 
-  const handleSignOutOtherSessions = () => {
-    toast('All other active browser sessions have been logged out.', 'info');
+  // ── Active Sessions ──────────────────────────────────────
+  const [mySessions, setMySessions] = useState<ActiveSession[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(true);
+  const [connectionInfo, setConnectionInfo] = useState(detectConnection());
+
+  const loadSessions = async () => {
+    try {
+      const sessions = await fetchMySessions();
+      setMySessions(sessions);
+    } catch { /* ignore */ }
+    setSessionsLoading(false);
+  };
+
+  useEffect(() => {
+    loadSessions();
+    // Refresh connection info periodically
+    const connInterval = setInterval(() => setConnectionInfo(detectConnection()), 30_000);
+    return () => clearInterval(connInterval);
+  }, []);
+
+  const handleTerminateSession = async (sessionId: string) => {
+    try {
+      await terminateSession(sessionId);
+      setMySessions((prev) => prev.filter((s) => s.id !== sessionId));
+      toast('Session terminated.', 'success');
+    } catch {
+      toast('Failed to terminate session.', 'error');
+    }
+  };
+
+  const handleSignOutOtherSessions = async () => {
+    try {
+      await terminateAllOtherSessions();
+      // Reload to show only current session
+      const sessions = await fetchMySessions();
+      setMySessions(sessions);
+      toast('All other sessions have been signed out.', 'success');
+    } catch {
+      toast('Failed to sign out other sessions.', 'error');
+    }
   };
 
   const handleSignOut = async () => {
@@ -1988,12 +2091,12 @@ function StudentSettingsTab({ currentUser }: { currentUser: any }) {
                     <div className="input-with-badge">
                       <input
                         value={profileData.matricNumber}
-                        onChange={(e) => setProfileData({ ...profileData, matricNumber: e.target.value.toUpperCase() })}
-                        required
-                        disabled={busy}
+                        readOnly
+                        className="input-readonly"
+                        title="Matriculation number is your verified institutional identifier and cannot be edited. Submit a profile change request to update it."
                       />
                       <span className="readonly-tag" title="Institutional Identifier">
-                        <ShieldCheck size={12} /> Student ID
+                        <ShieldCheck size={12} /> Locked
                       </span>
                     </div>
                   </label>
@@ -2002,33 +2105,61 @@ function StudentSettingsTab({ currentUser }: { currentUser: any }) {
                 <div className="form-grid-2">
                   <label>
                     Faculty
-                    <select
-                      value={profileData.faculty}
-                      onChange={(e) => handleFacultyChange(e.target.value)}
-                      disabled={busy}
-                      required
-                    >
-                      {catalogue.map((f) => (
-                        <option key={f.name} value={f.name}>
-                          {f.name}
-                        </option>
-                      ))}
-                    </select>
+                    {profileData.faculty ? (
+                      <div className="input-with-badge">
+                        <input
+                          value={profileData.faculty}
+                          readOnly
+                          className="input-readonly"
+                          title="Faculty is locked after being set. Submit a profile change request to update it."
+                        />
+                        <span className="readonly-tag">
+                          <Lock size={12} /> Locked
+                        </span>
+                      </div>
+                    ) : (
+                      <select
+                        value={profileData.faculty}
+                        onChange={(e) => handleFacultyChange(e.target.value)}
+                        disabled={busy}
+                        required
+                      >
+                        {catalogue.map((f) => (
+                          <option key={f.name} value={f.name}>
+                            {f.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </label>
                   <label>
                     Department
-                    <select
-                      value={profileData.department}
-                      onChange={(e) => handleDeptChange(e.target.value)}
-                      disabled={busy}
-                      required
-                    >
-                      {currentFaculty.departments.map((d) => (
-                        <option key={d.name} value={d.name}>
-                          {d.name} ({d.duration} Years)
-                        </option>
-                      ))}
-                    </select>
+                    {profileData.department ? (
+                      <div className="input-with-badge">
+                        <input
+                          value={profileData.department}
+                          readOnly
+                          className="input-readonly"
+                          title="Department is locked after being set. Submit a profile change request to update it."
+                        />
+                        <span className="readonly-tag">
+                          <Lock size={12} /> Locked
+                        </span>
+                      </div>
+                    ) : (
+                      <select
+                        value={profileData.department}
+                        onChange={(e) => handleDeptChange(e.target.value)}
+                        disabled={busy}
+                        required
+                      >
+                        {currentFaculty.departments.map((d) => (
+                          <option key={d.name} value={d.name}>
+                            {d.name} ({d.duration} Years)
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </label>
                 </div>
 
@@ -2289,7 +2420,7 @@ function StudentSettingsTab({ currentUser }: { currentUser: any }) {
                     </select>
                   </label>
 
-                  <label className="switch-row inline-switch" style={{ marginTop: '22px' }}>
+                  <label className="switch-row inline-switch mt-lg">
                     <div className="switch-info">
                       <b>Remember Last Filter Choices</b>
                       <span>Auto-apply your last selected faculty and level when opening the library.</span>
@@ -2322,42 +2453,137 @@ function StudentSettingsTab({ currentUser }: { currentUser: any }) {
               <div className="settings-card-header">
                 <div>
                   <h2>Active Login Sessions</h2>
-                  <p>Devices and browsers currently authenticated to your student account.</p>
+                  <p>Manage and monitor devices currently signed in to your account.</p>
                 </div>
-                <button type="button" className="outline-btn" onClick={handleSignOutOtherSessions}>
-                  Sign out other devices
-                </button>
+                {mySessions.filter((s) => !s.is_current).length > 0 && (
+                  <button type="button" className="danger-btn-outline" onClick={handleSignOutOtherSessions}>
+                    <LogOut size={14} /> Log Out All Other Devices
+                  </button>
+                )}
               </div>
 
-              <div className="sessions-list">
-                <div className="session-item current">
-                  <div className="session-icon">
-                    <Laptop size={20} />
-                  </div>
-                  <div className="session-details">
-                    <div className="session-title-row">
-                      <b>Current Web Browser</b>
-                      <span className="current-session-badge">Active Now</span>
-                    </div>
-                    <p>Chrome on Desktop · Wukari, Taraba State, Nigeria (FUW Campus Wi-Fi)</p>
-                    <span className="session-time">Started today at 10:15 AM</span>
-                  </div>
+              {/* Connection Info */}
+              <div className="connection-info-bar">
+                <div className="connection-info-item">
+                  <Wifi size={14} />
+                  <span>Connection: {connectionInfo.connection_type === 'wifi' ? 'Wi-Fi' : connectionInfo.connection_type === 'cellular' ? 'Mobile Data' : connectionInfo.connection_type === 'ethernet' ? 'Ethernet' : 'Unknown'}</span>
                 </div>
-
-                <div className="session-item">
-                  <div className="session-icon">
-                    <Smartphone size={20} />
-                  </div>
-                  <div className="session-details">
-                    <div className="session-title-row">
-                      <b>Mobile Safari / Android Web</b>
-                      <span className="session-status-text">Idle</span>
-                    </div>
-                    <p>Mobile Device · Taraba State, Nigeria</p>
-                    <span className="session-time">Last active 2 days ago</span>
-                  </div>
+                <div className="connection-info-item">
+                  <span>Network: {connectionInfo.network_name || 'Network name unavailable'}</span>
                 </div>
               </div>
+
+              {sessionsLoading ? (
+                <div className="loading-spinner-row"><Loader2 size={18} className="animate-spin" /> Loading sessions…</div>
+              ) : mySessions.length === 0 ? (
+                <div className="empty-state-card">
+                  <Laptop size={36} />
+                  <b>No active sessions</b>
+                  <span>Session data will appear here once you log in.</span>
+                </div>
+              ) : (
+                <div className="sessions-list">
+                  {/* Current session first */}
+                  {mySessions.filter((s) => s.is_current).map((s) => {
+                    const Icon = s.device_type === 'mobile' ? Smartphone : s.device_type === 'tablet' ? Smartphone : Laptop;
+                    const timeSince = (ts: string) => {
+                      const diff = Date.now() - new Date(ts).getTime();
+                      const mins = Math.floor(diff / 60000);
+                      if (mins < 1) return 'Just now';
+                      if (mins < 60) return `${mins} minute${mins === 1 ? '' : 's'} ago`;
+                      const hrs = Math.floor(mins / 60);
+                      if (hrs < 24) return `${hrs} hour${hrs === 1 ? '' : 's'} ago`;
+                      const days = Math.floor(hrs / 24);
+                      return `${days} day${days === 1 ? '' : 's'} ago`;
+                    };
+                    return (
+                      <div key={s.id} className="session-item current">
+                        <div className="session-icon current-icon">
+                          <Icon size={20} />
+                        </div>
+                        <div className="session-details">
+                          <div className="session-title-row">
+                            <b>This Device</b>
+                            <span className="current-session-badge">Active Now</span>
+                          </div>
+                          <div className="session-subtitle">{s.browser} · {s.os}</div>
+                          <div className="session-meta-row">
+                            <span className="session-meta">
+                              <span className="meta-dot active-dot" />
+                              Active now
+                            </span>
+                            {s.connection_type && s.connection_type !== 'unknown' && (
+                              <span className="session-meta">
+                                <Wifi size={11} />
+                                {s.connection_type === 'wifi' ? 'Wi-Fi' : s.connection_type === 'cellular' ? 'Mobile Data' : s.connection_type === 'ethernet' ? 'Ethernet' : s.connection_type}
+                              </span>
+                            )}
+                          </div>
+                          <span className="session-time">Logged in: {new Date(s.login_time).toLocaleString()}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Other sessions */}
+                  {mySessions.filter((s) => !s.is_current).length > 0 && (
+                    <div className="session-divider">Other Active Sessions</div>
+                  )}
+                  {mySessions.filter((s) => !s.is_current).map((s) => {
+                    const Icon = s.device_type === 'mobile' ? Smartphone : s.device_type === 'tablet' ? Smartphone : Laptop;
+                    const timeSince = (ts: string) => {
+                      const diff = Date.now() - new Date(ts).getTime();
+                      const mins = Math.floor(diff / 60000);
+                      if (mins < 1) return 'Just now';
+                      if (mins < 60) return `${mins} minute${mins === 1 ? '' : 's'} ago`;
+                      const hrs = Math.floor(mins / 60);
+                      if (hrs < 24) return `${hrs} hour${hrs === 1 ? '' : 's'} ago`;
+                      const days = Math.floor(hrs / 24);
+                      return `${days} day${days === 1 ? '' : 's'} ago`;
+                    };
+                    const isStale = (Date.now() - new Date(s.last_active).getTime()) > 10 * 60 * 1000;
+                    return (
+                      <div key={s.id} className="session-item">
+                        <div className="session-icon">
+                          <Icon size={20} />
+                        </div>
+                        <div className="session-details">
+                          <div className="session-title-row">
+                            <b>{s.browser} · {s.os}</b>
+                          </div>
+                          <div className="session-subtitle">{s.device_type.charAt(0).toUpperCase() + s.device_type.slice(1)}</div>
+                          <div className="session-meta-row">
+                            <span className={`session-meta ${isStale ? 'stale' : ''}`}>
+                              <span className={`meta-dot ${isStale ? '' : 'active-dot'}`} />
+                              {isStale ? `Idle · ${timeSince(s.last_active)}` : `Active ${timeSince(s.last_active)}`}
+                            </span>
+                            {s.connection_type && s.connection_type !== 'unknown' && (
+                              <span className="session-meta">
+                                <Wifi size={11} />
+                                {s.connection_type === 'wifi' ? 'Wi-Fi' : s.connection_type === 'cellular' ? 'Mobile Data' : s.connection_type === 'ethernet' ? 'Ethernet' : s.connection_type}
+                              </span>
+                            )}
+                            {s.ip_address && (
+                              <span className="session-meta">
+                                IP: {s.ip_address}
+                              </span>
+                            )}
+                          </div>
+                          <span className="session-time">Logged in: {new Date(s.login_time).toLocaleString()}</span>
+                        </div>
+                        <button
+                          type="button"
+                          className="session-terminate-btn"
+                          onClick={() => handleTerminateSession(s.id)}
+                          title="Terminate this session"
+                        >
+                          <LogOut size={14} /> Sign out
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 
@@ -2421,6 +2647,1249 @@ function StudentSettingsTab({ currentUser }: { currentUser: any }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Student Course Upload Tab ────────────────────────────────────────
+interface CourseEntry {
+  id: string;
+  code: string;
+  title: string;
+  errors: { code?: string; title?: string };
+}
+
+function StudentCourseUploadTab({ onSubmitted }: { onSubmitted: () => void }) {
+  const { toast } = useToast();
+  const [filters, setFilters] = useState<FilterState>({
+    faculty: '',
+    department: '',
+    level: '',
+    semester: '',
+    type: '',
+    course: ''
+  });
+  const [courses, setCourses] = useState<CourseEntry[]>([
+    { id: crypto.randomUUID(), code: '', title: '', errors: {} }
+  ]);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [step, setStep] = useState<'form' | 'preview'>('form');
+
+  const addCourse = () => {
+    setCourses((prev) => [...prev, { id: crypto.randomUUID(), code: '', title: '', errors: {} }]);
+  };
+
+  const removeCourse = (id: string) => {
+    setCourses((prev) => (prev.length <= 1 ? prev : prev.filter((c) => c.id !== id)));
+  };
+
+  const updateCourse = (id: string, field: 'code' | 'title', value: string) => {
+    setCourses((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, [field]: value, errors: { ...c.errors, [field]: undefined } } : c))
+    );
+  };
+
+  const editCourse = (id: string) => {
+    setStep('form');
+    // Scroll to the course entry
+    setTimeout(() => {
+      const el = document.getElementById(`course-entry-${id}`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
+  };
+
+  const validate = (): boolean => {
+    if (!filters.faculty || !filters.department || !filters.level || !filters.semester) {
+      setMessage({ type: 'error', text: 'Please select Faculty, Department, Level, and Semester.' });
+      return false;
+    }
+
+    let valid = true;
+    const seen = new Set<string>();
+    const updated = courses.map((c) => {
+      const errors: CourseEntry['errors'] = {};
+      const code = c.code.trim().toUpperCase();
+      const title = c.title.trim();
+
+      if (!code) {
+        errors.code = 'Course Code is required.';
+        valid = false;
+      } else if (seen.has(code)) {
+        errors.code = `${code} has already been added.`;
+        valid = false;
+      } else {
+        seen.add(code);
+      }
+
+      if (!title) {
+        errors.title = 'Course Title is required.';
+        valid = false;
+      }
+
+      return { ...c, code, title, errors };
+    });
+
+    setCourses(updated);
+    if (!valid) {
+      setMessage({ type: 'error', text: 'Please fix the highlighted errors below.' });
+    } else {
+      setMessage(null);
+    }
+    return valid;
+  };
+
+  const handlePreview = () => {
+    if (validate()) {
+      setStep('preview');
+      setMessage(null);
+    }
+  };
+
+  const handleSubmit = async () => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const { submitStudentCourses } = await import('../lib/studentCourses');
+      const input = courses.map((c) => ({
+        faculty: filters.faculty,
+        department: filters.department,
+        level: filters.level,
+        semester: filters.semester,
+        course_code: c.code.trim().toUpperCase(),
+        course_title: c.title.trim()
+      }));
+
+      const result = await submitStudentCourses(input);
+
+      if (result.inserted > 0) {
+        toast(`${result.inserted} course(s) submitted successfully!`, 'success');
+        let text = `${result.inserted} course(s) submitted for review.`;
+        if (result.skipped > 0) {
+          text += ` ${result.skipped} duplicate(s) were skipped.`;
+        }
+        setMessage({ type: 'success', text });
+        setTimeout(() => onSubmitted(), 1500);
+      } else {
+        setMessage({ type: 'error', text: 'All courses already exist for this academic structure.' });
+      }
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'Failed to submit courses.' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="portal-view-fade">
+      <div className="portal-top">
+        <div>
+          <p className="kicker">COURSE REGISTRATION</p>
+          <h1>Upload Course Code & Title</h1>
+          <p className="subtitle">
+            Manually enter your courses for the selected academic period. You can add, edit, or remove courses before submitting.
+          </p>
+        </div>
+      </div>
+
+      {/* Step indicator */}
+      <div className="step-pills">
+        <span className={`step-pill${step === 'form' ? ' active' : ''}`}>
+          1. Enter Courses
+        </span>
+        <ChevronRight size={16} className="step-pill-arrow" />
+        <span className={`step-pill${step === 'preview' ? ' active' : ''}`}>
+          2. Review & Submit
+        </span>
+      </div>
+
+      {step === 'form' ? (
+        <div className="upload-container">
+          <div className="upload-form full-upload-form">
+            <div className="form-section">
+              <h3>Academic Information</h3>
+              <CatalogueFilters
+                filters={filters}
+                onChange={setFilters}
+                compact
+                fields={['faculty', 'department', 'level', 'semester']}
+              />
+            </div>
+
+            <div className="form-section">
+              <h3>Courses</h3>
+              {courses.map((c, idx) => (
+                <div
+                  key={c.id}
+                  id={`course-entry-${c.id}`}
+                  className="course-entry-row"
+                >
+                  <label>
+                    Course Code *
+                    <input
+                      value={c.code}
+                      placeholder="e.g. ECO 101"
+                      onChange={(e) => updateCourse(c.id, 'code', e.target.value)}
+                      className={c.errors.code ? 'course-entry-input-error' : ''}
+                    />
+                    {c.errors.code && (
+                      <span className="course-entry-error">{c.errors.code}</span>
+                    )}
+                  </label>
+                  <label>
+                    Course Title *
+                    <input
+                      value={c.title}
+                      placeholder="e.g. Introduction to Economics"
+                      onChange={(e) => updateCourse(c.id, 'title', e.target.value)}
+                      className={c.errors.title ? 'course-entry-input-error' : ''}
+                    />
+                    {c.errors.title && (
+                      <span className="course-entry-error">{c.errors.title}</span>
+                    )}
+                  </label>
+                  <button
+                    type="button"
+                    className="icon-btn danger mt-lg"
+                    onClick={() => removeCourse(c.id)}
+                    disabled={courses.length <= 1}
+                    title="Remove course"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              ))}
+
+              <button type="button" className="add-course-btn" onClick={addCourse}>
+                <Plus size={18} /> Add Another Course
+              </button>
+            </div>
+
+            {message && (
+              <div className={`form-feedback-box ${message.type}`}>
+                {message.type === 'success' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+                <p>{message.text}</p>
+              </div>
+            )}
+
+            <div className="form-submit-row">
+              <button className="primary submit-btn" onClick={handlePreview}>
+                <Eye size={16} /> Review Courses
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* PREVIEW STEP */
+        <div className="upload-container">
+          <div className="upload-form full-upload-form">
+            <div className="form-section">
+              <h3>Academic Information</h3>
+              <div className="course-preview-grid">
+                <div><b>Faculty:</b> {filters.faculty}</div>
+                <div><b>Department:</b> {filters.department}</div>
+                <div><b>Level:</b> {filters.level}</div>
+                <div><b>Semester:</b> {filters.semester}</div>
+              </div>
+            </div>
+
+            <div className="form-section">
+              <h3>Courses ({courses.length})</h3>
+              <div className="course-preview-table-wrap">
+                <table className="course-preview-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Course Code</th>
+                      <th>Course Title</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {courses.map((c, idx) => (
+                      <tr key={c.id}>
+                        <td className="preview-idx">{idx + 1}</td>
+                        <td className="preview-code">{c.code}</td>
+                        <td className="preview-title">{c.title}</td>
+                        <td style={{ padding: '0.5rem' }}>
+                          <div className="course-preview-actions">
+                            <button
+                              type="button"
+                              className="link-btn"
+                              onClick={() => editCourse(c.id)}
+                            >
+                              <Pencil size={13} /> Edit
+                            </button>
+                            <button
+                              type="button"
+                              className="link-btn danger"
+                              onClick={() => {
+                                setCourses((prev) => prev.filter((x) => x.id !== c.id));
+                                if (courses.length <= 1) setStep('form');
+                              }}
+                            >
+                              <Trash2 size={13} /> Remove
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {message && (
+              <div className={`form-feedback-box ${message.type}`}>
+                {message.type === 'success' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+                <p>{message.text}</p>
+              </div>
+            )}
+
+            <div className="form-submit-row">
+              <button className="back-to-edit-btn" onClick={() => setStep('form')}>
+                <ArrowLeft size={16} /> Back to Edit
+              </button>
+              <button className="primary submit-btn" disabled={busy} onClick={handleSubmit}>
+                <Upload size={16} />
+                {busy ? 'Submitting…' : 'Submit Courses'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Student Course History Tab ───────────────────────────────────────
+function StudentCourseHistoryTab() {
+  const { toast } = useToast();
+  const [courses, setCourses] = useState<StudentCourse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editCode, setEditCode] = useState('');
+  const [editTitle, setEditTitle] = useState('');
+
+  const loadCourses = async () => {
+    try {
+      const { fetchMyStudentCourses } = await import('../lib/studentCourses');
+      const data = await fetchMyStudentCourses();
+      setCourses(data);
+    } catch (err: any) {
+      toast(err.message || 'Failed to load courses.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadCourses();
+  }, []);
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Remove this course?')) return;
+    try {
+      const { deleteStudentCourse } = await import('../lib/studentCourses');
+      await deleteStudentCourse(id);
+      setCourses((prev) => prev.filter((c) => c.id !== id));
+      toast('Course removed.', 'success');
+    } catch (err: any) {
+      toast(err.message || 'Failed to delete.', 'error');
+    }
+  };
+
+  const handleEdit = async (id: string) => {
+    if (!editCode.trim() || !editTitle.trim()) {
+      toast('Both fields are required.', 'error');
+      return;
+    }
+    try {
+      const { updateStudentCourse } = await import('../lib/studentCourses');
+      await updateStudentCourse(id, { course_code: editCode, course_title: editTitle });
+      setCourses((prev) =>
+        prev.map((c) =>
+          c.id === id ? { ...c, course_code: editCode.trim().toUpperCase(), course_title: editTitle.trim() } : c
+        )
+      );
+      setEditingId(null);
+      toast('Course updated.', 'success');
+    } catch (err: any) {
+      toast(err.message || 'Failed to update.', 'error');
+    }
+  };
+
+  const startEdit = (c: StudentCourse) => {
+    setEditingId(c.id);
+    setEditCode(c.course_code);
+    setEditTitle(c.course_title);
+  };
+
+  const statusBadge = (status: string) => {
+    const colors: Record<string, string> = {
+      pending: '#f59e0b',
+      approved: '#10b981',
+      rejected: '#e53e3e'
+    };
+    return (
+      <span
+        className="status-badge-pill"
+        style={{
+          background: colors[status] || '#888'
+        }}
+      >
+        {status}
+      </span>
+    );
+  };
+
+  return (
+    <div className="portal-view-fade">
+      <div className="portal-top">
+        <div>
+          <p className="kicker">MY COURSES</p>
+          <h1>Course History</h1>
+          <p className="subtitle">View and manage courses you have previously submitted.</p>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="empty-state card-empty">
+          <Loader2 size={32} className="spin" />
+          <span>Loading courses…</span>
+        </div>
+      ) : courses.length === 0 ? (
+        <div className="empty-state card-empty">
+          <GraduationCap size={40} />
+          <b>No courses submitted yet</b>
+          <span>Go to "Upload Course Code & Title" to submit your first courses.</span>
+        </div>
+      ) : (
+        <div className="courses-table-wrapper">
+          <table className="courses-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Code</th>
+                <th>Title</th>
+                <th>Faculty</th>
+                <th>Department</th>
+                <th>Level</th>
+                <th>Semester</th>
+                <th>Status</th>
+                <th>Submitted</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {courses.map((c, idx) => (
+                <tr key={c.id}>
+                  <td>{idx + 1}</td>
+                  <td className="cell-bold">
+                    {editingId === c.id ? (
+                      <input
+                        value={editCode}
+                        onChange={(e) => setEditCode(e.target.value)}
+                        style={{ width: '100px' }}
+                      />
+                    ) : (
+                      c.course_code
+                    )}
+                  </td>
+                  <td>
+                    {editingId === c.id ? (
+                      <input
+                        value={editTitle}
+                        onChange={(e) => setEditTitle(e.target.value)}
+                        style={{ width: '200px' }}
+                      />
+                    ) : (
+                      c.course_title
+                    )}
+                  </td>
+                  <td className="cell-secondary">{c.faculty}</td>
+                  <td className="cell-secondary">{c.department}</td>
+                  <td>{c.level}</td>
+                  <td>{c.semester}</td>
+                  <td>{statusBadge(c.status)}</td>
+                  <td className="cell-secondary">
+                    {new Date(c.submitted_at).toLocaleDateString()}
+                  </td>
+                  <td className="cell-nowrap">
+                    {c.status === 'approved' ? (
+                      <span className="locked-course-badge" title="Approved courses are locked after approval. Submit a deletion request to change or remove this course.">
+                        <Lock size={13} /> Locked
+                      </span>
+                    ) : editingId === c.id ? (
+                      <>
+                        <button className="link-btn mr-sm" onClick={() => handleEdit(c.id)}>
+                          Save
+                        </button>
+                        <button className="link-btn danger" onClick={() => setEditingId(null)}>
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button className="link-btn mr-sm" onClick={() => startEdit(c)}>
+                          Edit
+                        </button>
+                        <button className="link-btn danger" onClick={() => handleDelete(c.id)}>
+                          Remove
+                        </button>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Student Messages Tab ────────────────────────────────────── */
+function StudentMessagesTab() {
+  const { profile } = useAuth();
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeConvId, setActiveConvId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [messagesLoading, setMessagesLoading] = useState(false);
+  const [newMsg, setNewMsg] = useState('');
+  const [sending, setSending] = useState(false);
+  const [convSearch, setConvSearch] = useState('');
+  const { toast } = useToast();
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await fetchConversations();
+        if (!cancelled) setConversations(data);
+      } catch (err: any) { toast(err.message, 'error'); }
+      finally { if (!cancelled) setLoading(false); }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!activeConvId) { setMessages([]); return; }
+    let cancelled = false;
+    (async () => {
+      setMessagesLoading(true);
+      try {
+        const data = await fetchMessages(activeConvId);
+        if (!cancelled) setMessages(data);
+        await markConversationRead(activeConvId);
+      } catch (err: any) { toast(err.message, 'error'); }
+      finally { if (!cancelled) setMessagesLoading(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [activeConvId]);
+
+  const handleSend = async () => {
+    if (!activeConvId || !newMsg.trim()) return;
+    setSending(true);
+    try {
+      const msg = await sendMessage(activeConvId, newMsg.trim());
+      setMessages((prev) => [...prev, msg]);
+      setNewMsg('');
+      setConversations((prev) =>
+        prev.map((c) => c.id === activeConvId ? { ...c, last_message_at: msg.created_at } : c)
+          .sort((a, b) => new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime())
+      );
+    } catch (err: any) { toast(err.message, 'error'); }
+    finally { setSending(false); }
+  };
+
+  const activeConv = conversations.find((c) => c.id === activeConvId);
+
+  const filteredConversations = convSearch
+    ? conversations.filter((c) => {
+        const q = convSearch.toLowerCase();
+        return (c.subject || '').toLowerCase().includes(q) || (c.profiles?.full_name || '').toLowerCase().includes(q);
+      })
+    : conversations;
+
+  const timeSince = (ts: string) => {
+    const diff = Date.now() - new Date(ts).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return `${Math.floor(hrs / 24)}d ago`;
+  };
+
+  return (
+    <div className="student-messages-tab">
+      <div className="request-page-header">
+        <div>
+          <h2 className="page-title"><MessageSquare size={22} />Messages</h2>
+          <p className="page-subtitle">Communicate securely with administrators regarding your uploads, requests, and account.</p>
+        </div>
+      </div>
+
+      <div className="conv-layout">
+        {/* Conversation list */}
+        <div className="conv-panel">
+          <div className="conv-search">
+            <input className="form-input" placeholder="Search conversations…" value={convSearch} onChange={(e) => setConvSearch(e.target.value)} />
+          </div>
+          {loading ? (
+            <div className="loading-spinner-row"><Loader2 size={18} className="animate-spin" /> Loading…</div>
+          ) : filteredConversations.length === 0 ? (
+            <div className="empty-state-card mt-md">
+              <MessageSquare size={36} />
+              <b>{convSearch ? 'No Matches' : 'No Messages'}</b>
+              <span>{convSearch ? 'No conversations match your search.' : 'No conversations yet. When an administrator messages you, it will appear here.'}</span>
+            </div>
+          ) : (
+            filteredConversations.map((conv) => (
+              <div key={conv.id} onClick={() => setActiveConvId(conv.id)} className={`conv-list-item${activeConvId === conv.id ? ' active' : ''}`}>
+                <div className="conv-subject">{conv.subject || 'Untitled conversation'}</div>
+                <div className="conv-admin-name">Administrator</div>
+                {conv.last_message_body && <div className="conv-preview">{conv.last_message_body.length > 60 ? conv.last_message_body.slice(0, 60) + '…' : conv.last_message_body}</div>}
+                <div className="conv-meta">{timeSince(conv.last_message_at)}</div>
+                {(conv.unread_count ?? 0) > 0 && <span className="unread-badge">{conv.unread_count} unread</span>}
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Message thread */}
+        {activeConvId && (
+          <div className="thread-panel">
+            <div className="thread-header">
+              <div className="thread-subject">{activeConv?.subject || 'Untitled conversation'}</div>
+              {activeConv?.material_id && <div className="thread-sub">Re: Material</div>}
+            </div>
+
+            <div className="thread-messages">
+              {messagesLoading ? (
+                <div className="loading-spinner-row"><Loader2 size={18} className="animate-spin" /> Loading messages…</div>
+              ) : messages.length === 0 ? (
+                <div className="empty-state-card mt-lg mx-auto">
+                  <MessageSquare size={36} />
+                  <b>No Messages</b>
+                  <span>Send a message to start the conversation.</span>
+                </div>
+              ) : (
+                messages.map((msg) => {
+                  const isOwn = msg.sender_id === profile?.id;
+                  return (
+                    <div key={msg.id} className={`msg-bubble ${isOwn ? 'sent' : 'received'}`}>
+                      <div>{msg.body}</div>
+                      <div className="msg-bubble-time">{new Date(msg.created_at).toLocaleTimeString()}</div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="chat-input-row">
+              <input className="form-input" value={newMsg} onChange={(e) => setNewMsg(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()} placeholder="Type a message…" disabled={sending} />
+              <button className="primary" onClick={handleSend} disabled={sending || !newMsg.trim()}>
+                <Send size={14} /> Send
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── Student Deletion Requests Tab ──────────────────────────── */
+function StudentDeletionRequestsTab() {
+  const { profile } = useAuth();
+  const [requests, setRequests] = useState<DeletionRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [formType, setFormType] = useState<'course' | 'material'>('material');
+  const [itemName, setItemName] = useState('');
+  const [itemCode, setItemCode] = useState('');
+  const [reason, setReason] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [detailReq, setDetailReq] = useState<DeletionRequest | null>(null);
+  const [confirmState, setConfirmState] = useState<{ open: boolean; title: string; message: string; onConfirm: () => void }>({ open: false, title: '', message: '', onConfirm: () => {} });
+  const { toast } = useToast();
+
+  // Item selector state
+  const [myItems, setMyItems] = useState<{ id: string; name: string; code: string | null }[]>([]);
+  const [itemsLoading, setItemsLoading] = useState(false);
+  const [itemSearch, setItemSearch] = useState('');
+  const [showDropdown, setShowDropdown] = useState(false);
+
+  useEffect(() => { loadRequests(); }, []);
+
+  const loadRequests = async () => {
+    try {
+      const data = await fetchMyDeletionRequests();
+      setRequests(data);
+    } catch (err: any) { toast(err.message, 'error'); }
+    finally { setLoading(false); }
+  };
+
+  // Load student's own items when form opens or type changes
+  useEffect(() => {
+    if (!showForm || !profile?.id) return;
+    setItemsLoading(true);
+    setItemName(''); setItemCode(''); setItemSearch('');
+    (async () => {
+      try {
+        if (formType === 'material') {
+          const result = await fetchMyMaterials(profile.id, 0, 100);
+          setMyItems(result.items.map((m: any) => ({ id: m.id, name: m.title, code: m.courseCode || null })));
+        } else {
+          const courses = await fetchMyStudentCourses();
+          setMyItems(courses.map((c) => ({ id: c.id, name: c.course_title, code: c.course_code })));
+        }
+      } catch { setMyItems([]); }
+      finally { setItemsLoading(false); }
+    })();
+  }, [showForm, formType, profile?.id]);
+
+  const filteredItems = itemSearch
+    ? myItems.filter((i) => i.name.toLowerCase().includes(itemSearch.toLowerCase()) || (i.code || '').toLowerCase().includes(itemSearch.toLowerCase()))
+    : myItems;
+
+  const handleItemSelect = (item: { id: string; name: string; code: string | null }) => {
+    setItemName(item.name);
+    setItemCode(item.code || '');
+    setItemSearch(`${item.name}${item.code ? ` (${item.code})` : ''}`);
+    setShowDropdown(false);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!itemName.trim() || !reason.trim()) return;
+    setConfirmState({
+      open: true,
+      title: 'Submit Deletion Request?',
+      message: `You are requesting deletion of ${formType === 'material' ? 'material' : 'course'} "${itemName.trim()}". An administrator will review this request.`,
+      onConfirm: async () => {
+        setSubmitting(true);
+        try {
+          await submitDeletionRequest({ request_type: formType, item_name: itemName.trim(), item_code: itemCode.trim() || undefined, reason: reason.trim() });
+          toast('Deletion request submitted successfully. An administrator will review your request.', 'success');
+          setItemName(''); setItemCode(''); setReason(''); setItemSearch(''); setShowForm(false);
+          await loadRequests();
+        } catch (err: any) { toast(err.message, 'error'); }
+        finally { setSubmitting(false); }
+      }
+    });
+  };
+
+  const statusBadge = (s: string) => <span className={`status-badge ${s}`}>{s}</span>;
+  const timeSince = (ts: string) => {
+    const diff = Date.now() - new Date(ts).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return `${Math.floor(hrs / 24)}d ago`;
+  };
+
+  const pending = requests.filter((r) => r.status === 'pending').length;
+  const approved = requests.filter((r) => r.status === 'approved').length;
+  const rejected = requests.filter((r) => r.status === 'rejected').length;
+  const completed = requests.filter((r) => r.status === 'completed').length;
+
+  return (
+    <div className="student-deletion-requests-tab">
+      <div className="request-page-header">
+        <div>
+          <h2 className="page-title"><FileWarning size={22} />Request Deletion</h2>
+          <p className="page-subtitle">Made a mistake with a course or material you uploaded? Submit a deletion request for an administrator to review.</p>
+        </div>
+        <button className={showForm ? 'secondary-btn' : 'primary'} onClick={() => setShowForm(!showForm)}>
+          {showForm ? <><X size={14} /> Cancel</> : <><Plus size={14} /> New Request</>}
+        </button>
+      </div>
+
+      {/* Stat Cards */}
+      {!loading && requests.length > 0 && (
+        <div className="stat-cards">
+          <div className="stat-card"><span className="stat-value">{requests.length}</span><span className="stat-label">Total</span></div>
+          <div className="stat-card pending"><span className="stat-value">{pending}</span><span className="stat-label">Pending</span></div>
+          <div className="stat-card approved"><span className="stat-value">{approved}</span><span className="stat-label">Approved</span></div>
+          <div className="stat-card rejected"><span className="stat-value">{rejected}</span><span className="stat-label">Rejected</span></div>
+          {completed > 0 && <div className="stat-card completed"><span className="stat-value">{completed}</span><span className="stat-label">Completed</span></div>}
+        </div>
+      )}
+
+      {showForm && (
+        <form onSubmit={handleSubmit} className="card request-form-card">
+          <div className="form-card-head">
+            <span className="form-card-head-icon"><FileWarning size={18} /></span>
+            <div>
+              <h3>Submit a Deletion Request</h3>
+              <p>Select the item you want administrators to remove from the library.</p>
+            </div>
+          </div>
+
+          <div className="form-field">
+            <label className="form-label">Request Type</label>
+            <div className="form-segmented">
+              <button
+                type="button"
+                className={`form-segmented-option${formType === 'material' ? ' active' : ''}`}
+                onClick={() => setFormType('material')}
+              >
+                <FileText size={15} /> Material
+              </button>
+              <button
+                type="button"
+                className={`form-segmented-option${formType === 'course' ? ' active' : ''}`}
+                onClick={() => setFormType('course')}
+              >
+                <GraduationCap size={15} /> Course
+              </button>
+            </div>
+          </div>
+
+          <div className="form-field item-selector-field">
+            <label className="form-label">{formType === 'material' ? 'Select Material' : 'Select Course'} *</label>
+            {itemsLoading ? (
+              <div className="loading-spinner-row"><Loader2 size={14} className="animate-spin" /> Loading your {formType === 'material' ? 'materials' : 'courses'}…</div>
+            ) : myItems.length === 0 ? (
+              <div className="item-empty-state">
+                <FileWarning size={28} />
+                <b>{formType === 'material' ? 'No Uploaded Materials' : 'No Submitted Courses'}</b>
+                <span>You have no uploaded {formType === 'material' ? 'materials' : 'courses'} to request deletion for.</span>
+              </div>
+            ) : (
+              <div className="item-selector-wrapper">
+                <div className="filter-input-wrap">
+                  <Search size={14} />
+                  <input
+                    className="form-input"
+                    value={itemSearch}
+                    onChange={(e) => { setItemSearch(e.target.value); setShowDropdown(true); setItemName(''); setItemCode(''); }}
+                    onFocus={() => setShowDropdown(true)}
+                    onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
+                    placeholder={`Search your ${formType === 'material' ? 'materials' : 'courses'}…`}
+                  />
+                </div>
+                {showDropdown && (
+                  filteredItems.length > 0 ? (
+                    <div className="item-dropdown">
+                      {filteredItems.slice(0, 15).map((item) => (
+                        <div key={item.id} className="item-dropdown-item" onMouseDown={() => handleItemSelect(item)}>
+                          <div className="student-cell-main">
+                            <span className="cell-bold">{item.name}</span>
+                            {item.code && <span className="cell-code cell-secondary">{item.code}</span>}
+                          </div>
+                          <span className="dropdown-select-icon"><ChevronRight size={14} /></span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="item-dropdown-empty">
+                      <Search size={14} /> No matching {formType === 'material' ? 'materials' : 'courses'}
+                    </div>
+                  )
+                )}
+                {itemName && (
+                  <div className="selected-item-chip">
+                    <CheckCircle2 size={15} />
+                    <span className="selected-item-name">{itemName}</span>
+                    <button type="button" className="link-btn" onClick={() => { setItemName(''); setItemCode(''); setItemSearch(''); }}>Change</button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="form-field">
+            <label className="form-label">Reason for Deletion *</label>
+            <textarea
+              className="form-input form-textarea"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              required
+              rows={4}
+              maxLength={500}
+              placeholder="Explain why this item should be removed (e.g. wrong file, duplicate upload, incorrect course code)…"
+            />
+            <div className="field-hint char-count">{reason.length}/500</div>
+          </div>
+
+          {!itemName.trim() && (
+            <div className="form-error-hint">
+              <AlertCircle size={13} /> Select the {formType === 'material' ? 'material' : 'course'} you want to remove.
+            </div>
+          )}
+
+          <button type="submit" className="primary submit-btn form-submit-btn" disabled={submitting || !itemName.trim() || !reason.trim()}>
+            {submitting ? <><Loader2 size={15} className="animate-spin" /> Submitting…</> : <><Send size={15} /> Submit Request</>}
+          </button>
+        </form>
+      )}
+
+      {loading ? (
+        <div className="loading-spinner-row"><Loader2 size={18} className="animate-spin" /> Loading…</div>
+      ) : requests.length === 0 ? (
+        <div className="empty-state-card">
+          <FileWarning size={36} />
+          <b>No Deletion Requests</b>
+          <span>You haven't submitted any deletion requests yet.</span>
+        </div>
+      ) : (
+        <>
+          {/* Desktop table */}
+          <div className="table-scroll-wrapper desktop-only">
+            <table className="admin-table">
+              <thead>
+                <tr><th>Date</th><th>Type</th><th>Item</th><th>Code</th><th>Reason</th><th>Status</th><th>Admin Note</th></tr>
+              </thead>
+              <tbody>
+                {requests.map((r) => (
+                  <tr key={r.id} onClick={() => setDetailReq(r)} className="clickable-row">
+                    <td className="cell-secondary">{timeSince(r.created_at)}</td>
+                    <td><span className="field-tag">{r.request_type}</span></td>
+                    <td className="cell-bold">{r.item_name}</td>
+                    <td className="cell-code">{r.item_code || '—'}</td>
+                    <td className="cell-reason">{r.reason}</td>
+                    <td>{statusBadge(r.status)}</td>
+                    <td className="cell-note">{r.admin_note || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile cards */}
+          <div className="mobile-only request-cards">
+            {requests.map((r) => (
+              <div key={r.id} className="request-card" onClick={() => setDetailReq(r)}>
+                <div className="request-card-header">
+                  <div className="cell-bold">{r.item_name}</div>
+                  {statusBadge(r.status)}
+                </div>
+                <div className="request-card-body">
+                  <div className="cell-secondary">{r.request_type}{r.item_code ? ` · ${r.item_code}` : ''}</div>
+                  <div className="cell-secondary mt-xs">{r.reason}</div>
+                </div>
+                <div className="request-card-footer">
+                  <span className="cell-secondary">{timeSince(r.created_at)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Detail Modal */}
+      {detailReq && (
+        <div className="modal-overlay" onClick={() => setDetailReq(null)}>
+          <div className="modal-card request-detail-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Deletion Request Details</h3>
+              <button className="link-btn" onClick={() => setDetailReq(null)}><X size={18} /></button>
+            </div>
+            <div className="modal-body">
+              <div className="detail-info-grid">
+                <div><div className="di-label">Item Name</div><div className="di-value cell-bold">{detailReq.item_name}</div></div>
+                <div><div className="di-label">Type</div><div className="di-value capitalize">{detailReq.request_type}</div></div>
+                {detailReq.item_code && <div><div className="di-label">Course Code</div><div className="di-value cell-code">{detailReq.item_code}</div></div>}
+                <div><div className="di-label">Status</div><div>{statusBadge(detailReq.status)}</div></div>
+                <div className="di-full"><div className="di-label">Reason</div><div className="di-value">{detailReq.reason}</div></div>
+                <div><div className="di-label">Submitted</div><div className="di-value cell-secondary">{new Date(detailReq.created_at).toLocaleString()}</div></div>
+                {detailReq.updated_at && <div><div className="di-label">Last Updated</div><div className="di-value cell-secondary">{new Date(detailReq.updated_at).toLocaleString()}</div></div>}
+                {detailReq.admin_note && <div className="di-full"><div className="di-label">Admin Response</div><div className="di-value">{detailReq.admin_note}</div></div>}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={confirmState.open}
+        title={confirmState.title}
+        message={confirmState.message}
+        confirmLabel="Submit"
+        onConfirm={confirmState.onConfirm}
+        onClose={() => setConfirmState({ ...confirmState, open: false })}
+      />
+    </div>
+  );
+}
+
+/* ── Student Change Requests Tab ────────────────────────────── */
+function StudentChangeRequestsTab() {
+  const { profile } = useAuth();
+  const [requests, setRequests] = useState<ProfileChangeRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [fieldName, setFieldName] = useState<ProfileChangeRequest['field_name']>('matric_number');
+  const [requestedValue, setRequestedValue] = useState('');
+  const [reason, setReason] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [detailReq, setDetailReq] = useState<ProfileChangeRequest | null>(null);
+  const [confirmState, setConfirmState] = useState<{ open: boolean; title: string; message: string; onConfirm: () => void }>({ open: false, title: '', message: '', onConfirm: () => {} });
+  const { toast } = useToast();
+
+  useEffect(() => { loadRequests(); }, []);
+
+  const loadRequests = async () => {
+    try {
+      const data = await fetchMyChangeRequests();
+      setRequests(data);
+    } catch (err: any) { toast(err.message, 'error'); }
+    finally { setLoading(false); }
+  };
+
+  const currentValue = (() => {
+    if (!profile) return '';
+    switch (fieldName) {
+      case 'matric_number': return profile.matricNumber;
+      case 'faculty': return profile.faculty;
+      case 'department': return profile.department;
+      case 'level': return profile.level;
+      default: return '';
+    }
+  })();
+
+  const fieldLocked = (() => {
+    switch (fieldName) {
+      case 'matric_number': return true;
+      case 'faculty': return !!profile?.faculty;
+      case 'department': return !!profile?.department;
+      default: return false;
+    }
+  })();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!requestedValue.trim() || !reason.trim()) return;
+    if (requestedValue.trim() === currentValue) { toast('New value must be different from the current value.', 'error'); return; }
+    const fieldLabel = fieldLabels[fieldName] || fieldName;
+    setConfirmState({
+      open: true,
+      title: 'Submit Change Request?',
+      message: `You are requesting to change your ${fieldLabel} from "${currentValue}" to "${requestedValue.trim()}". An administrator will review this request.`,
+      onConfirm: async () => {
+        setSubmitting(true);
+        try {
+          await submitProfileChangeRequest({ field_name: fieldName, current_value: currentValue, requested_value: requestedValue.trim(), reason: reason.trim() });
+          toast('Change request submitted successfully.', 'success');
+          setRequestedValue(''); setReason(''); setShowForm(false);
+          await loadRequests();
+        } catch (err: any) { toast(err.message, 'error'); }
+        finally { setSubmitting(false); }
+      }
+    });
+  };
+
+  const fieldLabels: Record<string, string> = { matric_number: 'Matric Number', faculty: 'Faculty', department: 'Department', level: 'Level' };
+  const statusBadge = (s: string) => <span className={`status-badge ${s}`}>{s}</span>;
+  const allDepartments = Array.from(new Set(catalogue.flatMap((f) => f.departments.map((d) => d.name)))).sort();
+  const changeableLevels = levelsFor(6);
+  const timeSince = (ts: string) => {
+    const diff = Date.now() - new Date(ts).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return `${Math.floor(hrs / 24)}d ago`;
+  };
+
+  const pending = requests.filter((r) => r.status === 'pending').length;
+  const approved = requests.filter((r) => r.status === 'approved').length;
+  const rejected = requests.filter((r) => r.status === 'rejected').length;
+
+  return (
+    <div className="student-change-requests-tab">
+      <div className="request-page-header">
+        <div>
+          <h2 className="page-title"><UserCog size={22} />Profile Change Requests</h2>
+          <p className="page-subtitle">View and track requests submitted to administrators for changes to your academic information.</p>
+        </div>
+        <button className={showForm ? 'secondary-btn' : 'primary'} onClick={() => setShowForm(!showForm)}>
+          {showForm ? <><X size={14} /> Cancel</> : <><Plus size={14} /> New Request</>}
+        </button>
+      </div>
+
+      {/* Stat Cards */}
+      {!loading && requests.length > 0 && (
+        <div className="stat-cards">
+          <div className="stat-card"><span className="stat-value">{requests.length}</span><span className="stat-label">Total</span></div>
+          <div className="stat-card pending"><span className="stat-value">{pending}</span><span className="stat-label">Pending</span></div>
+          <div className="stat-card approved"><span className="stat-value">{approved}</span><span className="stat-label">Approved</span></div>
+          <div className="stat-card rejected"><span className="stat-value">{rejected}</span><span className="stat-label">Rejected</span></div>
+        </div>
+      )}
+
+      <div className="request-info-banner">
+        <Info size={14} /> Your matric number is a verified identifier, and your faculty and department are locked once they've been saved. To change any of these, submit a request here and an administrator will review it.
+      </div>
+
+      {showForm && (
+        <form onSubmit={handleSubmit} className="card request-form-card">
+          <div className="form-card-head">
+            <span className="form-card-head-icon"><UserCog size={18} /></span>
+            <div>
+              <h3>Request a Profile Change</h3>
+              <p>Ask an administrator to update locked academic information.</p>
+            </div>
+          </div>
+          <div className="form-row-2col">
+            <div className="form-field">
+              <label className="form-label">Field to Change *</label>
+              <select className="form-input" value={fieldName} onChange={(e) => setFieldName(e.target.value as ProfileChangeRequest['field_name'])}>
+                <option value="matric_number">Matric Number</option>
+                <option value="faculty">Faculty</option>
+                <option value="department">Department</option>
+                <option value="level">Level</option>
+              </select>
+            </div>
+            <div className="form-field">
+              <label className="form-label">Current Value</label>
+              <input className="form-input input-readonly" value={currentValue || 'Not set yet'} disabled />
+              {fieldLocked ? (
+                <div className="change-limit-alert">
+                  <Lock size={14} /> Locked — admin approval required
+                </div>
+              ) : (
+                <div className="field-hint">Set this now — once saved it becomes locked and requires admin approval to change.</div>
+              )}
+            </div>
+          </div>
+          <div className="form-field">
+            <label className="form-label">Requested New Value *</label>
+            {fieldName === 'matric_number' && (
+              <input className="form-input" value={requestedValue} onChange={(e) => setRequestedValue(e.target.value)} required placeholder="Enter new matric number" />
+            )}
+            {fieldName === 'faculty' && (
+              <select className="form-input" value={requestedValue} onChange={(e) => setRequestedValue(e.target.value)} required>
+                <option value="">Select a faculty…</option>
+                {catalogue.map((f) => <option key={f.name} value={f.name}>{f.name}</option>)}
+              </select>
+            )}
+            {fieldName === 'department' && (
+              <select className="form-input" value={requestedValue} onChange={(e) => setRequestedValue(e.target.value)} required>
+                <option value="">Select a department…</option>
+                {allDepartments.map((d) => <option key={d} value={d}>{d}</option>)}
+              </select>
+            )}
+            {fieldName === 'level' && (
+              <select className="form-input" value={requestedValue} onChange={(e) => setRequestedValue(e.target.value)} required>
+                <option value="">Select a level…</option>
+                {changeableLevels.map((l) => <option key={l} value={l}>{l}</option>)}
+              </select>
+            )}
+          </div>
+          <div className="form-field">
+            <label className="form-label">Reason *</label>
+            <textarea
+              className="form-input form-textarea"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              required
+              rows={4}
+              maxLength={500}
+              placeholder="Explain why you need to change this information…"
+            />
+            <div className="field-hint char-count">{reason.length}/500 characters</div>
+          </div>
+          <button type="submit" className="primary submit-btn form-submit-btn" disabled={submitting || !requestedValue.trim() || !reason.trim()}>
+            {submitting ? <><Loader2 size={15} className="animate-spin" /> Submitting…</> : <><Send size={15} /> Submit Change Request</>}
+          </button>
+        </form>
+      )}
+
+      {loading ? (
+        <div className="loading-spinner-row"><Loader2 size={18} className="animate-spin" /> Loading…</div>
+      ) : requests.length === 0 ? (
+        <div className="empty-state-card">
+          <UserCog size={36} />
+          <b>No Change Requests</b>
+          <span>You haven't submitted any profile change requests yet.</span>
+        </div>
+      ) : (
+        <>
+          <div className="table-scroll-wrapper desktop-only">
+            <table className="admin-table">
+              <thead>
+                <tr><th>Date</th><th>Field</th><th>Current</th><th>Requested</th><th>Reason</th><th>Status</th><th>Admin Note</th></tr>
+              </thead>
+              <tbody>
+                {requests.map((r) => (
+                  <tr key={r.id} onClick={() => setDetailReq(r)} className="clickable-row">
+                    <td className="cell-secondary">{timeSince(r.created_at)}</td>
+                    <td><span className="field-tag">{fieldLabels[r.field_name] || r.field_name}</span></td>
+                    <td>{r.current_value}</td>
+                    <td className="cell-bold">{r.requested_value}</td>
+                    <td className="cell-reason">{r.reason}</td>
+                    <td>{statusBadge(r.status)}</td>
+                    <td className="cell-note">{r.admin_note || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="mobile-only request-cards">
+            {requests.map((r) => (
+              <div key={r.id} className="request-card" onClick={() => setDetailReq(r)}>
+                <div className="request-card-header">
+                  <span className="field-tag">{fieldLabels[r.field_name] || r.field_name}</span>
+                  {statusBadge(r.status)}
+                </div>
+                <div className="request-card-body">
+                  <div className="request-card-change">
+                    <span>{r.current_value}</span>
+                    <ChevronRight size={14} />
+                    <span className="cell-bold">{r.requested_value}</span>
+                  </div>
+                  <div className="cell-secondary mt-xs">{r.reason}</div>
+                </div>
+                <div className="request-card-footer">
+                  <span className="cell-secondary">{timeSince(r.created_at)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Detail Modal */}
+      {detailReq && (
+        <div className="modal-overlay" onClick={() => setDetailReq(null)}>
+          <div className="modal-card request-detail-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Change Request Details</h3>
+              <button className="link-btn" onClick={() => setDetailReq(null)}><X size={18} /></button>
+            </div>
+            <div className="modal-body">
+              <div className="detail-info-grid">
+                <div><div className="di-label">Field</div><div><span className="field-tag">{fieldLabels[detailReq.field_name] || detailReq.field_name}</span></div></div>
+                <div><div className="di-label">Status</div><div>{statusBadge(detailReq.status)}</div></div>
+                <div><div className="di-label">Current Value</div><div className="di-value">{detailReq.current_value}</div></div>
+                <div><div className="di-label">Requested Value</div><div className="di-value cell-bold">{detailReq.requested_value}</div></div>
+                <div className="di-full"><div className="di-label">Reason</div><div className="di-value">{detailReq.reason}</div></div>
+                <div><div className="di-label">Submitted</div><div className="di-value cell-secondary">{new Date(detailReq.created_at).toLocaleString()}</div></div>
+                {detailReq.admin_note && <div className="di-full"><div className="di-label">Admin Response</div><div className="di-value">{detailReq.admin_note}</div></div>}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={confirmState.open}
+        title={confirmState.title}
+        message={confirmState.message}
+        confirmLabel="Submit"
+        onConfirm={confirmState.onConfirm}
+        onClose={() => setConfirmState({ ...confirmState, open: false })}
+      />
     </div>
   );
 }

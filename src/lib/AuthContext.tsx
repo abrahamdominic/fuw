@@ -1,8 +1,9 @@
-import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo, useRef } from 'react';
 import { User, Session, AuthChangeEvent } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { store, UserProfile } from './store';
 import { AppRole, can } from './rbac';
+import { createSession, touchSession, deleteCurrentSession } from './sessions';
 
 export interface ProfileData {
   id: string;
@@ -20,6 +21,11 @@ export interface ProfileData {
   avatarUrl?: string;
   isVerified?: boolean;
   joinedDate?: string;
+  matricChangesUsed?: number;
+  facultyChangesUsed?: number;
+  departmentChangesUsed?: number;
+  facultyLocked?: boolean;
+  departmentLocked?: boolean;
 }
 
 export interface AuthContextType {
@@ -134,7 +140,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           bio: data.bio || '',
           avatarUrl: data.avatar_url || '',
           isVerified: true,
-          joinedDate: data.created_at ? new Date(data.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '2026'
+          joinedDate: data.created_at ? new Date(data.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '2026',
+          matricChangesUsed: data.matric_changes_used ?? 0,
+          facultyChangesUsed: data.faculty_changes_used ?? 0,
+          departmentChangesUsed: data.department_changes_used ?? 0,
+          facultyLocked: !!data.faculty,
+          departmentLocked: !!data.department
         };
         setProfile(loadedProfile);
         return loadedProfile;
@@ -218,6 +229,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       subscription.unsubscribe();
     };
   }, []);
+
+  // ── Session Lifecycle ──────────────────────────────────────
+  // Create session record on mount if already authenticated, then heartbeat.
+  const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (!user) {
+      // Clean up heartbeat when user signs out
+      if (heartbeatRef.current) {
+        clearInterval(heartbeatRef.current);
+        heartbeatRef.current = null;
+      }
+      return;
+    }
+
+    // Create session record on login
+    createSession().catch(() => {});
+
+    // Heartbeat every 2 minutes to update last_active
+    heartbeatRef.current = setInterval(() => {
+      touchSession().catch(() => {});
+    }, 2 * 60 * 1000);
+
+    return () => {
+      if (heartbeatRef.current) {
+        clearInterval(heartbeatRef.current);
+        heartbeatRef.current = null;
+      }
+    };
+  }, [user]);
 
   // Sign in with username + password.
   // The username is resolved to its auth email through the SECURITY DEFINER
@@ -497,11 +538,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (updates.fullName !== undefined) dbUpdates.full_name = updates.fullName;
       if (updates.displayName !== undefined) dbUpdates.display_name = updates.displayName;
-      if (updates.matricNumber !== undefined) dbUpdates.matric_number = updates.matricNumber;
-      if (updates.faculty !== undefined) dbUpdates.faculty = updates.faculty;
-      if (updates.department !== undefined) dbUpdates.department = updates.department;
       if (updates.level !== undefined) dbUpdates.level = updates.level;
       if (updates.bio !== undefined) dbUpdates.bio = updates.bio;
+
+      // Faculty and department are set once and then permanently locked for
+      // the student. New students fill them in during profile completion or
+      // their first save; afterwards the only sanctioned path to change them
+      // is an admin-approved profile change request. Matriculation number is
+      // the verified institutional identifier and can never be edited
+      // directly by students either.
+      const lockedFields: Array<{ field: string; key: keyof ProfileData; dbCol: string }> = [
+        { field: 'faculty', key: 'faculty', dbCol: 'faculty' },
+        { field: 'department', key: 'department', dbCol: 'department' }
+      ];
+
+      for (const { field, key, dbCol } of lockedFields) {
+        if (updates[key] !== undefined && updates[key] !== currentProfile?.[key]) {
+          const currentValue = (currentProfile as any)?.[key];
+          if (currentValue) {
+            return { error: new Error(`${field} is locked after being set. Submit a profile change request to update it.`) };
+          }
+          dbUpdates[dbCol] = updates[key];
+        }
+      }
 
       // Upsert (keyed by id) instead of update: when no profiles row exists
       // yet, an UPDATE would silently match zero rows while an INSERT here is
@@ -542,6 +601,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Sign Out
   const signOut = async () => {
+    // Delete session record before signing out
+    await deleteCurrentSession().catch(() => {});
     if (supabase) {
       try {
         await supabase.auth.signOut();

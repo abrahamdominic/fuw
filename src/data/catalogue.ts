@@ -180,6 +180,64 @@ const SOCIOLOGY_300: Required<Record<SemesterKey, Course[]>> = {
   ]
 };
 
+const AGRICULTURE_100: Required<Record<SemesterKey, Course[]>> = {
+  'First Semester': [
+    C('AGG101F', 'Agricultural Potentials of Taraba State'),
+    C('AGG103F', 'Agricultural Laws Policies and Reforms'),
+    C('AGG111C', 'Introduction to Agriculture I'),
+    C('BIO101C', 'General Biology I'),
+    C('BIO107C', 'General Biology Practical I'),
+    C('CHM101C', 'General Chemistry I'),
+    C('CHM107C', 'General Chemistry Practical I'),
+    C('GST111C', 'Communication in English I'),
+    C('MTH101C', 'Elementary Mathematics I'),
+    C('PHY101C', 'General Physics I'),
+    C('PHY107C', 'General Physics Practical I')
+  ],
+  'Second Semester': [
+    C('AGG112C', 'Introduction to Agriculture II'),
+    C('BIO102C', 'General Biology II'),
+    C('BIO108C', 'General Biology Practical II'),
+    C('CHM102C', 'General Chemistry II'),
+    C('CHM108C', 'General Chemistry Practical II'),
+    C('GST112C', 'Nigerian Peoples, Culture & Citizenship'),
+    C('MTH102C', 'Elementary Mathematics II'),
+    C('PHY102C', 'General Physics II'),
+    C('PHY108C', 'General Physics Practical II')
+  ]
+};
+
+const AGRICULTURE_300: Required<Record<SemesterKey, Course[]>> = {
+  'First Semester': [
+    C('AEE305C', 'Data Science and Statistical Computing'),
+    C('AEE307C', 'Introduction to Farm Management and Accounting'),
+    C('AEE311C', 'Principles of Rural Sociology'),
+    C('APH305C', 'Ruminant Animal Production'),
+    C('CPP301C', 'Arable Crops Production'),
+    C('CPP305C', 'Introduction to Crop Protection'),
+    C('GST311C', 'Introduction to Entrepreneurial Skills'),
+    C('SSL303C', 'Introductory Pedology and Soil Physics')
+  ],
+  'Second Semester': [
+    C('AEE304C', 'Agricultural Laws and Reforms'),
+    C('AEE306C', 'Application of Computer to Agriculture'),
+    C('APH302C', 'Introduction to Animal Breeding and Genetics'),
+    C('APH304C', 'Non-Ruminant Animal Production'),
+    C('APH312C', 'Micro-Livestock Production'),
+    C('CPP302C', 'Permanent Crops Production'),
+    C('CPP304C', 'Crop Genetics and Breeding'),
+    C('GST312C', 'Venture Creation'),
+    C('SSL301C', 'Agro-Meteorology, Biogeography and Climate Change'),
+    C('SSL302C', 'Introduction to Agric. Mechanization'),
+    C('SSL304C', 'Organic Manure Production and Technology')
+  ]
+};
+
+const PHYSIOTHERAPY_500: Required<Record<SemesterKey, Course[]>> = {
+  'First Semester': [],
+  'Second Semester': [C('PTY503', 'Physiotherapy in Geriatrics')]
+};
+
 // ---------------------------------------------------------------------
 // Catalogue definition
 // ---------------------------------------------------------------------
@@ -192,6 +250,18 @@ interface FacultySpec {
 }
 
 const FACULTY_SPECS: FacultySpec[] = [
+  {
+    name: 'Faculty of Agriculture & Life Sciences',
+    departments: [
+      { name: 'Agricultural Economics & Extension', duration: 5, curriculum: { 100: AGRICULTURE_100, 300: AGRICULTURE_300 } },
+      { name: 'Animal Production & Health', duration: 5, curriculum: { 100: AGRICULTURE_100, 300: AGRICULTURE_300 } },
+      { name: 'Crop Production & Protection', duration: 5, curriculum: { 100: AGRICULTURE_100, 300: AGRICULTURE_300 } },
+      { name: 'Fisheries & Aquaculture', duration: 5, curriculum: { 100: AGRICULTURE_100, 300: AGRICULTURE_300 } },
+      { name: 'Food Science & Technology', duration: 5, curriculum: { 100: AGRICULTURE_100, 300: AGRICULTURE_300 } },
+      { name: 'Forestry & Wildlife Management', duration: 5, curriculum: { 100: AGRICULTURE_100, 300: AGRICULTURE_300 } },
+      { name: 'Soil Science & Land Resources Management', duration: 5, curriculum: { 100: AGRICULTURE_100, 300: AGRICULTURE_300 } }
+    ]
+  },
   {
     name: 'Faculty of Bio-Sciences',
     departments: [
@@ -211,39 +281,6 @@ const FACULTY_SPECS: FacultySpec[] = [
       { name: 'Information Systems', duration: 4 },
       { name: 'Cyber Security', duration: 4 },
       { name: 'Software Engineering', duration: 4 }
-    ]
-  },
-  {
-    name: 'Faculty of Social Sciences',
-    departments: [
-      { name: 'Sociology', duration: 4, curriculum: { 300: SOCIOLOGY_300 } },
-      { name: 'Economics', duration: 4 },
-      { name: 'Library & Information Science', duration: 4 },
-      { name: 'Political Science', duration: 4 }
-    ]
-  },
-  {
-    // Agriculture students take the same science foundation courses as the
-    // science faculties (handled by COMMON_100_SCIENCE below).
-    name: 'Faculty of Agriculture & Life Sciences',
-    departments: [
-      { name: 'Agricultural Economics & Extension', duration: 5 },
-      { name: 'Animal Production & Health', duration: 5 },
-      { name: 'Crop Production & Protection', duration: 5 },
-      { name: 'Fisheries & Aquaculture', duration: 5 },
-      { name: 'Food Science & Technology', duration: 5 },
-      { name: 'Forestry & Wildlife Management', duration: 5 },
-      { name: 'Soil Science & Land Resources Management', duration: 5 }
-    ]
-  },
-  {
-    name: 'Faculty of Physical Sciences',
-    departments: [
-      { name: 'Chemistry', duration: 4 },
-      { name: 'Industrial Chemistry', duration: 4 },
-      { name: 'Mathematics', duration: 4 },
-      { name: 'Pure & Applied Physics', duration: 4 },
-      { name: 'Statistics', duration: 4 }
     ]
   },
   {
@@ -297,33 +334,33 @@ const FACULTY_SPECS: FacultySpec[] = [
       { name: 'Public Administration', duration: 4 }
     ]
   },
-  // The College of Health Sciences is a parent category containing four
-  // faculties; each keeps its existing department durations.
   {
-    name: 'Faculty of Basic Medical Sciences',
-    college: 'College of Health Sciences',
+    name: 'Faculty of Physical Sciences',
     departments: [
-      { name: 'Human Anatomy', duration: 4 },
-      { name: 'Human Physiology', duration: 4 }
+      { name: 'Chemistry', duration: 4 },
+      { name: 'Industrial Chemistry', duration: 4 },
+      { name: 'Mathematics', duration: 4 },
+      { name: 'Pure & Applied Physics', duration: 4 },
+      { name: 'Statistics', duration: 4 }
     ]
   },
+  {
+    name: 'Faculty of Social Sciences',
+    departments: [
+      { name: 'Sociology', duration: 4, curriculum: { 300: SOCIOLOGY_300 } },
+      { name: 'Economics', duration: 4 },
+      { name: 'Library & Information Science', duration: 4 },
+      { name: 'Political Science', duration: 4 }
+    ]
+  },
+  // The College of Health Sciences is a parent category containing four
+  // faculties; each keeps its existing department durations.
   {
     name: 'Faculty of Allied Health Sciences',
     college: 'College of Health Sciences',
     departments: [
       { name: 'Medical Laboratory Science', duration: 5 },
-      { name: 'Physiotherapy', duration: 5 }
-    ]
-  },
-  {
-    name: 'Faculty of Clinical Sciences',
-    college: 'College of Health Sciences',
-    departments: [
-      { name: 'Medicine', duration: 6 },
-      { name: 'Surgery', duration: 6 },
-      { name: 'Community Medicine', duration: 6 },
-      { name: 'Family Medicine', duration: 6 },
-      { name: 'Paediatrics', duration: 6 }
+      { name: 'Physiotherapy', duration: 6, curriculum: { 500: PHYSIOTHERAPY_500 } }
     ]
   },
   {
@@ -335,6 +372,25 @@ const FACULTY_SPECS: FacultySpec[] = [
       { name: 'Histopathology', duration: 4 },
       { name: 'Haematology', duration: 4 },
       { name: 'Pharmacology/Therapeutics', duration: 4 }
+    ]
+  },
+  {
+    name: 'Faculty of Basic Medical Sciences',
+    college: 'College of Health Sciences',
+    departments: [
+      { name: 'Human Anatomy', duration: 4 },
+      { name: 'Human Physiology', duration: 4 }
+    ]
+  },
+  {
+    name: 'Faculty of Clinical Sciences',
+    college: 'College of Health Sciences',
+    departments: [
+      { name: 'Medicine', duration: 6 },
+      { name: 'Surgery', duration: 6 },
+      { name: 'Community Medicine', duration: 6 },
+      { name: 'Family Medicine', duration: 6 },
+      { name: 'Paediatrics', duration: 6 }
     ]
   }
 ];

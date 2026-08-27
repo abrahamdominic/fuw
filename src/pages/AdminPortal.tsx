@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { supabase, requireSupabase } from '../lib/supabase';
 import {
   LayoutDashboard,
   FileText,
@@ -43,7 +43,15 @@ import {
   Mail,
   Phone,
   MapPin,
-  Laptop
+  Laptop,
+  Smartphone,
+  Tablet,
+  List,
+  Loader2,
+  FileWarning,
+  MessageSquare,
+  Send,
+  UserCog
 } from 'lucide-react';
 import { useStore } from '../lib/useStore';
 import { MaterialItem } from '../lib/store';
@@ -64,6 +72,10 @@ import { ConfirmDialog, PromptDialog } from '../components/ConfirmDialog';
 import { DashboardSearch } from '../components/DashboardSearch';
 import { useToast } from '../components/Toast';
 import { fetchMaintenanceStatus, MaintenanceStatus } from '../lib/maintenance';
+import { fetchAllDeletionRequests, updateDeletionRequestStatus, DeletionRequest } from '../lib/deletionRequests';
+import { fetchConversations, fetchMessages, sendMessage, markConversationRead, startConversation, Conversation, Message } from '../lib/messages';
+import { fetchAllChangeRequests, approveProfileChangeRequest, rejectProfileChangeRequest, ProfileChangeRequest } from '../lib/profileChangeRequests';
+import { fetchAllSessions, terminateSession as terminateSessionDb, ActiveSession } from '../lib/sessions';
 
 interface AdminPortalProps {
   onReadOnline: (material: MaterialItem) => void;
@@ -75,9 +87,14 @@ const adminNavItems = [
   { label: 'Upload material', path: '/admin/upload', icon: Upload, permission: 'upload_as_approved' },
   { label: 'AI & indexing', path: '/admin/ai', icon: Sparkles, permission: 'manage_ai' },
   { label: 'Students & users', path: '/admin/users', icon: Users, permission: 'manage_students' },
+  { label: 'Deletion requests', path: '/admin/deletion-requests', icon: FileWarning, permission: 'manage_students' },
+  { label: 'Profile change requests', path: '/admin/change-requests', icon: UserCog, permission: 'manage_students' },
+  { label: 'Student messages', path: '/admin/messages', icon: MessageSquare, permission: 'manage_students' },
+  { label: 'Active sessions', path: '/admin/sessions', icon: Laptop, permission: 'manage_students' },
   { label: 'Faculties', path: '/admin/faculties', icon: Building2, permission: 'manage_catalogue' },
   { label: 'Departments', path: '/admin/departments', icon: Building2, permission: 'manage_catalogue' },
   { label: 'Courses & levels', path: '/admin/courses', icon: GraduationCap, permission: 'manage_catalogue' },
+  { label: 'Student Courses', path: '/admin/student-courses', icon: List, permission: 'manage_catalogue' },
   { label: 'Categories & sessions', path: '/admin/categories', icon: Bookmark, permission: 'manage_catalogue' },
   { label: 'Audit logs', path: '/admin/logs', icon: ShieldCheck, permission: 'view_analytics' },
   { label: 'Settings', path: '/admin/settings', icon: Settings, permission: null }
@@ -156,8 +173,9 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
           () => deleteMaterialDb(m.id),
           'Material deleted from the library.',
           () => store.deleteMaterial(m.id, currentUser.fullName)
-        );
-      }
+  );
+}
+
     });
 
   const handleAdminLogout = async () => {
@@ -239,8 +257,7 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
           <button
             type="button"
             onClick={handleAdminLogout}
-            className="side-link logout-link"
-            style={{ background: 'none', border: 0, width: '100%', cursor: 'pointer', textAlign: 'left' }}
+            className="side-link logout-link logout-btn"
           >
             <LogOut size={17} />
             <span>Sign out / Exit</span>
@@ -323,12 +340,22 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
           )
         ) : currentPath.startsWith('/admin/users') ? (
           <AdminUsersTab />
+        ) : currentPath.startsWith('/admin/deletion-requests') ? (
+          <AdminDeletionRequestsTab />
+        ) : currentPath.startsWith('/admin/change-requests') ? (
+          <AdminChangeRequestsTab />
+        ) : currentPath.startsWith('/admin/messages') ? (
+          <AdminMessagesTab />
+        ) : currentPath.startsWith('/admin/sessions') ? (
+          <AdminActiveSessionsTab />
         ) : currentPath.startsWith('/admin/faculties') ? (
           <AdminFacultiesTab />
         ) : currentPath.startsWith('/admin/departments') ? (
           <AdminDepartmentsTab />
         ) : currentPath.startsWith('/admin/courses') ? (
           <AdminCoursesTab />
+        ) : currentPath.startsWith('/admin/student-courses') ? (
+          <AdminStudentCoursesTab />
         ) : currentPath.startsWith('/admin/categories') ? (
           <AdminCategoriesTab />
         ) : currentPath.startsWith('/admin/logs') ? (
@@ -1344,12 +1371,12 @@ function AdminUsersTab() {
                 <span>
                   <b>{u.full_name || 'Unnamed account'}</b>
                   <small>{u.email}</small>
-                  <small style={{ display: 'block', opacity: 0.7 }}>Joined {joined}</small>
+                  <small className="block-text opacity-70">Joined {joined}</small>
                 </span>
                 <span>{u.matric_number || 'Not submitted'}</span>
                 <span>
                   {u.department || '—'} · {u.level || '—'}
-                  <small style={{ display: 'block', opacity: 0.7 }}>{u.faculty || ''}</small>
+                  <small className="block-text opacity-70">{u.faculty || ''}</small>
                 </span>
                 <span>
                   <span className={`role-pill ${u.role}`}>{u.role.toUpperCase()}</span>
@@ -2242,7 +2269,7 @@ function AdminSettingsTab() {
                   </label>
                 </div>
 
-                <div className="form-grid-2" style={{ marginTop: '16px' }}>
+                <div className="form-grid-2 mt-md">
                   <label>
                     Daily Upload Limit Per Student
                     <input
@@ -2296,7 +2323,7 @@ function AdminSettingsTab() {
                   />
                 </label>
 
-                <div className="switch-group" style={{ marginTop: '16px' }}>
+                <div className="switch-group mt-md">
                   <label className="switch-row">
                     <div className="switch-info">
                       <b>Alert on New Student Material Submissions</b>
@@ -2386,9 +2413,9 @@ function AdminSettingsTab() {
               </div>
 
               {/* Change Admin Password */}
-              <form onSubmit={handlePasswordChange} style={{ marginBottom: '28px' }}>
+              <form onSubmit={handlePasswordChange} className="mb-lg">
                 <span className="section-label-bold">Change Administrator Password</span>
-                <label style={{ marginTop: '10px' }}>
+                <label className="mt-sm">
                   Current Password
                   <input
                     type="password"
@@ -2423,7 +2450,7 @@ function AdminSettingsTab() {
                   </label>
                 </div>
 
-                <button type="submit" className="outline-btn" style={{ marginTop: '8px' }}>
+                <button type="submit" className="outline-btn mt-sm">
                   <Key size={14} /> Update Administrator Password
                 </button>
               </form>
@@ -2433,7 +2460,7 @@ function AdminSettingsTab() {
               {/* Session Policies */}
               <form onSubmit={handleSaveSettings}>
                 <span className="section-label-bold">Session & Traffic Controls</span>
-                <div className="form-grid-2" style={{ marginTop: '12px' }}>
+                <div className="form-grid-2 mt-sm">
                   <label>
                     Administrator Inactivity Timeout
                     <select
@@ -2469,7 +2496,7 @@ function AdminSettingsTab() {
                   </label>
                 </div>
 
-                <div className="switch-group" style={{ marginTop: '12px' }}>
+                <div className="switch-group mt-sm">
                   <label className="switch-row">
                     <div className="switch-info">
                       <b>Enforce Two-Factor Authentication (2FA) for Admins</b>
@@ -2591,6 +2618,1771 @@ function AdminSettingsTab() {
               <button className="danger-confirm-btn" onClick={handleResetDefaults}>
                 Yes, Reset to Defaults
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Admin Student Courses Tab ────────────────────────────────────────
+function AdminStudentCoursesTab() {
+  const { toast } = useToast();
+  const [courses, setCourses] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [filters, setFilters] = useState({ faculty: '', department: '', level: '', semester: '', status: '' });
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 20;
+
+  const loadCourses = async () => {
+    setLoading(true);
+    try {
+      const { fetchAllStudentCourses } = await import('../lib/studentCourses');
+      const data = await fetchAllStudentCourses({
+        faculty: filters.faculty || undefined,
+        department: filters.department || undefined,
+        level: filters.level || undefined,
+        semester: filters.semester || undefined,
+        status: filters.status || undefined,
+        search: search || undefined
+      });
+      setCourses(data);
+    } catch (err: any) {
+      toast(err.message || 'Failed to load student courses.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadCourses();
+  }, [filters, search]);
+
+  const handleStatus = async (id: string, status: 'approved' | 'rejected') => {
+    try {
+      const { updateStudentCourseStatus } = await import('../lib/studentCourses');
+      await updateStudentCourseStatus(id, status);
+      setCourses((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, status } : c))
+      );
+      toast(`Course ${status}.`, 'success');
+    } catch (err: any) {
+      toast(err.message || 'Action failed.', 'error');
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Delete this course record?')) return;
+    try {
+      const { deleteStudentCourse } = await import('../lib/studentCourses');
+      await deleteStudentCourse(id);
+      setCourses((prev) => prev.filter((c) => c.id !== id));
+      toast('Course deleted.', 'success');
+    } catch (err: any) {
+      toast(err.message || 'Delete failed.', 'error');
+    }
+  };
+
+  const filtered = courses;
+  const paged = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+
+  const statusBadge = (status: string) => {
+    const colors: Record<string, string> = { pending: '#f59e0b', approved: '#10b981', rejected: '#e53e3e' };
+    return (
+      <span className="status-badge-pill" style={{ background: colors[status] || '#888' }}>
+        {status}
+      </span>
+    );
+  };
+
+  const uniqueValues = (key: string) => [...new Set(courses.map((c) => c[key]).filter(Boolean))].sort();
+
+  return (
+    <div className="portal-view-fade">
+      <div className="portal-top">
+        <div>
+          <p className="kicker">ACADEMIC MANAGEMENT</p>
+          <h1>Student Courses ({filtered.length})</h1>
+          <p className="subtitle">View, approve, or reject courses submitted by students.</p>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="admin-filter-card">
+        <div className="admin-filter-card-head">
+          <span className="admin-filter-title"><SlidersHorizontal size={15} /> Filters</span>
+        </div>
+        <div className="filter-bar admin-filter-toolbar">
+          <div className="filter-field filter-search">
+            <label className="filter-label">Search</label>
+            <div className="filter-input-wrap">
+              <Search size={14} />
+              <input className="form-input search-wide" placeholder="Search course code or title…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} />
+            </div>
+          </div>
+          <div className="filter-field">
+            <label className="filter-label">Faculty</label>
+            <select className="form-input" value={filters.faculty} onChange={(e) => { setFilters((f) => ({ ...f, faculty: e.target.value })); setPage(0); }}>
+              <option value="">All Faculties</option>
+              {uniqueValues('faculty').map((f) => <option key={f} value={f}>{f}</option>)}
+            </select>
+          </div>
+          <div className="filter-field">
+            <label className="filter-label">Department</label>
+            <select className="form-input" value={filters.department} onChange={(e) => { setFilters((f) => ({ ...f, department: e.target.value })); setPage(0); }}>
+              <option value="">All Departments</option>
+              {uniqueValues('department').map((d) => <option key={d} value={d}>{d}</option>)}
+            </select>
+          </div>
+          <div className="filter-field">
+            <label className="filter-label">Level</label>
+            <select className="form-input" value={filters.level} onChange={(e) => { setFilters((f) => ({ ...f, level: e.target.value })); setPage(0); }}>
+              <option value="">All Levels</option>
+              {uniqueValues('level').map((l) => <option key={l} value={l}>{l}</option>)}
+            </select>
+          </div>
+          <div className="filter-field">
+            <label className="filter-label">Semester</label>
+            <select className="form-input" value={filters.semester} onChange={(e) => { setFilters((f) => ({ ...f, semester: e.target.value })); setPage(0); }}>
+              <option value="">All Semesters</option>
+              {uniqueValues('semester').map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div className="filter-field">
+            <label className="filter-label">Status</label>
+            <select className="form-input" value={filters.status} onChange={(e) => { setFilters((f) => ({ ...f, status: e.target.value })); setPage(0); }}>
+              <option value="">All</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="admin-results-card">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div className="skeleton-row" key={i}>
+              <span className="skeleton skeleton-avatar" />
+              <span className="skeleton skeleton-line w25" />
+              <span className="skeleton skeleton-line w30" />
+              <span className="skeleton skeleton-line w20" />
+              <span className="skeleton skeleton-badge" />
+            </div>
+          ))}
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="admin-results-card admin-empty-state">
+          <span className="admin-empty-icon"><GraduationCap size={26} /></span>
+          <h3>No student courses found</h3>
+          <p>No courses match your current filters.</p>
+        </div>
+      ) : (
+        <>
+          <div className="courses-table-wrapper">
+            <table className="courses-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Code</th>
+                  <th>Title</th>
+                  <th>Student</th>
+                  <th>Faculty</th>
+                  <th>Department</th>
+                  <th>Level</th>
+                  <th>Semester</th>
+                  <th>Status</th>
+                  <th>Submitted</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paged.map((c: any, idx: number) => (
+                  <tr key={c.id}>
+                    <td>{page * PAGE_SIZE + idx + 1}</td>
+                    <td className="cell-bold">{c.course_code}</td>
+                    <td>{c.course_title}</td>
+                    <td className="cell-secondary">
+                      {c.profiles?.full_name || '—'}<br />
+                      <span className="opacity-60">{c.profiles?.matric_number || ''}</span>
+                    </td>
+                    <td className="cell-secondary">{c.faculty}</td>
+                    <td className="cell-secondary">{c.department}</td>
+                    <td>{c.level}</td>
+                    <td>{c.semester}</td>
+                    <td>{statusBadge(c.status)}</td>
+                    <td className="cell-secondary">
+                      {new Date(c.submitted_at).toLocaleDateString()}
+                    </td>
+                    <td className="cell-nowrap">
+                      {c.status === 'pending' && (
+                        <>
+                          <button className="link-btn approve mr-sm" onClick={() => handleStatus(c.id, 'approved')}>
+                            Approve
+                          </button>
+                          <button className="link-btn danger mr-sm" onClick={() => handleStatus(c.id, 'rejected')}>
+                            Reject
+                          </button>
+                        </>
+                      )}
+                      <button className="link-btn danger" onClick={() => handleDelete(c.id)}>
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="admin-pagination">
+              <button className="secondary-btn" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>
+                Previous
+              </button>
+              <span>
+                Page {page + 1} of {totalPages}
+              </span>
+              <button className="secondary-btn" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>
+                Next
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ── Admin Deletion Requests Tab ────────────────────────────── */
+const adminInitials = (name?: string | null) =>
+  (name || '?').split(/\s+/).slice(0, 2).map((p) => p.charAt(0).toUpperCase()).join('') || '?';
+
+const adminAvatarColor = (name?: string | null) => {
+  const palette = ['#12603d', '#2f6f4f', '#3d7a5c', '#25603f', '#163f2c', '#4a8a68'];
+  let h = 0;
+  for (const ch of (name || '?')) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return palette[h % palette.length];
+};
+
+const formatConvTime = (ts: string) => {
+  const d = new Date(ts);
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  if (sameDay) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+};
+
+function AdminDeletionRequestsTab() {
+  const navigate = useNavigate();
+  const [requests, setRequests] = useState<DeletionRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [searchFilter, setSearchFilter] = useState('');
+  const [facultyFilter, setFacultyFilter] = useState('');
+  const [departmentFilter, setDepartmentFilter] = useState('');
+  const [levelFilter, setLevelFilter] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 20;
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [reviewNote, setReviewNote] = useState('');
+  const [detailReq, setDetailReq] = useState<DeletionRequest | null>(null);
+  const [confirmState, setConfirmState] = useState<{ open: boolean; title: string; message: string; tone?: 'danger' | 'default'; onConfirm: () => void }>({ open: false, title: '', message: '', onConfirm: () => {} });
+  const { toast } = useToast();
+
+  useEffect(() => { loadRequests(); }, [statusFilter, typeFilter, searchFilter, facultyFilter, departmentFilter, levelFilter, dateFrom, dateTo]);
+
+  const loadRequests = async () => {
+    setLoading(true);
+    try {
+      const data = await fetchAllDeletionRequests({
+        status: statusFilter || undefined,
+        request_type: typeFilter || undefined,
+        search: searchFilter || undefined,
+        faculty: facultyFilter || undefined,
+        department: departmentFilter || undefined,
+        level: levelFilter || undefined,
+        date_from: dateFrom || undefined,
+        date_to: dateTo || undefined
+      });
+      setRequests(data);
+      setPage(0);
+    } catch (err: any) { toast(err.message, 'error'); }
+    finally { setLoading(false); }
+  };
+
+  // Cascading filter data
+  const selectedFacultyObj = catalogue.find((f) => f.name === facultyFilter);
+  const departments = selectedFacultyObj ? selectedFacultyObj.departments : [];
+  const maxDuration = selectedFacultyObj
+    ? Math.max(...selectedFacultyObj.departments.map((d) => d.duration))
+    : 6;
+  const levels = Array.from({ length: maxDuration }, (_, i) => `${i + 1}00`);
+
+  const handleAction = async (id: string, status: 'approved' | 'rejected') => {
+    const req = requests.find((r) => r.id === id);
+    const student = req?.profiles?.full_name || 'this student';
+    const item = req?.item_name || 'this item';
+    setConfirmState({
+      open: true,
+      title: status === 'approved' ? 'Approve Deletion?' : 'Reject Deletion?',
+      message: status === 'approved'
+        ? `Approve ${student}'s request to delete "${item}"? The item will be removed from the library.`
+        : `Reject ${student}'s request to delete "${item}"? The item will remain in the library.`,
+      tone: status === 'approved' ? 'default' : 'danger',
+      onConfirm: async () => {
+        try {
+          await updateDeletionRequestStatus(id, status, reviewNote || undefined);
+          toast(`Request ${status}.`, 'success');
+          setReviewingId(null); setReviewNote('');
+          if (detailReq?.id === id) setDetailReq(null);
+          await loadRequests();
+        } catch (err: any) { toast(err.message, 'error'); }
+      }
+    });
+  };
+
+  const paged = requests.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const totalPages = Math.ceil(requests.length / PAGE_SIZE);
+  const statusBadge = (s: string) => <span className={`status-badge ${s}`}>{s}</span>;
+  const timeSince = (ts: string) => {
+    const diff = Date.now() - new Date(ts).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return `${Math.floor(hrs / 24)}d ago`;
+  };
+
+  const pending = requests.filter((r) => r.status === 'pending').length;
+  const approved = requests.filter((r) => r.status === 'approved').length;
+  const rejected = requests.filter((r) => r.status === 'rejected').length;
+  const completed = requests.filter((r) => r.status === 'completed').length;
+
+  const hasActiveFilters = !!(searchFilter || statusFilter || typeFilter || facultyFilter || departmentFilter || levelFilter || dateFrom || dateTo);
+  const activeFilterCount = [searchFilter, statusFilter, typeFilter, facultyFilter, departmentFilter, levelFilter, dateFrom, dateTo].filter(Boolean).length;
+
+  const clearFilters = () => {
+    setSearchFilter(''); setStatusFilter(''); setTypeFilter('');
+    setFacultyFilter(''); setDepartmentFilter(''); setLevelFilter('');
+    setDateFrom(''); setDateTo(''); setPage(0);
+  };
+
+  const avatarColor = (name?: string | null) =>
+    ['#0d4a2f', '#12603d', '#1f7a52', '#8c4e1e', '#365f91', '#6d4b9e'][
+      ((name || '').length + (name || '').charCodeAt(0) || 0) % 6
+    ];
+
+  return (
+    <div className="admin-deletion-requests-tab admin-page">
+      <div className="admin-page-head">
+        <div className="admin-page-head-main">
+          <span className="admin-page-head-icon">
+            <FileWarning size={22} />
+          </span>
+          <div>
+            <h2 className="admin-page-title">Deletion Requests</h2>
+            <p className="admin-page-desc">Review and act on student requests to remove uploaded materials or courses from the library.</p>
+          </div>
+        </div>
+        {!loading && (
+          <span className="admin-count-badge">
+            {requests.length} request{requests.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
+
+      {/* Stat chips */}
+      {!loading && requests.length > 0 && (
+        <div className="admin-stat-chips">
+          <div className="admin-stat-chip"><b>{requests.length}</b><span>Total</span></div>
+          <div className="admin-stat-chip pending"><b>{pending}</b><span>Pending</span></div>
+          <div className="admin-stat-chip approved"><b>{approved}</b><span>Approved</span></div>
+          <div className="admin-stat-chip rejected"><b>{rejected}</b><span>Rejected</span></div>
+          {completed > 0 && <div className="admin-stat-chip completed"><b>{completed}</b><span>Completed</span></div>}
+        </div>
+      )}
+
+      {/* Filters */}
+      <div className="admin-filter-card">
+        <div className="admin-filter-card-head">
+          <span className="admin-filter-title"><SlidersHorizontal size={15} /> Filters{hasActiveFilters ? ` · ${activeFilterCount}` : ''}</span>
+          {hasActiveFilters && (
+            <button type="button" className="clear-filters-btn" onClick={clearFilters}>
+              <X size={12} /> Clear filters
+            </button>
+          )}
+        </div>
+        <div className="filter-bar admin-filter-toolbar">
+          <div className="filter-field filter-search">
+            <label className="filter-label">Search</label>
+            <div className="filter-input-wrap">
+              <Search size={14} />
+              <input className="form-input search-wide" placeholder="Search students, items, reasons…" value={searchFilter} onChange={(e) => setSearchFilter(e.target.value)} />
+            </div>
+          </div>
+          <div className="filter-field">
+            <label className="filter-label">Status</label>
+            <select className="form-input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+              <option value="">All statuses</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+              <option value="completed">Completed</option>
+            </select>
+          </div>
+          <div className="filter-field">
+            <label className="filter-label">Type</label>
+            <select className="form-input" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+              <option value="">All types</option>
+              <option value="material">Material</option>
+              <option value="course">Course</option>
+            </select>
+          </div>
+          <div className="filter-field">
+            <label className="filter-label">Faculty</label>
+            <select className="form-input" value={facultyFilter} onChange={(e) => { setFacultyFilter(e.target.value); setDepartmentFilter(''); setLevelFilter(''); }}>
+              <option value="">All faculties</option>
+              {catalogue.map((f) => <option key={f.name} value={f.name}>{f.name}</option>)}
+            </select>
+          </div>
+          <div className="filter-field">
+            <label className="filter-label">Department</label>
+            <select className="form-input" value={departmentFilter} onChange={(e) => { setDepartmentFilter(e.target.value); setLevelFilter(''); }} disabled={!facultyFilter}>
+              <option value="">All departments</option>
+              {departments.map((d) => <option key={d.name} value={d.name}>{d.name}</option>)}
+            </select>
+          </div>
+          <div className="filter-field">
+            <label className="filter-label">Level</label>
+            <select className="form-input" value={levelFilter} onChange={(e) => setLevelFilter(e.target.value)} disabled={!facultyFilter}>
+              <option value="">All levels</option>
+              {levels.map((l) => <option key={l} value={l}>Level {l}</option>)}
+            </select>
+          </div>
+          <div className="filter-field">
+            <label className="filter-label">From</label>
+            <input className="form-input" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} title="From date" />
+          </div>
+          <div className="filter-field">
+            <label className="filter-label">To</label>
+            <input className="form-input" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} title="To date" />
+          </div>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="admin-results-card">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div className="skeleton-row" key={i}>
+              <span className="skeleton skeleton-avatar" />
+              <span className="skeleton skeleton-line w25" />
+              <span className="skeleton skeleton-line w15" />
+              <span className="skeleton skeleton-line w20" />
+              <span className="skeleton skeleton-line w30" />
+              <span className="skeleton skeleton-badge" />
+              <span className="skeleton skeleton-line w10" />
+            </div>
+          ))}
+        </div>
+      ) : requests.length === 0 ? (
+        <div className="admin-results-card admin-empty-state">
+          <span className="admin-empty-icon"><FileWarning size={26} /></span>
+          <h3>{hasActiveFilters ? 'No matching requests' : 'No deletion requests yet'}</h3>
+          <p>
+            {hasActiveFilters
+              ? 'No requests match your current filters. Try adjusting the search or clear them below.'
+              : 'Student removal requests will appear here when submitted.'}
+          </p>
+          {hasActiveFilters && (
+            <button type="button" className="secondary-btn" onClick={clearFilters}>
+              <RefreshCw size={14} /> Clear filters
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="admin-results-card">
+          {/* Desktop table */}
+          <div className="table-scroll-wrapper desktop-only">
+            <table className="admin-table">
+              <thead>
+                <tr><th>Student</th><th>Type</th><th>Item</th><th>Reason</th><th>Submitted</th><th>Status</th><th className="th-actions">Actions</th></tr>
+              </thead>
+              <tbody>
+                {paged.map((r) => (
+                  <tr key={r.id}>
+                    <td>
+                      <div className="student-cell">
+                        <span className="avatar-mini" style={{ background: avatarColor(r.profiles?.full_name) }}>{adminInitials(r.profiles?.full_name)}</span>
+                        <span className="student-cell-main">
+                          <span className="student-name-cell">{r.profiles?.full_name || '—'}</span>
+                          <span className="cell-secondary">{r.profiles?.matric_number || r.profiles?.email}</span>
+                        </span>
+                      </div>
+                    </td>
+                    <td><span className="field-tag">{r.request_type}</span></td>
+                    <td>
+                      <div className="cell-bold">{r.item_name}</div>
+                      {r.item_code && <div className="cell-code cell-secondary">{r.item_code}</div>}
+                    </td>
+                    <td className="cell-reason">{r.reason}</td>
+                    <td className="cell-secondary nowrap-cell">{timeSince(r.created_at)}</td>
+                    <td>{statusBadge(r.status)}</td>
+                    <td className="action-cell">
+                      <button className="btn-icon" onClick={() => setDetailReq(r)} title="View details"><Eye size={15} /></button>
+                      {r.status === 'pending' && (
+                        reviewingId === r.id ? (
+                          <div className="review-inline">
+                            <input className="form-input" placeholder="Admin note (optional)" value={reviewNote} onChange={(e) => setReviewNote(e.target.value)} />
+                            <div className="review-inline-actions">
+                              <button className="approval-btn approve" onClick={() => handleAction(r.id, 'approved')}><CheckCircle2 size={14} /> Approve</button>
+                              <button className="approval-btn reject" onClick={() => handleAction(r.id, 'rejected')}><XCircle size={14} /> Reject</button>
+                              <button className="link-btn" onClick={() => { setReviewingId(null); setReviewNote(''); }}>Cancel</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button className="btn-ghost btn-sm" onClick={() => { setReviewingId(r.id); setDetailReq(null); }}>
+                            <CheckCircle2 size={14} /> Review
+                          </button>
+                        )
+                      )}
+                      {r.status !== 'pending' && (
+                        <button className="btn-ghost btn-sm" onClick={() => setDetailReq(r)}>View</button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile cards */}
+          <div className="mobile-only request-cards">
+            {paged.map((r) => (
+              <div key={r.id} className="request-card">
+                <div className="request-card-header">
+                  <div className="student-cell">
+                    <span className="avatar-mini" style={{ background: avatarColor(r.profiles?.full_name) }}>{adminInitials(r.profiles?.full_name)}</span>
+                    <span className="student-cell-main">
+                      <div className="cell-bold">{r.item_name}</div>
+                      <div className="cell-secondary">{r.profiles?.full_name || '—'} · {r.profiles?.matric_number || ''}</div>
+                    </span>
+                  </div>
+                  {statusBadge(r.status)}
+                </div>
+                <div className="request-card-body">
+                  <span className="field-tag">{r.request_type}</span>
+                  {r.reason && <div className="cell-secondary mt-xs">{r.reason}</div>}
+                </div>
+                <div className="request-card-footer">
+                  <span className="cell-secondary">{timeSince(r.created_at)}</span>
+                  <div className="request-card-actions">
+                    <button className="link-btn" onClick={() => setDetailReq(r)}>{r.status === 'pending' ? 'Review' : 'View'}</button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {totalPages > 1 && (
+            <div className="pagination-controls">
+              <button className="secondary-btn" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Prev</button>
+              <span>Page {page + 1} of {totalPages}</span>
+              <button className="secondary-btn" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>Next</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Detail Modal */}
+      {detailReq && (
+        <div className="modal-overlay" onClick={() => setDetailReq(null)}>
+          <div className="modal-card request-detail-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Deletion Request Details</h3>
+              <button className="link-btn" onClick={() => setDetailReq(null)}><X size={18} /></button>
+            </div>
+            <div className="modal-body">
+              <div className="detail-summary">
+                <span className="avatar-lg" style={{ background: avatarColor(detailReq.profiles?.full_name) }}>{adminInitials(detailReq.profiles?.full_name)}</span>
+                <div>
+                  <div className="detail-value cell-bold">{detailReq.profiles?.full_name || '—'}</div>
+                  <div className="cell-secondary">{detailReq.profiles?.matric_number} · {detailReq.profiles?.email}</div>
+                  {detailReq.profiles?.faculty && <div className="cell-secondary">{detailReq.profiles.faculty} · {detailReq.profiles.department} · Level {detailReq.profiles.level}</div>}
+                </div>
+              </div>
+              <div className="detail-grid">
+                <div className="detail-section">
+                  <div className="detail-label">Item</div>
+                  <div className="detail-value cell-bold">{detailReq.item_name}</div>
+                  {detailReq.item_code && <div className="cell-code cell-secondary">{detailReq.item_code}</div>}
+                </div>
+                <div className="detail-section">
+                  <div className="detail-label">Type</div>
+                  <span className="field-tag">{detailReq.request_type}</span>
+                </div>
+              </div>
+              <div className="detail-section">
+                <div className="detail-label">Reason</div>
+                <div className="detail-value">{detailReq.reason}</div>
+              </div>
+              <div className="detail-grid">
+                <div className="detail-section">
+                  <div className="detail-label">Submitted</div>
+                  <div className="cell-secondary">{new Date(detailReq.created_at).toLocaleString()}</div>
+                </div>
+                <div className="detail-section">
+                  <div className="detail-label">Status</div>
+                  {statusBadge(detailReq.status)}
+                </div>
+              </div>
+              {detailReq.admin_note && (
+                <div className="detail-section">
+                  <div className="detail-label">Admin Note</div>
+                  <div className="cell-secondary">{detailReq.admin_note}</div>
+                </div>
+              )}
+
+              {/* Inline review for pending requests */}
+              {detailReq.status === 'pending' && (
+                <div className="detail-review-section">
+                  <hr className="settings-divider" />
+                  <div className="detail-label">Admin Note (optional)</div>
+                  <input className="form-input" placeholder="Add a note for the student…" value={reviewNote} onChange={(e) => setReviewNote(e.target.value)} />
+                  <div className="detail-actions">
+                    <button className="approval-btn approve" onClick={() => handleAction(detailReq.id, 'approved')}><CheckCircle2 size={14} /> Approve</button>
+                    <button className="approval-btn reject" onClick={() => handleAction(detailReq.id, 'rejected')}><XCircle size={14} /> Reject</button>
+                  </div>
+                </div>
+              )}
+
+              {/* Contact Student */}
+              {detailReq.student_id && (
+                <div className="detail-actions mt-sm">
+                  <button className="secondary-btn" onClick={() => { setDetailReq(null); navigate(`/admin/messages?student=${detailReq.student_id}`); }}>
+                    <MessageSquare size={14} /> Contact Student
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={confirmState.open}
+        title={confirmState.title}
+        message={confirmState.message}
+        tone={confirmState.tone}
+        onConfirm={confirmState.onConfirm}
+        onClose={() => setConfirmState({ ...confirmState, open: false })}
+      />
+    </div>
+  );
+}
+
+/* ── Admin Change Requests Tab ──────────────────────────────── */
+function AdminChangeRequestsTab() {
+  const navigate = useNavigate();
+  const [requests, setRequests] = useState<ProfileChangeRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [fieldFilter, setFieldFilter] = useState('');
+  const [searchFilter, setSearchFilter] = useState('');
+  const [facultyFilter, setFacultyFilter] = useState('');
+  const [departmentFilter, setDepartmentFilter] = useState('');
+  const [levelFilter, setLevelFilter] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 15;
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [reviewNote, setReviewNote] = useState('');
+  const [detailRequest, setDetailRequest] = useState<ProfileChangeRequest | null>(null);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    loadRequests();
+  }, [statusFilter, fieldFilter, searchFilter, facultyFilter, departmentFilter, levelFilter, dateFrom, dateTo]);
+
+  const loadRequests = async () => {
+    setLoading(true);
+    try {
+      const data = await fetchAllChangeRequests({
+        status: statusFilter || undefined,
+        field_name: fieldFilter || undefined,
+        search: searchFilter || undefined,
+        faculty: facultyFilter || undefined,
+        department: departmentFilter || undefined,
+        level: levelFilter || undefined,
+        date_from: dateFrom || undefined,
+        date_to: dateTo || undefined
+      });
+      setRequests(data);
+      setPage(0);
+    } catch (err: any) {
+      toast(err.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleApprove = async (id: string) => {
+    try {
+      await approveProfileChangeRequest(id, reviewNote || undefined);
+      toast('Request approved and profile updated.', 'success');
+      setReviewingId(null);
+      setReviewNote('');
+      await loadRequests();
+    } catch (err: any) {
+      toast(err.message, 'error');
+    }
+  };
+
+  const handleReject = async (id: string) => {
+    try {
+      await rejectProfileChangeRequest(id, reviewNote || undefined);
+      toast('Request rejected.', 'info');
+      setReviewingId(null);
+      setReviewNote('');
+      await loadRequests();
+    } catch (err: any) {
+      toast(err.message, 'error');
+    }
+  };
+
+  const fieldLabels: Record<string, string> = {
+    matric_number: 'Matric Number',
+    faculty: 'Faculty',
+    department: 'Department',
+    level: 'Level'
+  };
+
+  // Cascading filter data
+  const selectedFacultyObj = catalogue.find((f) => f.name === facultyFilter);
+  const departments = selectedFacultyObj ? selectedFacultyObj.departments : [];
+  const maxDuration = selectedFacultyObj
+    ? Math.max(...selectedFacultyObj.departments.map((d) => d.duration))
+    : 6;
+  const levels = Array.from({ length: maxDuration }, (_, i) => `${i + 1}00`);
+
+  const paged = requests.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const totalPages = Math.ceil(requests.length / PAGE_SIZE);
+
+  const statusBadge = (s: string) => <span className={`status-badge ${s}`}>{s}</span>;
+
+  const pending = requests.filter((r) => r.status === 'pending').length;
+  const approved = requests.filter((r) => r.status === 'approved').length;
+  const rejected = requests.filter((r) => r.status === 'rejected').length;
+
+  const clearFilters = () => {
+    setStatusFilter(''); setFieldFilter(''); setSearchFilter('');
+    setFacultyFilter(''); setDepartmentFilter(''); setLevelFilter('');
+    setDateFrom(''); setDateTo(''); setPage(0);
+  };
+
+  const timeSince = (ts: string) => {
+    const diff = Date.now() - new Date(ts).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    return `${days}d ago`;
+  };
+
+  const hasActiveFilters = !!(searchFilter || statusFilter || fieldFilter || facultyFilter || departmentFilter || levelFilter || dateFrom || dateTo);
+  const activeFilterCount = [searchFilter, statusFilter, fieldFilter, facultyFilter, departmentFilter, levelFilter, dateFrom, dateTo].filter(Boolean).length;
+
+  const avatarColor = (name?: string | null) =>
+    ['#0d4a2f', '#12603d', '#1f7a52', '#8c4e1e', '#365f91', '#6d4b9e'][
+      ((name || '').length + (name || '').charCodeAt(0) || 0) % 6
+    ];
+
+  return (
+    <div className="admin-change-requests-tab admin-page">
+      {/* Header */}
+      <div className="admin-page-head">
+        <div className="admin-page-head-main">
+          <span className="admin-page-head-icon">
+            <UserCog size={22} />
+          </span>
+          <div>
+            <h2 className="admin-page-title">Profile Change Requests</h2>
+            <p className="admin-page-desc">Review and approve student requests to change restricted academic information such as matric number, faculty, department, or level.</p>
+          </div>
+        </div>
+        {!loading && (
+          <span className="admin-count-badge">{requests.length} total request{requests.length !== 1 ? 's' : ''}</span>
+        )}
+      </div>
+
+      {/* Stat chips */}
+      {!loading && requests.length > 0 && (
+        <div className="admin-stat-chips">
+          <div className="admin-stat-chip"><b>{requests.length}</b><span>Total</span></div>
+          <div className="admin-stat-chip pending"><b>{pending}</b><span>Pending</span></div>
+          <div className="admin-stat-chip approved"><b>{approved}</b><span>Approved</span></div>
+          <div className="admin-stat-chip rejected"><b>{rejected}</b><span>Rejected</span></div>
+        </div>
+      )}
+
+      {/* Filters */}
+      <div className="admin-filter-card">
+        <div className="admin-filter-card-head">
+          <span className="admin-filter-title"><SlidersHorizontal size={15} /> Filters{hasActiveFilters ? ` · ${activeFilterCount}` : ''}</span>
+          {hasActiveFilters && (
+            <button type="button" className="clear-filters-btn" onClick={clearFilters}>
+              <X size={12} /> Clear filters
+            </button>
+          )}
+        </div>
+        <div className="filter-bar admin-filter-toolbar">
+          <div className="filter-field filter-search">
+            <label className="filter-label">Search</label>
+            <div className="filter-input-wrap">
+              <Search size={14} />
+              <input
+                className="form-input search-wide"
+                placeholder="Search name, email, matric, values…"
+                value={searchFilter}
+                onChange={(e) => setSearchFilter(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="filter-field">
+            <label className="filter-label">Status</label>
+            <select className="form-input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+              <option value="">All statuses</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+            </select>
+          </div>
+          <div className="filter-field">
+            <label className="filter-label">Field</label>
+            <select className="form-input" value={fieldFilter} onChange={(e) => setFieldFilter(e.target.value)}>
+              <option value="">All fields</option>
+              <option value="matric_number">Matric Number</option>
+              <option value="faculty">Faculty</option>
+              <option value="department">Department</option>
+              <option value="level">Level</option>
+            </select>
+          </div>
+          <div className="filter-field">
+            <label className="filter-label">Faculty</label>
+            <select className="form-input" value={facultyFilter} onChange={(e) => { setFacultyFilter(e.target.value); setDepartmentFilter(''); }}>
+              <option value="">All faculties</option>
+              {catalogue.map((f) => <option key={f.name} value={f.name}>{f.name}</option>)}
+            </select>
+          </div>
+          <div className="filter-field">
+            <label className="filter-label">Department</label>
+            <select className="form-input" value={departmentFilter} onChange={(e) => setDepartmentFilter(e.target.value)} disabled={!facultyFilter}>
+              <option value="">All departments</option>
+              {departments.map((d) => <option key={d.name} value={d.name}>{d.name}</option>)}
+            </select>
+          </div>
+          <div className="filter-field">
+            <label className="filter-label">Level</label>
+            <select className="form-input" value={levelFilter} onChange={(e) => setLevelFilter(e.target.value)} disabled={!facultyFilter}>
+              <option value="">All levels</option>
+              {levels.map((l) => <option key={l} value={l}>Level {l}</option>)}
+            </select>
+          </div>
+          <div className="filter-field">
+            <label className="filter-label">From</label>
+            <input className="form-input" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} title="From date" />
+          </div>
+          <div className="filter-field">
+            <label className="filter-label">To</label>
+            <input className="form-input" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} title="To date" />
+          </div>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="admin-results-card">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div className="skeleton-row" key={i}>
+              <span className="skeleton skeleton-avatar" />
+              <span className="skeleton skeleton-line w25" />
+              <span className="skeleton skeleton-line w15" />
+              <span className="skeleton skeleton-line w20" />
+              <span className="skeleton skeleton-line w30" />
+              <span className="skeleton skeleton-badge" />
+              <span className="skeleton skeleton-line w10" />
+            </div>
+          ))}
+        </div>
+      ) : requests.length === 0 ? (
+        <div className="admin-results-card admin-empty-state">
+          <span className="admin-empty-icon"><UserCog size={26} /></span>
+          <h3>{hasActiveFilters ? 'No matching requests' : 'No profile change requests yet'}</h3>
+          <p>
+            {hasActiveFilters
+              ? 'No requests match your current filters. Try adjusting the search or clear them below.'
+              : 'New requests will appear here when students submit profile updates.'}
+          </p>
+          {hasActiveFilters && (
+            <button type="button" className="secondary-btn" onClick={clearFilters}>
+              <RefreshCw size={14} /> Clear filters
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="admin-results-card">
+          {/* Desktop table */}
+          <div className="table-scroll-wrapper desktop-only">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Student</th>
+                  <th>Field</th>
+                  <th>Change</th>
+                  <th>Reason</th>
+                  <th>Submitted</th>
+                  <th>Status</th>
+                  <th className="th-actions">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paged.map((r) => (
+                  <tr key={r.id}>
+                    <td>
+                      <div className="student-cell">
+                        <span className="avatar-mini" style={{ background: avatarColor(r.profiles?.full_name) }}>{adminInitials(r.profiles?.full_name)}</span>
+                        <span className="student-cell-main">
+                          <span className="student-name-cell">{r.profiles?.full_name || '—'}</span>
+                          <span className="cell-secondary">{r.profiles?.matric_number || r.profiles?.email}</span>
+                        </span>
+                      </div>
+                    </td>
+                    <td><span className="field-tag">{fieldLabels[r.field_name] || r.field_name}</span></td>
+                    <td>
+                      <div className="change-inline">
+                        <span className="change-old">{r.current_value}</span>
+                        <ChevronRight size={14} className="change-arrow" />
+                        <span className="change-new">{r.requested_value}</span>
+                      </div>
+                    </td>
+                    <td className="cell-reason">{r.reason}</td>
+                    <td className="cell-secondary nowrap-cell">{timeSince(r.created_at)}</td>
+                    <td>{statusBadge(r.status)}</td>
+                    <td>
+                      <div className="action-cell">
+                        <button className="btn-icon" onClick={() => setDetailRequest(r)} title="View details">
+                          <Eye size={15} />
+                        </button>
+                        {r.status === 'pending' && (
+                          <button className="btn-ghost btn-sm" onClick={() => { setReviewingId(reviewingId === r.id ? null : r.id); setReviewNote(''); }}>
+                            <CheckCircle2 size={14} /> Review
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile cards */}
+          <div className="mobile-only request-cards">
+            {paged.map((r) => (
+              <div key={r.id} className="request-card" onClick={() => setDetailRequest(r)}>
+                <div className="request-card-header">
+                  <div className="student-cell">
+                    <span className="avatar-mini" style={{ background: avatarColor(r.profiles?.full_name) }}>{adminInitials(r.profiles?.full_name)}</span>
+                    <span className="student-cell-main">
+                      <div className="student-name-cell">{r.profiles?.full_name || '—'}</div>
+                      <div className="cell-secondary">{r.profiles?.matric_number || r.profiles?.email}</div>
+                    </span>
+                  </div>
+                  {statusBadge(r.status)}
+                </div>
+                <div className="request-card-body">
+                  <span className="field-tag">{fieldLabels[r.field_name] || r.field_name}</span>
+                  <div className="request-card-change">
+                    <span>{r.current_value}</span>
+                    <ChevronRight size={14} />
+                    <span className="cell-bold">{r.requested_value}</span>
+                  </div>
+                </div>
+                <div className="request-card-footer">
+                  <span className="cell-secondary">{timeSince(r.created_at)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {totalPages > 1 && (
+            <div className="pagination-controls">
+              <button className="secondary-btn" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Prev</button>
+              <span>Page {page + 1} of {totalPages}</span>
+              <button className="secondary-btn" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>Next</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Detail Modal */}
+      {detailRequest && (
+        <div className="modal-overlay" onClick={() => setDetailRequest(null)}>
+          <div className="modal-card request-detail-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Change Request Details</h3>
+              <button className="link-btn" onClick={() => setDetailRequest(null)}><X size={18} /></button>
+            </div>
+            <div className="modal-body">
+              <div className="detail-summary">
+                <span className="avatar-lg" style={{ background: avatarColor(detailRequest.profiles?.full_name) }}>{adminInitials(detailRequest.profiles?.full_name)}</span>
+                <div>
+                  <div className="detail-value cell-bold">{detailRequest.profiles?.full_name || '—'}</div>
+                  <div className="cell-secondary">{detailRequest.profiles?.matric_number} · {detailRequest.profiles?.email}</div>
+                  {detailRequest.profiles?.faculty && <div className="cell-secondary">{detailRequest.profiles.faculty} · {detailRequest.profiles.department} · Level {detailRequest.profiles.level}</div>}
+                </div>
+              </div>
+              <div className="detail-grid">
+                <div className="detail-section">
+                  <div className="detail-label">Field</div>
+                  <span className="field-tag">{fieldLabels[detailRequest.field_name] || detailRequest.field_name}</span>
+                </div>
+                <div className="detail-section">
+                  <div className="detail-label">Status</div>
+                  {statusBadge(detailRequest.status)}
+                </div>
+              </div>
+              <div className="detail-change-card">
+                <div>
+                  <div className="detail-label">Current Value</div>
+                  <div className="detail-value change-old">{detailRequest.current_value}</div>
+                </div>
+                <ChevronRight size={18} className="change-arrow" />
+                <div>
+                  <div className="detail-label">Requested Value</div>
+                  <div className="detail-value cell-bold change-new">{detailRequest.requested_value}</div>
+                </div>
+              </div>
+              <div className="detail-section">
+                <div className="detail-label">Reason</div>
+                <div className="detail-value">{detailRequest.reason}</div>
+              </div>
+              <div className="detail-grid">
+                <div className="detail-section">
+                  <div className="detail-label">Submitted</div>
+                  <div className="cell-secondary">{new Date(detailRequest.created_at).toLocaleString()}</div>
+                </div>
+                {detailRequest.reviewed_at && (
+                  <div className="detail-section">
+                    <div className="detail-label">Reviewed</div>
+                    <div className="cell-secondary">{new Date(detailRequest.reviewed_at).toLocaleString()}</div>
+                  </div>
+                )}
+              </div>
+              {detailRequest.admin_note && (
+                <div className="detail-section">
+                  <div className="detail-label">Admin Note</div>
+                  <div className="cell-secondary">{detailRequest.admin_note}</div>
+                </div>
+              )}
+
+              {/* Inline review for pending requests */}
+              {detailRequest.status === 'pending' && (
+                <div className="detail-review-section">
+                  <hr className="settings-divider" />
+                  <div className="detail-label">Admin Note (optional)</div>
+                  <input
+                    className="form-input"
+                    placeholder="Add a note for the student…"
+                    value={reviewNote}
+                    onChange={(e) => setReviewNote(e.target.value)}
+                  />
+                  <div className="detail-actions">
+                    <button className="approval-btn approve" onClick={async () => { await handleApprove(detailRequest.id); setDetailRequest(null); }}>
+                      <CheckCircle2 size={14} /> Approve Request
+                    </button>
+                    <button className="approval-btn reject" onClick={async () => { await handleReject(detailRequest.id); setDetailRequest(null); }}>
+                      <XCircle size={14} /> Reject Request
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Contact Student */}
+              {detailRequest.student_id && (
+                <div className="detail-actions mt-sm">
+                  <button className="secondary-btn" onClick={() => { setDetailRequest(null); navigate(`/admin/messages?student=${detailRequest.student_id}`); }}>
+                    <MessageSquare size={14} /> Contact Student
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Admin Messages Tab ─────────────────────────────────────── */
+function AdminMessagesTab() {
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeConvId, setActiveConvId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [messagesLoading, setMessagesLoading] = useState(false);
+  const [newMsg, setNewMsg] = useState('');
+  const [sending, setSending] = useState(false);
+  const [convSearch, setConvSearch] = useState('');
+  const [studentCtx, setStudentCtx] = useState<{ full_name: string; email: string; matric_number: string; faculty: string; department: string; level: string } | null>(null);
+  const [studentActivity, setStudentActivity] = useState<{ materials: number; courses: number; deletionRequests: number; changeRequests: number }>({ materials: 0, courses: 0, deletionRequests: 0, changeRequests: 0 });
+  const { toast } = useToast();
+
+  const [showNewConv, setShowNewConv] = useState(false);
+  const [newConvStudentId, setNewConvStudentId] = useState('');
+  const [newConvSubject, setNewConvSubject] = useState('');
+  const [newConvBody, setNewConvBody] = useState('');
+  const [newConvMaterialId, setNewConvMaterialId] = useState('');
+  const [students, setStudents] = useState<{ id: string; full_name: string; matric_number: string; email: string }[]>([]);
+  const [studentSearch, setStudentSearch] = useState('');
+  const [studentLoading, setStudentLoading] = useState(false);
+  const [studentError, setStudentError] = useState<string | null>(null);
+  const [studentDropdownOpen, setStudentDropdownOpen] = useState(false);
+  const [startingConv, setStartingConv] = useState(false);
+
+  useEffect(() => { loadConversations(); }, []);
+
+  const loadConversations = async () => {
+    try {
+      const data = await fetchConversations();
+      setConversations(data);
+    } catch (err: any) { toast(err.message, 'error'); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => {
+    if (!activeConvId) { setMessages([]); return; }
+    let cancelled = false;
+    (async () => {
+      setMessagesLoading(true);
+      try {
+        const data = await fetchMessages(activeConvId);
+        if (!cancelled) setMessages(data);
+        await markConversationRead(activeConvId);
+      } catch (err: any) { toast(err.message, 'error'); }
+      finally { if (!cancelled) setMessagesLoading(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [activeConvId]);
+
+  const loadStudents = async () => {
+    setStudentLoading(true);
+    setStudentError(null);
+    try {
+      const { data, error } = await requireSupabase().from('profiles').select('id, full_name, matric_number, email').eq('role', 'student').order('full_name');
+      if (error) throw new Error(error.message);
+      setStudents(data || []);
+    } catch (err: any) {
+      setStudentError(err?.message || 'Failed to load students.');
+      setStudents([]);
+    } finally {
+      setStudentLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!showNewConv) return;
+    if (students.length === 0 && !studentLoading && !studentError) loadStudents();
+    setStudentDropdownOpen(!!studentSearch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showNewConv]);
+
+  // Load student context when conversation is selected
+  useEffect(() => {
+    const conv = conversations.find((c) => c.id === activeConvId);
+    if (!conv?.student_id) { setStudentCtx(null); return; }
+    const studentId = conv.student_id;
+    (async () => {
+      try {
+        const client = requireSupabase();
+        const { data: profile } = await client.from('profiles').select('full_name, email, matric_number, faculty, department, level').eq('id', studentId).single();
+        if (profile) setStudentCtx(profile);
+
+        // Fetch related activity counts
+        const [matCount, courseCount, delCount, changeCount] = await Promise.all([
+          client.from('materials').select('id', { count: 'exact', head: true }).eq('uploaded_by', studentId),
+          client.from('student_courses').select('id', { count: 'exact', head: true }).eq('student_id', studentId),
+          client.from('deletion_requests').select('id', { count: 'exact', head: true }).eq('student_id', studentId),
+          client.from('profile_change_requests').select('id', { count: 'exact', head: true }).eq('student_id', studentId)
+        ]);
+        setStudentActivity({
+          materials: matCount.count || 0,
+          courses: courseCount.count || 0,
+          deletionRequests: delCount.count || 0,
+          changeRequests: changeCount.count || 0
+        });
+      } catch { setStudentCtx(null); }
+    })();
+  }, [activeConvId, conversations]);
+
+  const handleSend = async () => {
+    if (!activeConvId || !newMsg.trim()) return;
+    setSending(true);
+    try {
+      const msg = await sendMessage(activeConvId, newMsg.trim());
+      setMessages((prev) => [...prev, msg]);
+      setNewMsg('');
+      setConversations((prev) =>
+        prev.map((c) => c.id === activeConvId ? { ...c, last_message_at: msg.created_at } : c)
+          .sort((a, b) => new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime())
+      );
+    } catch (err: any) { toast(err.message, 'error'); }
+    finally { setSending(false); }
+  };
+
+  const handleStartConv = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newConvStudentId || !newConvSubject.trim() || !newConvBody.trim()) return;
+    setStartingConv(true);
+    try {
+      const conv = await startConversation(newConvStudentId, newConvSubject.trim(), newConvBody.trim(), newConvMaterialId.trim() || undefined);
+      toast('Conversation started.', 'success');
+      setShowNewConv(false);
+      setNewConvStudentId(''); setNewConvSubject(''); setNewConvBody(''); setNewConvMaterialId(''); setStudentSearch(''); setStudentDropdownOpen(false);
+      await loadConversations();
+      setActiveConvId(conv.id);
+    } catch (err: any) { toast(err.message, 'error'); }
+    finally { setStartingConv(false); }
+  };
+
+  const activeConv = conversations.find((c) => c.id === activeConvId);
+  const filteredStudents = (() => {
+    const q = studentSearch.trim().toLowerCase();
+    if (!q) return students;
+    return students.filter((s) =>
+      (s.full_name || '').toLowerCase().includes(q) ||
+      (s.matric_number || '').toLowerCase().includes(q) ||
+      (s.email || '').toLowerCase().includes(q)
+    );
+  })();
+
+  const selectStudent = (s: { id: string; full_name: string; matric_number: string; email: string }) => {
+    setNewConvStudentId(s.id);
+    setStudentSearch((s.full_name || 'Student') + (s.matric_number ? ` (${s.matric_number})` : ''));
+    setStudentDropdownOpen(false);
+  };
+
+  const filteredConversations = convSearch
+    ? conversations.filter((c) => {
+        const q = convSearch.toLowerCase();
+        return (c.subject || '').toLowerCase().includes(q) || (c.profiles?.full_name || '').toLowerCase().includes(q) || (c.profiles?.matric_number || '').toLowerCase().includes(q);
+      })
+    : conversations;
+
+  return (
+    <div className="admin-messages-tab admin-page">
+      <div className="admin-page-head">
+        <div className="admin-page-head-main">
+          <span className="admin-page-head-icon"><MessageSquare size={22} /></span>
+          <div>
+            <h2 className="admin-page-title">Student Messages</h2>
+            <p className="admin-page-desc">Communicate directly with students and manage conversations.</p>
+          </div>
+        </div>
+        <button className="primary new-conv-btn" onClick={() => setShowNewConv(true)}>
+          <Plus size={15} /> New Conversation
+        </button>
+      </div>
+
+      {showNewConv && (
+        <div className="modal-overlay" onClick={() => setShowNewConv(false)}>
+          <div className="modal-card conv-modal" onClick={(e) => e.stopPropagation()}>
+            <form onSubmit={handleStartConv}>
+              <div className="modal-header">
+                <div className="modal-header-title">
+                  <span className="modal-head-icon"><MessageSquare size={17} /></span>
+                  <div>
+                    <h3>Start a New Conversation</h3>
+                    <p className="modal-header-sub">Send the first message to a student.</p>
+                  </div>
+                </div>
+                <button type="button" className="link-btn" onClick={() => setShowNewConv(false)}><X size={18} /></button>
+              </div>
+              <div className="modal-body">
+                <div className="form-field">
+                  <label className="form-label">Search Student *</label>
+                  <div className="filter-input-wrap">
+                    <Search size={14} />
+                    <input
+                      className="form-input"
+                      placeholder="Search by name, matric number, or email…"
+                      value={studentSearch}
+                      onFocus={() => setStudentDropdownOpen(true)}
+                      onChange={(e) => { setStudentSearch(e.target.value); setNewConvStudentId(''); setStudentDropdownOpen(true); }}
+                    />
+                    {newConvStudentId && (
+                      <button type="button" className="input-clear-btn" title="Clear selection" onClick={() => { setStudentSearch(''); setNewConvStudentId(''); setStudentDropdownOpen(true); }}>
+                        <X size={13} />
+                      </button>
+                    )}
+                  </div>
+                  {studentError && (
+                    <div className="student-search-hint error">
+                      <AlertCircle size={13} /> {studentError}
+                      <button type="button" className="link-btn" onClick={loadStudents}>Retry</button>
+                    </div>
+                  )}
+                  {!studentError && studentDropdownOpen && studentSearch && (
+                    <div className="student-search-dropdown">
+                      {studentLoading ? (
+                        <div className="student-search-state-row"><Loader2 size={13} className="animate-spin" /> Loading students…</div>
+                      ) : filteredStudents.length === 0 ? (
+                        <div className="student-search-state-row">No students found</div>
+                      ) : (
+                        filteredStudents.slice(0, 10).map((s) => (
+                          <div key={s.id} onClick={() => selectStudent(s)} className="student-search-item">
+                            <span className="avatar-mini xs" style={{ background: adminAvatarColor(s.full_name) }}>{adminInitials(s.full_name)}</span>
+                            <span className="student-cell-main">
+                              <span className="student-name-cell">{s.full_name || 'Student'}</span>
+                              <span className="cell-secondary">{[s.matric_number, s.email].filter(Boolean).join(' · ') || 'No contact info'}</span>
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="form-row-2col">
+                  <div className="form-field">
+                    <label className="form-label">Subject</label>
+                    <input className="form-input" value={newConvSubject} onChange={(e) => setNewConvSubject(e.target.value)} required placeholder="Conversation subject" />
+                  </div>
+                  <div className="form-field">
+                    <label className="form-label">Related Material ID (Optional)</label>
+                    <input className="form-input" value={newConvMaterialId} onChange={(e) => setNewConvMaterialId(e.target.value)} placeholder="Material ID" />
+                  </div>
+                </div>
+                <div className="form-field">
+                  <label className="form-label">Message *</label>
+                  <textarea className="form-input conv-body-input" value={newConvBody} onChange={(e) => setNewConvBody(e.target.value)} required rows={5} placeholder="Type your message…" maxLength={1000} />
+                  <div className="field-hint count-hint text-right">{newConvBody.length}/1000</div>
+                </div>
+                <div className="detail-actions">
+                  <button type="button" className="secondary-btn" onClick={() => setShowNewConv(false)}>Cancel</button>
+                  <button type="submit" className="primary submit-btn" disabled={startingConv || !newConvStudentId || !newConvSubject.trim() || !newConvBody.trim()}>
+                    {startingConv ? <><Loader2 size={14} className="animate-spin" /> Starting…</> : <><Send size={14} /> Start Conversation</>}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      <div className="conv-layout">
+        {/* Conversation list sidebar */}
+        <div className="conv-panel">
+          <div className="conv-search">
+            <div className="filter-input-wrap">
+              <Search size={14} />
+              <input className="form-input" placeholder="Search conversations…" value={convSearch} onChange={(e) => setConvSearch(e.target.value)} />
+            </div>
+          </div>
+          {loading ? (
+            <div className="conv-skeleton-list">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div className="conv-skeleton-item" key={i}>
+                  <span className="skeleton skeleton-avatar" />
+                  <div className="conv-skeleton-lines">
+                    <span className="skeleton skeleton-line w40" />
+                    <span className="skeleton skeleton-line w25" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : filteredConversations.length === 0 ? (
+            <div className="conv-empty-state">
+              <span className="admin-empty-icon small"><MessageSquare size={20} /></span>
+              <b>{convSearch ? 'No Matches' : 'No Conversations'}</b>
+              <span>{convSearch ? 'No conversations match your search.' : 'Start a conversation with a student to begin messaging.'}</span>
+            </div>
+          ) : (
+            filteredConversations.map((conv) => (
+              <div key={conv.id} onClick={() => { setActiveConvId(conv.id); setShowNewConv(false); }} className={`conv-list-item${activeConvId === conv.id ? ' active' : ''}`}>
+                <span className="avatar-mini" style={{ background: adminAvatarColor(conv.profiles?.full_name) }}>{adminInitials(conv.profiles?.full_name)}</span>
+                <div className="conv-item-main">
+                  <div className="conv-item-top">
+                    <span className="conv-subject">{conv.subject || 'Untitled'}</span>
+                    <span className="conv-meta-sm nowrap-cell">{formatConvTime(conv.last_message_at)}</span>
+                  </div>
+                  <div className="conv-admin-name">{conv.profiles?.full_name || 'Student'}{conv.profiles?.matric_number ? ` · ${conv.profiles.matric_number}` : ''}</div>
+                  {conv.last_message_body && <div className="conv-preview">{conv.last_message_body.length > 60 ? conv.last_message_body.slice(0, 60) + '…' : conv.last_message_body}</div>}
+                  {(conv.unread_count ?? 0) > 0 && <span className="unread-badge">{conv.unread_count}</span>}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Thread panel */}
+        {activeConv ? (
+          <div className="thread-panel">
+            <div className="thread-header">
+              <span className="avatar-mini" style={{ background: adminAvatarColor(activeConv.profiles?.full_name) }}>{adminInitials(activeConv.profiles?.full_name)}</span>
+              <div className="thread-header-main">
+                <div className="thread-subject">{activeConv.subject || 'Untitled'}</div>
+                <div className="thread-sub">
+                  <span className="thread-student-name">{activeConv.profiles?.full_name || 'Student'}</span>
+                  {activeConv.profiles?.matric_number && <span className="cell-secondary"> · {activeConv.profiles.matric_number}</span>}
+                  {activeConv.profiles?.faculty && <span className="cell-secondary"> · {activeConv.profiles.faculty} · {activeConv.profiles.department}</span>}
+                </div>
+              </div>
+            </div>
+
+            <div className="thread-messages">
+              {messagesLoading ? (
+                <div className="loading-spinner-row"><Loader2 size={18} className="animate-spin" /> Loading messages…</div>
+              ) : messages.length === 0 ? (
+                <div className="thread-empty-state">
+                  <MessageSquare size={28} />
+                  <b>No Messages</b>
+                  <span>Start the conversation by sending a message below.</span>
+                </div>
+              ) : (
+                messages.map((msg, i) => {
+                  const isOwn = msg.sender_id !== activeConv.student_id;
+                  const prev = messages[i - 1];
+                  const showDay = !prev || new Date(prev.created_at).toDateString() !== new Date(msg.created_at).toDateString();
+                  const timeStr = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                  return (
+                    <React.Fragment key={msg.id}>
+                      {showDay && (
+                        <div className="msg-day-divider"><span>{new Date(msg.created_at).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</span></div>
+                      )}
+                      <div className={`msg-row ${isOwn ? 'sent' : 'received'}`}>
+                        {!isOwn && <span className="avatar-mini xs" style={{ background: adminAvatarColor(activeConv.profiles?.full_name) }}>{adminInitials(activeConv.profiles?.full_name)}</span>}
+                        <div className="msg-bubble">
+                          <div>{msg.body}</div>
+                          <div className="msg-bubble-time">{timeStr}</div>
+                        </div>
+                      </div>
+                    </React.Fragment>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="chat-input-row">
+              <input className="form-input" value={newMsg} onChange={(e) => setNewMsg(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()} placeholder="Type a message…" disabled={sending} />
+              <button className="primary" onClick={handleSend} disabled={sending || !newMsg.trim()}>
+                {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Send
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="thread-panel thread-panel-empty">
+            <div className="thread-empty-state hosted">
+              <span className="admin-empty-icon"><MessageSquare size={26} /></span>
+              <b>Select a conversation</b>
+              <span>Choose a conversation from the list to start reading and replying.</span>
+            </div>
+          </div>
+        )}
+
+        {/* Student Context Panel */}
+        {activeConvId && studentCtx && (
+          <div className="student-context-panel">
+            <div className="context-section">
+              <h4 className="context-heading"><Users size={14} /> Student</h4>
+              <div className="context-field"><span className="context-label">Name</span><span className="context-value">{studentCtx.full_name}</span></div>
+              <div className="context-field"><span className="context-label">Matric No.</span><span className="context-value cell-code">{studentCtx.matric_number}</span></div>
+              <div className="context-field"><span className="context-label">Email</span><span className="context-value">{studentCtx.email}</span></div>
+              <div className="context-field"><span className="context-label">Faculty</span><span className="context-value">{studentCtx.faculty}</span></div>
+              <div className="context-field"><span className="context-label">Department</span><span className="context-value">{studentCtx.department}</span></div>
+              <div className="context-field"><span className="context-label">Level</span><span className="context-value">{studentCtx.level}</span></div>
+            </div>
+            <hr className="settings-divider" />
+            <div className="context-section">
+              <h4 className="context-heading"><BarChart3 size={14} /> Related Activity</h4>
+              <div className="context-field"><span className="context-label">Uploaded Materials</span><span className="context-value">{studentActivity.materials}</span></div>
+              <div className="context-field"><span className="context-label">Submitted Courses</span><span className="context-value">{studentActivity.courses}</span></div>
+              <div className="context-field"><span className="context-label">Deletion Requests</span><span className="context-value">{studentActivity.deletionRequests}</span></div>
+              <div className="context-field"><span className="context-label">Profile Changes</span><span className="context-value">{studentActivity.changeRequests}</span></div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── Admin Active Sessions Tab ───────────────────────────────── */
+function AdminActiveSessionsTab() {
+  const { toast } = useToast();
+  const [sessions, setSessions] = useState<ActiveSession[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchFilter, setSearchFilter] = useState('');
+  const [deviceFilter, setDeviceFilter] = useState('');
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 15;
+
+  const loadSessions = async () => {
+    setLoading(true);
+    try {
+      const data = await fetchAllSessions({ search: searchFilter || undefined, device_type: deviceFilter || undefined });
+      setSessions(data);
+    } catch { /* ignore */ }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadSessions();
+  }, [searchFilter, deviceFilter]);
+
+  const [terminateTarget, setTerminateTarget] = useState<ActiveSession | null>(null);
+
+  const handleTerminate = async (sessionId: string) => {
+    try {
+      await terminateSessionDb(sessionId);
+      setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+      toast('Session terminated.', 'success');
+    } catch {
+      toast('Failed to terminate session.', 'error');
+    }
+  };
+
+  const filtered = sessions;
+  const paged = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+
+  const timeSince = (ts: string) => {
+    const diff = Date.now() - new Date(ts).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    return `${days}d ago`;
+  };
+
+  const devicePills = [
+    { value: '', label: 'All devices', icon: null },
+    { value: 'desktop', label: 'Desktop', icon: <Laptop size={13} /> },
+    { value: 'mobile', label: 'Mobile', icon: <Smartphone size={13} /> },
+    { value: 'tablet', label: 'Tablet', icon: <Tablet size={13} /> }
+  ];
+
+  const deviceIcon = (d: string) => d === 'mobile' ? <Smartphone size={15} /> : d === 'tablet' ? <Tablet size={15} /> : <Laptop size={15} />;
+
+  const connectionLabel = (c?: string) =>
+    c === 'wifi' ? 'Wi-Fi' : c === 'cellular' ? 'Mobile Data' : c === 'ethernet' ? 'Ethernet' : 'Unknown';
+
+  const connClass = (c?: string) =>
+    c === 'wifi' ? 'conn-wifi' : c === 'cellular' ? 'conn-cellular' : c === 'ethernet' ? 'conn-ethernet' : 'conn-unknown';
+
+  return (
+    <div className="admin-sessions-tab admin-page">
+      <div className="admin-page-head">
+        <div className="admin-page-head-main">
+          <span className="admin-page-head-icon"><Laptop size={22} /></span>
+          <div>
+            <h2 className="admin-page-title">Active Login Sessions</h2>
+            <p className="admin-page-desc">View and manage devices currently signed in to students' accounts.</p>
+          </div>
+        </div>
+        {!loading && (
+          <span className="admin-count-badge">
+            {sessions.length} session{sessions.length === 1 ? '' : 's'}
+          </span>
+        )}
+      </div>
+
+      <div className="admin-filter-card">
+        <div className="filter-bar admin-filter-toolbar">
+          <div className="filter-field filter-search">
+            <label className="filter-label">Search</label>
+            <div className="filter-input-wrap">
+              <Search size={14} />
+              <input className="form-input search-wide" placeholder="Search student, browser, or OS…" value={searchFilter} onChange={(e) => { setSearchFilter(e.target.value); setPage(0); }} />
+            </div>
+          </div>
+          <div className="filter-field">
+            <span className="filter-label">Device Type</span>
+            <div className="segmented-pills" role="tablist" aria-label="Device filter">
+              {devicePills.map((p) => (
+                <button
+                  key={p.value}
+                  className={`segmented-pill${deviceFilter === p.value ? ' active' : ''}`}
+                  onClick={() => { setDeviceFilter(p.value); setPage(0); }}
+                  role="tab"
+                  aria-selected={deviceFilter === p.value}
+                >
+                  {p.icon} {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="admin-results-card">
+        {loading ? (
+          Array.from({ length: 5 }).map((_, i) => (
+            <div className="skeleton-row" key={i}>
+              <span className="skeleton skeleton-avatar" />
+              <span className="skeleton skeleton-line w25" />
+              <span className="skeleton skeleton-line w30" />
+              <span className="skeleton skeleton-badge" />
+            </div>
+          ))
+        ) : sessions.length === 0 ? (
+          <div className="admin-results-card admin-empty-state">
+            <span className="admin-empty-icon"><Laptop size={26} /></span>
+            <h3>No Active Sessions</h3>
+            <p>There are currently no sessions matching your filters.</p>
+          </div>
+        ) : (
+          <>
+            <div className="table-scroll-wrapper">
+              <table className="admin-table sessions-table">
+                <thead>
+                  <tr>
+                    <th>Student</th>
+                    <th>Device</th>
+                    <th>Browser</th>
+                    <th>OS</th>
+                    <th>IP Address</th>
+                    <th>Connection</th>
+                    <th>Last Active</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paged.map((s) => {
+                    const isStale = (Date.now() - new Date(s.last_active).getTime()) > 10 * 60 * 1000;
+                    return (
+                      <tr key={s.id}>
+                        <td>
+                          <div className="student-cell">
+                            <span className="avatar avatar-mini xs">{adminInitials(s.profiles?.full_name)}</span>
+                            <div className="student-cell-main">
+                              <span className="cell-bold">{s.profiles?.full_name || '—'}</span>
+                              <span className="cell-code cell-secondary">{s.profiles?.matric_number || s.profiles?.email}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="session-device-cell">
+                            <span className="session-device-icon">{deviceIcon(s.device_type)}</span>
+                            <span className="cell-bold">{s.device_type.charAt(0).toUpperCase() + s.device_type.slice(1)}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="session-browser-cell">
+                            <Globe size={13} />
+                            <span>{s.browser}</span>
+                          </div>
+                        </td>
+                        <td>{s.os}</td>
+                        <td className="cell-code">{s.ip_address || '—'}</td>
+                        <td><span className={`conn-badge ${connClass(s.connection_type)}`}>{connectionLabel(s.connection_type)}</span></td>
+                        <td className="cell-secondary">{timeSince(s.last_active)}</td>
+                        <td>
+                          {isStale ? (
+                            <span className="status-badge inactive">Inactive</span>
+                          ) : (
+                            <span className="status-badge approved">Active</span>
+                          )}
+                        </td>
+                        <td>
+                          <button className="btn-icon btn-danger" title="Terminate session" onClick={() => setTerminateTarget(s)}>
+                            <Trash2 size={15} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="mobile-only request-cards">
+              {paged.map((s) => {
+                const isStale = (Date.now() - new Date(s.last_active).getTime()) > 10 * 60 * 1000;
+                return (
+                  <div key={s.id} className="request-card">
+                    <div className="request-card-header">
+                      <div className="student-cell">
+                        <span className="avatar avatar-mini xs">{adminInitials(s.profiles?.full_name)}</span>
+                        <div className="student-cell-main">
+                          <div className="student-name-cell">{s.profiles?.full_name || '—'}</div>
+                          <div className="cell-secondary">{s.profiles?.matric_number || s.profiles?.email}</div>
+                        </div>
+                      </div>
+                      {isStale ? <span className="status-badge inactive">Inactive</span> : <span className="status-badge approved">Active</span>}
+                    </div>
+                    <div className="request-card-body session-card-body">
+                      <div className="session-device-cell">
+                        <span className="session-device-icon">{deviceIcon(s.device_type)}</span>
+                        <span className="cell-bold">{s.device_type.charAt(0).toUpperCase() + s.device_type.slice(1)}</span>
+                        <span className="cell-secondary"> · {s.browser} · {s.os}</span>
+                      </div>
+                      <div className="cell-secondary mt-xs">{s.ip_address || '—'} · <span className={`conn-badge ${connClass(s.connection_type)}`}>{connectionLabel(s.connection_type)}</span></div>
+                      <div className="cell-secondary mt-xs">Last active {timeSince(s.last_active)}</div>
+                    </div>
+                    <div className="request-card-footer">
+                      <button className="btn-ghost btn-danger-ghost" onClick={() => setTerminateTarget(s)}>
+                        <Trash2 size={13} /> Terminate
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {totalPages > 1 && (
+              <div className="pagination-controls">
+                <button className="secondary-btn" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Prev</button>
+                <span>Page {page + 1} of {totalPages}</span>
+                <button className="secondary-btn" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>Next</button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Terminate confirmation modal */}
+      {terminateTarget && (
+        <div className="modal-overlay" onClick={() => setTerminateTarget(null)}>
+          <div className="modal-card terminate-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-body text-center">
+              <ShieldAlert size={36} className="terminate-warning-icon" />
+              <h3>Terminate this session?</h3>
+              <p className="cell-secondary">This will sign {terminateTarget.profiles?.full_name || 'the student'} out of this device.</p>
+              <div className="detail-actions" style={{ justifyContent: 'center' }}>
+                <button className="secondary-btn" onClick={() => setTerminateTarget(null)}>Cancel</button>
+                <button
+                  className="danger-btn"
+                  onClick={() => {
+                    const target = terminateTarget;
+                    setTerminateTarget(null);
+                    handleTerminate(target.id);
+                  }}
+                >
+                  <Trash2 size={14} /> Terminate Session
+                </button>
+              </div>
             </div>
           </div>
         </div>
