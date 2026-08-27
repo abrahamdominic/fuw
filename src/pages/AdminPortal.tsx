@@ -301,6 +301,7 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
               aria-label="Sign out / Exit"
             >
               <LogOut size={16} />
+              <span>Sign out</span>
             </button>
           </div>
         </div>

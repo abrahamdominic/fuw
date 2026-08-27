@@ -442,6 +442,7 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
               aria-label="Sign out / Exit"
             >
               <LogOut size={16} />
+              <span>Sign out</span>
             </button>
           </div>
         </div>
@@ -459,6 +460,7 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
             approvedMaterials={approvedMaterials.slice(0, 4)}
             onReadOnline={onReadOnline}
             onAskAi={handleAskAi}
+            onSignOut={handleLogout}
           />
         ) : currentPath.startsWith('/student/uploads') ? (
           <StudentMyUploadsTab
@@ -575,7 +577,8 @@ function StudentOverviewTab({
   recentMaterials,
   approvedMaterials,
   onReadOnline,
-  onAskAi
+  onAskAi,
+  onSignOut
 }: any) {
   // Live clock: re-renders every 30s so the greeting and local time always
   // reflect the student's real current timezone.
@@ -588,6 +591,12 @@ function StudentOverviewTab({
   const realName = currentUser.fullName || currentUser.displayName || 'Student';
   const greeting = getTimeGreeting(realName, now);
   const timeZone = getUserTimeZone();
+
+  const handleSignOut = async () => {
+    if (typeof onSignOut === 'function') {
+      await onSignOut();
+    }
+  };
 
   return (
     <div className="portal-view-fade">
@@ -610,6 +619,10 @@ function StudentOverviewTab({
             <Upload size={16} />
             <span>Submit Material</span>
           </Link>
+          <button type="button" className="portal-top-logout" onClick={handleSignOut} aria-label="Sign out / Exit">
+            <LogOut size={16} />
+            <span>Sign out</span>
+          </button>
         </div>
       </div>
 

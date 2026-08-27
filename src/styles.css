@@ -1732,22 +1732,24 @@ button {
 }
 
 .portal-mobile-logout {
-  background: #fdf2f2;
-  color: #b91c1c;
-  border: 1px solid #f5c6c6;
-  width: 36px;
-  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #b91c1c;
+  color: #ffffff;
+  border: 0;
+  min-height: 36px;
+  padding: 0 12px;
   border-radius: 6px;
-  display: grid;
-  place-items: center;
+  font-size: 13px;
+  font-weight: 700;
   cursor: pointer;
   flex-shrink: 0;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background 0.15s;
 }
 .portal-mobile-logout:hover,
 .portal-mobile-logout:active {
-  background: #fbe3e3;
-  border-color: #ef9d9d;
+  background: #991b1b;
 }
 
 .portal-main {
@@ -1822,6 +1824,26 @@ button {
 
 .secondary-btn:hover {
   background: #f0f7f2;
+}
+
+.portal-top-logout {
+  border: 0;
+  background: #b91c1c;
+  color: #ffffff;
+  border-radius: 7px;
+  padding: 11px 16px;
+  font: 700 13.5px inherit;
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+.portal-top-logout:hover,
+.portal-top-logout:active {
+  background: #991b1b;
+  transform: translateY(-1px);
 }
 
 .portal-stats {
