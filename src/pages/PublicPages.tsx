@@ -984,7 +984,7 @@ export function LoginPage({
     }
     const matric = profileData.matricNumber.trim();
     if (matric.length < 4 || !/[A-Z]/.test(matric) || !/[0-9]/.test(matric)) {
-      return 'Please enter a valid matriculation number (e.g. CIS/CSC/25/145).';
+      return 'Please enter a valid matriculation number (e.g. CIS/CSC/20/001).';
     }
     if (!profileData.gender || (profileData.gender !== 'Male' && profileData.gender !== 'Female')) {
       return 'Please select your gender (Male or Female).';
@@ -1396,7 +1396,7 @@ export function LoginPage({
                   required
                   type="text"
                   autoCapitalize="characters"
-                  placeholder="e.g. CIS/CSC/25/145"
+                  placeholder="e.g. CIS/CSC/20/001"
                   value={profileData.matricNumber}
                   onChange={(e) => setProfileData({ ...profileData, matricNumber: e.target.value.toUpperCase() })}
                   disabled={busy}

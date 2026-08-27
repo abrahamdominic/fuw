@@ -2136,7 +2136,7 @@ function StudentSettingsTab({ currentUser }: { currentUser: any }) {
                     ) : (
                       <input
                         required
-                        placeholder="e.g. CIS/CSC/25/145"
+                        placeholder="e.g. CIS/CSC/20/001"
                         value={profileData.matricNumber}
                         onChange={(e) => setProfileData({ ...profileData, matricNumber: e.target.value.toUpperCase() })}
                         title="Enter your matriculation number. It is locked once saved."
