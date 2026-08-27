@@ -5833,6 +5833,8 @@ select.form-input:disabled { background-color: var(--surface-alt); }
     bottom: 0;
     width: 270px;
     z-index: 60;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     box-shadow: 10px 0 30px rgba(0, 0, 0, 0.4);
     transition: left 0.25s ease;
   }
