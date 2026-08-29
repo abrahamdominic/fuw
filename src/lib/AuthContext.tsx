@@ -286,47 +286,63 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { error: new Error('Please enter your username and password.') };
     }
 
+    // Username→email resolution happens SERVER-SIDE in the resolve-login
+    // Edge Function (service client). No public lookup RPC exists, so an
+    // attacker cannot enumerate usernames/emails (AUTH-01 fix). The edge
+    // function only returns a session when the password is correct.
+    let code: string | null = null;
+    let session: any = null;
     try {
-      const { data: loginEmail, error: lookupError } = await supabase.rpc(
-        'lookup_login_email',
-        { p_username: uname }
-      );
-      if (lookupError) {
-        return { error: new Error('Unable to verify your account right now. Please try again.') };
-      }
-      const email = typeof loginEmail === 'string' ? loginEmail.trim() : '';
-      if (!email) {
-        return { error: new Error('No account found with this username.') };
-      }
-
-      const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password
+      const { data, error } = await supabase.functions.invoke('resolve-login', {
+        body: { op: 'login', username: uname, password }
       });
+      if (!error && data && typeof data === 'object' && (data as any).session) {
+        session = (data as any).session;
+      } else if (data && typeof data === 'object' && (data as any).error) {
+        code = (data as any).error;
+      } else {
+        code = 'INVALID_CREDENTIALS';
+      }
+    } catch (err: any) {
+      // Non-2xx responses surface as FunctionsHttpError; read its JSON body.
+      try {
+        const body = typeof err?.context?.json === 'function' ? await err.context.json() : null;
+        code = body?.error ?? 'INVALID_CREDENTIALS';
+      } catch {
+        code = 'INVALID_CREDENTIALS';
+      }
+    }
 
-      if (authError) {
-        const msg = authError.message.toLowerCase();
-        if (msg.includes('invalid login credentials')) {
-          return { error: new Error('Incorrect password. Please try again.') };
-        }
-        if (msg.includes('not confirmed')) {
-          return {
-            error: new Error(
-              'Your email address has not been confirmed yet. Please check your inbox for the confirmation link.'
-            )
-          };
-        }
-        if (msg.includes('rate limit')) {
-          return { error: new Error('Too many sign-in attempts. Please wait a few moments and try again.') };
-        }
-        return { error: new Error(authError.message) };
+    if (!session) {
+      if (code === 'EMAIL_NOT_CONFIRMED') {
+        return {
+          error: new Error(
+            'Your email address has not been confirmed yet. Please check your inbox for the confirmation link.'
+          )
+        };
+      }
+      if (code === 'RATE_LIMITED') {
+        return { error: new Error('Too many sign-in attempts. Please wait a few moments and try again.') };
+      }
+      return { error: new Error('Incorrect password. Please try again.') };
+    }
+
+    try {
+      await supabase.auth.setSession(session);
+      const {
+        data: { user },
+        error: userErr
+      } = await supabase.auth.getUser();
+      if (userErr || !user) {
+        await supabase.auth.signOut();
+        return { error: new Error('Sign-in failed. Please try again.') };
       }
 
-      if (data.user) {
-        setUser(data.user);
-        setSession(data.session);
+      if (user) {
+        setUser(user);
+        setSession(session);
 
-        const prof = await fetchProfile(data.user.id, data.user.email);
+        const prof = await fetchProfile(user.id, user.email);
         if (!prof) {
           // Authorization could not be verified — never silently fall back to
           // the student role. End the session and surface a clear error.
@@ -345,7 +361,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           syncToStore(null, null);
           return { error: new Error('This account has been deactivated. Contact the library administrator.') };
         }
-        syncToStore(prof, data.user);
+        syncToStore(prof, user);
         return { error: null, role: prof.role };
       }
 
@@ -631,9 +647,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Request a password reset email. Accepts either the registered email or a
-  // username (resolved to the account email server-side via the existing
-  // lookup RPC). Always returns a neutral success for unknown accounts so the
-  // endpoint cannot be used to enumerate which usernames/emails exist.
+  // username (resolved to the account email server-side in the resolve-login
+  // edge function; no public lookup RPC exists). Always returns a neutral
+  // success for unknown accounts so the endpoint cannot be used to enumerate
+  // which usernames/emails exist.
   const sendPasswordReset = async (emailOrUsername: string): Promise<{ error: Error | null }> => {
     let email = emailOrUsername.trim().toLowerCase();
     if (!supabase) {
@@ -641,18 +658,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (!email.includes('@')) {
+      // Username-based reset: resolved server-side; response is neutral.
       try {
-        const { data, error } = await supabase.rpc('lookup_login_email', { p_username: emailOrUsername });
-        if (error || !data) {
-          return { error: null };
-        }
-        email = String(data).toLowerCase();
-      } catch (err) {
-        return { error: null };
+        await supabase.functions.invoke('resolve-login', {
+          body: { op: 'reset_username', username: emailOrUsername, redirectTo: `${window.location.origin}/reset-password` }
+        });
+      } catch {
+        // Swallow — resets are always neutral.
       }
-    }
-
-    if (!email) {
       return { error: null };
     }
 
@@ -716,9 +729,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return null;
   };
 
-  const role: AppRole | null =
-    profile?.role ||
-    (sessionStorage.getItem('fuw-admin') === 'true' ? 'admin' : user ? 'student' : null);
+  // Role is derived solely from the server-fetched profile (DB). Never from
+  // sessionStorage: that flag is only a legacy UI hint and must not influence
+  // authorization decisions.
+  const role: AppRole | null = profile?.role || (user ? 'student' : null);
   const isSuperAdmin = role === 'super_admin';
   const isAdmin = role === 'admin' || isSuperAdmin;
   const permissions = profile?.permissions ?? [];

@@ -363,7 +363,6 @@ class MaterialsStore {
     this.isAdminAuthenticated = false;
     this.currentUser = user;
     localStorage.setItem('fuw_student_session', 'true');
-    sessionStorage.removeItem('fuw-admin');
     this.saveUser();
     this.notify();
   }
@@ -372,7 +371,6 @@ class MaterialsStore {
     this.isAdminAuthenticated = true;
     this.isStudentAuthenticated = true;
     this.currentUser = user;
-    sessionStorage.setItem('fuw-admin', 'true');
     localStorage.setItem('fuw_student_session', 'true');
     this.saveUser();
     this.notify();
@@ -384,7 +382,6 @@ class MaterialsStore {
     this.currentUser = GUEST_USER;
     localStorage.removeItem('fuw_student_session');
     localStorage.removeItem('fuw_user_profile');
-    sessionStorage.removeItem('fuw-admin');
     this.notify();
   }
 
@@ -393,7 +390,7 @@ class MaterialsStore {
   }
 
   public isLoggedInAdmin(): boolean {
-    return this.isAdminAuthenticated || sessionStorage.getItem('fuw-admin') === 'true';
+    return this.isAdminAuthenticated;
   }
 
   // NOTE: All sign-in / sign-out flows are handled exclusively through
@@ -408,7 +405,6 @@ class MaterialsStore {
 
   public logoutAdmin(): void {
     this.isAdminAuthenticated = false;
-    sessionStorage.removeItem('fuw-admin');
     this.notify();
   }
 
@@ -1076,7 +1072,9 @@ class MaterialsStore {
       const aLogs = localStorage.getItem('fuw_audit_logs_v2');
       if (aLogs) this.auditLogs = JSON.parse(aLogs);
       this.isStudentAuthenticated = localStorage.getItem('fuw_student_session') === 'true';
-      this.isAdminAuthenticated = sessionStorage.getItem('fuw-admin') === 'true';
+      // Admin status is NEVER rehydrated from a session flag; it is derived
+      // from the DB profile by AuthContext after authentication resolves.
+      this.isAdminAuthenticated = false;
       if (!this.isStudentAuthenticated && !this.isAdminAuthenticated && !u) {
         this.currentUser = GUEST_USER;
       }

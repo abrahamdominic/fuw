@@ -42,6 +42,8 @@ Deno.serve(async (req) => {
     return json({ error: 'AI_NOT_CONFIGURED', message: 'AI search is not configured yet.' }, 503);
   }
 
+  const serviceClient = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
+
   try {
     const [embedding] = await embedTexts(cfg, [query]);
     const filters = body.filters ?? {};
@@ -76,7 +78,6 @@ Deno.serve(async (req) => {
     const ids = [...bestPerMaterial.keys()].slice(0, limit);
     if (!ids.length) return json({ results: [] });
 
-    const serviceClient = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
     const { data: materials, error: matErr } = await serviceClient
       .from('materials')
       .select(

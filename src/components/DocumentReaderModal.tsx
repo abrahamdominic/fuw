@@ -172,6 +172,8 @@ export function DocumentReaderModal({ material, onClose }: DocumentReaderModalPr
               src={source}
               title={`${material.title} — full document`}
               className="document-embed-frame"
+              referrerPolicy="no-referrer"
+              sandbox="allow-same-origin"
               style={{
                 width: '100%',
                 height: '100%',

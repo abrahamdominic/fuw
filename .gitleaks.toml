@@ -1,0 +1,25 @@
+# Gitleaks configuration for FUW E-Library.
+# Prevents accidental commits of Supabase secrets / AI provider keys.
+[extend]
+  useDefault = true
+
+[[rules]]
+  id = "fuw-supabase-service-role"
+  description = "Supabase service_role key (JWT signed with eyJhbGciOiJIUzI1NiJ9 with role=service_role)"
+  regex = '''sb_secret_[a-zA-Z0-9]+|(?:^|[^A-Za-z0-9])(eyJhbGciOiJIUzI1NiJ9\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{20,})'''
+  secretGroup = 1
+  keywords = ["service_role", "supabase", "eyJhbGciOiJIUzI1NiJ9"]
+
+[[rules]]
+  id = "fuw-ai-provider-key"
+  description = "AI provider API keys (OpenAI-style sk-...)"
+  regex = '''sk-[a-zA-Z0-9]{20,}'''
+  keywords = ["sk-", "AI_API_KEY", "OPENAI"]
+
+[allowlists]
+  description = "Allow example/testing placeholders that are safe to commit"
+  regexes = [
+    '''VITE_SUPABASE_ANON_KEY\s*=\s*$''',
+    '''SUPABASE_SERVICE_ROLE_KEY\s*=\s*$''',
+    '''AI_API_KEY\s*=\s*$'''
+  ]

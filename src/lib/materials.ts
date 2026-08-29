@@ -7,24 +7,95 @@ import { normalizeMaterialType, courseTitleByCode, normalizeLevel } from '../dat
 
 const BUCKET = 'library-materials';
 
-const allowed = [
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.ms-powerpoint',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-];
-
-export const validateMaterialFile = (file: File) => {
+export const validateMaterialFile = async (file: File) => {
   if (file.size > 25 * 1024 * 1024) throw new Error('File must be 25 MB or smaller.');
-  const validExtensions = ['.pdf', '.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx'];
-  const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
-  if (!allowed.includes(file.type) && !validExtensions.includes(ext)) {
-    throw new Error('Use a PDF, DOC, DOCX, PPT, PPTX, XLS, or XLSX file.');
+
+  // Explicit blocklist of scriptable/executable payloads regardless of the
+  // spoofed MIME type or extension the client advertises.
+  const lowerName = file.name.toLowerCase();
+  const forbiddenExt =
+    /\.(html?|svg|js|mjs|mht|mhtml|xml|xhtml|vbs|vbe|hta|exe|dll|bat|cmd|com|scr|pif|msi|jar|sh|ps1|swf|apk|wasm|gz|zip|7z|rar|tar|iso|url|jsp|asp|aspx|php|py|rb|cgi)$/;
+  if (forbiddenExt.test(lowerName)) {
+    throw new Error('This file type is not allowed for security reasons.');
   }
+
+  const allowedTypes = [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'text/plain'
+  ];
+  const validExtensions = ['.pdf', '.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx', '.txt'];
+  const ext = lowerName.substring(lowerName.lastIndexOf('.'));
+  if (!allowedTypes.includes(file.type) && !validExtensions.includes(ext)) {
+    throw new Error('Use a PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX, or TXT file.');
+  }
+
+  await sniffDocumentMagicBytes(file);
 };
+
+/**
+ * Defense-in-depth: verify the actual leading bytes match an allowed document
+ * format, so a renamed HTML/SVG/script payload can never be mislabeled as a
+ * document. The authoritative check still happens server-side (storage
+ * trigger on storage.objects); this is a client-side failsafe.
+ */
+async function sniffDocumentMagicBytes(file: File): Promise<void> {
+  if (file.size < 4) throw new Error('File is empty or too small.');
+  try {
+    const head = new Uint8Array(await file.slice(0, 8).arrayBuffer());
+
+    // Signature -> whether it is an allowed document format.
+    const isPdf =
+      head[0] === 0x25 && head[1] === 0x50 && head[2] === 0x44 && head[3] === 0x46; // %PDF
+    const isOoxml =
+      head[0] === 0x50 && head[1] === 0x4b && head[2] === 0x03 && head[3] === 0x04; // PK.. (zip container: docx/pptx/xlsx)
+    const isOldDoc =
+      head[0] === 0xd0 && head[1] === 0xcf && head[2] === 0x11 && head[3] === 0xe0; // OLE2 (.doc/.ppt/.xls)
+    const isPlainText =
+      (head[0] === 0x0a || head[0] === 0x0d || (head[0] >= 0x20 && head[0] <= 0x7e)); // printable ASCII
+
+    // Reject obvious script/page payloads even if renamed.
+    const looksLikeMarkup =
+      (head[0] === 0x3c && head[1] === 0x21) || // <!
+      (head[0] === 0x3c && head[1] === 0x3f) || // <?
+      (head[0] === 0x3c && head[1] === 0x73 && head[2] === 0x76 && head[3] === 0x67) || // <svg
+      (head[0] === 0x3c && head[1] === 0x68 && head[2] === 0x74 && head[3] === 0x6d); // <htm
+    if (looksLikeMarkup) {
+      throw new Error('This file appears to be a web page or script, not a document.');
+    }
+
+    // Reject images and executable/archive signatures.
+    const isImage =
+      (head[0] === 0x47 && head[1] === 0x49 && head[2] === 0x46 && head[3] === 0x38) || // GIF8
+      (head[0] === 0x89 && head[1] === 0x50 && head[2] === 0x4e && head[3] === 0x47) || // .PNG
+      (head[0] === 0xff && head[1] === 0xd8) || // FFD8 (JPEG)
+      (head[0] === 0x49 && head[1] === 0x49 && head[2] === 0x2a && head[3] === 0x00) || // TIFF
+      (head[0] === 0x52 && head[1] === 0x49 && head[2] === 0x46 && head[3] === 0x46); // RIFF (WEBP)
+    const isExecutableOrArchive =
+      (head[0] === 0x7f && head[1] === 0x45 && head[2] === 0x4c && head[3] === 0x46) || // ELF
+      (head[0] === 0x4d && head[1] === 0x5a) || // MZ (PE/exe)
+      (head[0] === 0x52 && head[1] === 0x61 && head[2] === 0x72 && head[3] === 0x21) || // Rar!
+      (head[0] === 0x1f && head[1] === 0x8b) || // gzip
+      (head[0] === 0x37 && head[1] === 0x7a && head[2] === 0xbc && head[3] === 0xaf); // 7z
+    if (isImage || isExecutableOrArchive) {
+      throw new Error('This is not a supported document format.');
+    }
+
+    const isDocument =
+      isPdf || isOoxml || isOldDoc || (isPlainText && /\.txt$/i.test(file.name));
+    if (!isDocument) {
+      throw new Error('Unrecognized file format — please upload a PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX, or TXT file.');
+    }
+  } catch (e) {
+    if (e instanceof Error && e.message.includes('document')) throw e;
+    // File read failures fall back to the MIME/extension checks above.
+  }
+}
 
 export function formatFileSize(bytes: number | null | undefined): string {
   const size = Number(bytes ?? 0);
@@ -237,7 +308,7 @@ export async function submitMaterial(input: {
   file: File;
   admin?: boolean;
 }): Promise<MaterialItem> {
-  validateMaterialFile(input.file);
+  await validateMaterialFile(input.file);
   const client = supabase;
   if (!client) throw new Error('Authentication is not configured yet.');
 
