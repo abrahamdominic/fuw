@@ -2026,6 +2026,11 @@ button {
   grid-template-columns: 2fr 1.8fr 1.1fr 1.3fr 1fr;
 }
 
+.admin-published-courses-grid {
+  min-width: 780px;
+  grid-template-columns: 0.95fr 2fr 1.3fr 0.75fr 0.95fr 0.9fr 0.9fr;
+}
+
 .users-table-grid {
   min-width: 720px;
   grid-template-columns: 1.6fr 1.2fr 1.4fr 0.8fr 1fr 0.8fr;
@@ -2642,6 +2647,277 @@ textarea.form-input {
 }
 .cat-list li:last-child {
   border-bottom: none;
+}
+
+/* ── Admin academic sessions ─────────────────────────────── */
+.category-box-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.active-session-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: #12603d;
+  background: #eef6f0;
+  border: 1px solid #d0e7d6;
+  border-radius: 0.4rem;
+  padding: 0.45rem 0.6rem;
+  margin-bottom: 0.6rem;
+}
+
+.session-create-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  padding: 0.6rem;
+  background: #f8faf8;
+  border: 1px dashed var(--border, #d6e4da);
+  border-radius: 0.4rem;
+}
+
+.session-create-form label {
+  font-size: 0.78rem;
+  color: var(--text-secondary, #6b7c6b);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.session-create-form input[type='text'],
+.session-create-form input[type='date'],
+.session-create-form input:not([type='checkbox']) {
+  width: 100%;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--border, #e1ece3);
+  border-radius: 0.35rem;
+  font-size: 0.8rem;
+}
+
+.session-create-form .session-active-toggle {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.session-create-form .session-active-toggle input[type='checkbox'] {
+  width: auto;
+}
+
+.session-create-form .form-feedback-box p {
+  margin: 0;
+}
+
+.session-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.session-item-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.session-item-main small {
+  color: var(--text-tertiary, #9ab0a2);
+  font-size: 0.72rem;
+}
+
+.session-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+
+/* ── Admin drill-down: expandable faculty cards ────────────── */
+.admin-faculty-card {
+  padding: 0 !important;
+  overflow: hidden;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.admin-faculty-card:hover {
+  transform: none;
+}
+.admin-faculty-card.open {
+  border-color: #12603d;
+}
+
+.faculty-toggle {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 22px;
+  font: inherit;
+  color: inherit;
+}
+.faculty-toggle:focus-visible {
+  outline: 2px solid #12603d;
+  outline-offset: -2px;
+  border-radius: 11px;
+}
+
+.faculty-toggle-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.faculty-toggle-head .faculty-index {
+  color: #9cb0a2;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+
+.faculty-toggle-info {
+  flex: 1;
+  min-width: 0;
+}
+.faculty-toggle-info h3 {
+  font: 700 18px 'Playfair Display', Georgia, serif;
+  margin: 0 0 5px;
+  color: #122c1e;
+}
+.faculty-toggle-info p {
+  margin: 0;
+  color: #66736a;
+  font-size: 0.85rem;
+}
+
+.chev {
+  flex-shrink: 0;
+  color: #9cb0a2;
+  transition: transform 0.2s ease;
+  margin-top: 4px;
+}
+.chev.rotated {
+  transform: rotate(90deg);
+}
+
+.faculty-detail {
+  padding: 0 22px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.faculty-dept-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.8rem;
+  background: #f7faf8;
+  border-radius: 8px;
+  gap: 1rem;
+}
+.faculty-dept-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.faculty-dept-info b {
+  color: #122c1e;
+  font-size: 0.9rem;
+}
+.faculty-dept-info small {
+  color: #66736a;
+  font-size: 0.78rem;
+}
+
+/* ── Admin drill-down: expandable table rows ─────────────── */
+.admin-row-group {
+  display: contents;
+}
+
+.admin-expand-row {
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.admin-expand-row:hover {
+  background: #f7faf8;
+}
+.admin-expand-row.open {
+  background: #f0f6f2;
+}
+
+.row-action-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #12603d;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.admin-row-detail {
+  grid-column: 1 / -1;
+  padding: 0 0 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.detail-summary {
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+  color: #44554a;
+  padding: 0.6rem 0.8rem;
+  background: #f7faf8;
+  border-radius: 8px;
+}
+
+.detail-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 0.5rem;
+  font-size: 0.82rem;
+}
+.detail-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  color: #66736a;
+}
+.detail-fields label b {
+  color: #122c1e;
+}
+
+.empty-state-row {
+  background: #f7faf8;
+}
+.empty-state-row .empty-state {
+  font-size: 0.85rem;
+  color: #66736a;
+}
+
+/* ── Department detail courses grid (6-col) ───────────────── */
+.admin-dept-courses-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1.6fr 0.8fr 0.8fr 0.7fr 1fr;
+  gap: 0.5rem;
+  align-items: center;
+}
+@media (max-width: 840px) {
+  .admin-dept-courses-grid {
+    grid-template-columns: 0.8fr 1fr;
+  }
 }
 
 /* ── Step indicator pills (course upload) ─────────────────── */
@@ -3736,6 +4012,17 @@ select.form-input:disabled { background-color: var(--surface-alt); }
 
 .table-action-btn:hover {
   background: #12603d;
+  color: #ffffff;
+}
+
+.table-action-btn.danger {
+  background: #fdf1f1;
+  color: #c0392b;
+  border-color: #f3cdcd;
+}
+
+.table-action-btn.danger:hover {
+  background: #c0392b;
   color: #ffffff;
 }
 

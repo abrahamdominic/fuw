@@ -36,6 +36,7 @@ import { CatalogueFilters, FilterState, EMPTY_FILTERS } from '../components/Cata
 import { Logo } from '../components/Logo';
 import { useToast } from '../components/Toast';
 import { SEO } from '../components/SEO';
+import { mergeDbCourses } from '../lib/liveCatalogue';
 
 
 interface PublicPagesProps {
@@ -536,12 +537,33 @@ export function FacultiesPage() {
 export function CoursesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [courseFilters, setCourseFilters] = useState<FilterState>({ ...EMPTY_FILTERS });
+  // Courses published by administrators appear here too, merged into the
+  // canonical (static) directory from the live database.
+  const [liveRows, setLiveRows] = useState<any[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    import('../lib/liveCatalogue')
+      .then((m) => m.getLiveCourseRows())
+      .then((rows) => {
+        if (!cancelled) setLiveRows(rows);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const mergedCatalogue = useMemo(
+    () => (liveRows ? mergeDbCourses(catalogue, liveRows) : catalogue),
+    [liveRows]
+  );
 
   // Build the full directory from the canonical catalogue. Level is already
   // stored as a plain number (100/200/300) — never multiply it again.
   const allCourses = useMemo(
     () =>
-      catalogue.flatMap((f) =>
+      mergedCatalogue.flatMap((f) =>
         f.departments.flatMap((d) => {
           // Respect the cascading faculty → department filters.
           if (courseFilters.faculty && f.name !== courseFilters.faculty) return [];
@@ -562,7 +584,7 @@ export function CoursesPage() {
             .filter((c) => !courseFilters.course || c.code === courseFilters.course);
         })
       ),
-    [courseFilters]
+    [courseFilters, mergedCatalogue]
   );
 
   const filtered = allCourses.filter((c) => {

@@ -5,7 +5,8 @@ import {
   facultyByName,
   departmentByName,
   getCoursesForSelection,
-  groupedFaculties
+  groupedFaculties,
+  type Course
 } from '../data/catalogue';
 
 // Hierarchy: Faculty → Department → Level → Semester → Material Type → Course.
@@ -65,6 +66,9 @@ interface CatalogueFiltersProps {
 export function CatalogueFilters({ filters, onChange, compact = false, fields }: CatalogueFiltersProps) {
   // If controlled
   const [internalFilters, setInternalFilters] = React.useState<FilterState>(EMPTY_FILTERS);
+  // Database-merged course options for the selected academic structure
+  // (includes courses admins publish directly to the catalogue).
+  const [mergedCourses, setMergedCourses] = React.useState<Course[] | null>(null);
 
   const state = filters || internalFilters;
 
@@ -86,10 +90,29 @@ export function CatalogueFilters({ filters, onChange, compact = false, fields }:
   const availableLevels = state.department ? levelsFor(currentDepartment?.duration) : [];
 
   // Courses only ever come from the exact department + level + semester combo.
-  const availableCourses =
+  const staticCourses =
     state.department && state.level && state.semester
       ? getCoursesForSelection(state.faculty, state.department, state.level, state.semester)
       : [];
+
+  // Refresh the merged course list whenever the academic structure changes.
+  React.useEffect(() => {
+    setMergedCourses(null);
+    if (state.department && state.level && state.semester) {
+      let cancelled = false;
+      import('../lib/liveCatalogue')
+        .then((m) => m.getMergedCoursesForSelection(state.faculty, state.department, state.level, state.semester))
+        .then((list) => {
+          if (!cancelled) setMergedCourses(list);
+        })
+        .catch(() => {});
+      return () => {
+        cancelled = true;
+      };
+    }
+  }, [state.faculty, state.department, state.level, state.semester]);
+
+  const availableCourses = mergedCourses ?? staticCourses;
 
   // A field unlocks once every rendered field ahead of it in the hierarchy
   // has a value (skipped fields cannot block their dependents).

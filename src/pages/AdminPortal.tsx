@@ -51,9 +51,13 @@ import {
   FileWarning,
   MessageSquare,
   Send,
-  UserCog
+  UserCog,
+  Pencil,
+  ArrowLeft,
+  Calendar
 } from 'lucide-react';
 import { useStore } from '../lib/useStore';
+import { useLiveCatalogue } from '../lib/useLiveCatalogue';
 import { MaterialItem } from '../lib/store';
 import { Logo } from '../components/Logo';
 import { CatalogueFilters, FilterState } from '../components/CatalogueFilters';
@@ -1528,28 +1532,68 @@ function AdminUsersTab() {
 
 // 5. Admin Faculties Tab
 function AdminFacultiesTab() {
+  const store = useStore();
+  const { catalogue: liveCatalogue } = useLiveCatalogue();
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const approved = React.useMemo(() => store.getApprovedMaterials(), []);
+
+  const countFaculty = (name: string) => approved.filter((m) => m.faculty === name).length;
+  const countDept = (fac: string, dep: string) =>
+    approved.filter((m) => m.faculty === fac && m.department === dep).length;
+
   return (
     <div className="portal-view-fade">
       <div className="portal-top">
         <div>
           <p className="kicker">ACADEMIC STRUCTURE</p>
-          <h1>Faculties directory ({catalogue.length})</h1>
-          <p className="subtitle">Browse and manage Federal University Wukari's 11 academic faculties.</p>
+          <h1>Faculties directory ({liveCatalogue.length})</h1>
+          <p className="subtitle">Click a faculty to see its departments, course counts and associated library materials.</p>
         </div>
       </div>
 
       <div className="grid faculty-grid">
-        {catalogue.map((f, i) => (
-          <div className="faculty" key={f.name}>
-            <span>{String(i + 1).padStart(2, '0')}</span>
-            <h3>{f.name}</h3>
-            <p>{f.departments.length} accredited departments</p>
-            <Link to={`/library?faculty=${encodeURIComponent(f.name)}`} className="faculty-view-link">
-              <span>View Materials</span>
-              <ChevronRight size={16} />
-            </Link>
-          </div>
-        ))}
+        {liveCatalogue.map((f, i) => {
+          const open = expanded === f.name;
+          const matCount = countFaculty(f.name);
+          return (
+            <div className={`faculty admin-faculty-card${open ? ' open' : ''}`} key={f.name}>
+              <button
+                type="button"
+                className="faculty-toggle"
+                aria-expanded={open}
+                onClick={() => setExpanded(open ? null : f.name)}
+              >
+                <span className="faculty-toggle-head">
+                  <span className="faculty-index">{String(i + 1).padStart(2, '0')}</span>
+                  <span className="faculty-toggle-info">
+                    <h3>{f.name}</h3>
+                    <p>{f.departments.length} accredited departments · {matCount} materials</p>
+                  </span>
+                  <ChevronRight size={16} className={`chev${open ? ' rotated' : ''}`} />
+                </span>
+              </button>
+
+              {open && (
+                <div className="faculty-detail">
+                  {f.departments.map((d) => (
+                    <div className="faculty-dept-row" key={d.name}>
+                      <div className="faculty-dept-info">
+                        <b>{d.name}</b>
+                        <small>{d.courses.length} courses · {countDept(f.name, d.name)} materials</small>
+                      </div>
+                      <Link
+                        to={`/library?faculty=${encodeURIComponent(f.name)}&department=${encodeURIComponent(d.name)}`}
+                        className="table-action-btn"
+                      >
+                        Browse
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -1557,13 +1601,24 @@ function AdminFacultiesTab() {
 
 // 6. Admin Departments Tab
 function AdminDepartmentsTab() {
+  const store = useStore();
+  const { catalogue: liveCatalogue } = useLiveCatalogue();
   const [searchTerm, setSearchTerm] = useState('');
-  const allDepts = catalogue.flatMap((f) =>
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const approved = React.useMemo(() => store.getApprovedMaterials(), []);
+
+  const countDept = (fac: string, dep: string) =>
+    approved.filter((m) => m.faculty === fac && m.department === dep).length;
+  const countCourse = (dep: string, code: string) =>
+    approved.filter((m) => m.department === dep && m.course.toUpperCase() === code.toUpperCase()).length;
+
+  const allDepts = liveCatalogue.flatMap((f) =>
     f.departments.map((d) => ({
       faculty: f.name,
       name: d.name,
       duration: d.duration,
-      coursesCount: d.courses.length
+      coursesCount: d.courses.length,
+      courses: d.courses
     }))
   );
 
@@ -1579,7 +1634,7 @@ function AdminDepartmentsTab() {
         <div>
           <p className="kicker">ACADEMIC PROGRAMMES</p>
           <h1>Accredited departments ({allDepts.length})</h1>
-          <p className="subtitle">Complete catalogue of {allDepts.length} academic departments and degree durations.</p>
+          <p className="subtitle">Complete catalogue of {allDepts.length} academic departments. Click a department to see its courses and materials.</p>
         </div>
       </div>
 
@@ -1614,24 +1669,86 @@ function AdminDepartmentsTab() {
           <span>Action</span>
         </div>
 
-        {displayed.map((d) => (
-          <div className="tr depts-table-grid" key={d.name}>
-            <span>
-              <b>{d.name}</b>
-            </span>
-            <span>{d.faculty}</span>
-            <span>{d.duration} Years Degree</span>
-            <span>{d.coursesCount} Courses Loaded</span>
-            <span>
-              <Link
-                to={`/library?department=${encodeURIComponent(d.name)}`}
-                className="table-action-btn"
+        {displayed.map((d) => {
+          const open = expanded === d.name;
+          return (
+            <div className="admin-row-group" key={`${d.faculty}-${d.name}`}>
+              <div
+                className={`tr depts-table-grid admin-expand-row${open ? ' open' : ''}`}
+                onClick={() => setExpanded(open ? null : d.name)}
               >
-                Browse Materials
-              </Link>
-            </span>
-          </div>
-        ))}
+                <span>
+                  <b>{d.name}</b>
+                  <small>{countDept(d.faculty, d.name)} materials in the library</small>
+                </span>
+                <span>{d.faculty}</span>
+                <span>{d.duration} Years Degree</span>
+                <span>{d.coursesCount} Courses Loaded</span>
+                <span className="row-action-cell">
+                  {open ? 'Hide Details' : 'Show Details'}
+                  <ChevronRight size={14} className={`chev${open ? ' rotated' : ''}`} />
+                </span>
+              </div>
+
+              {open && (
+                <div className="admin-row-detail">
+                  <div className="detail-summary">
+                    <span>
+                      <b>{d.coursesCount}</b> courses offered
+                    </span>
+                    <span>
+                      <b>{countDept(d.faculty, d.name)}</b> library materials
+                    </span>
+                    <Link
+                      to={`/library?department=${encodeURIComponent(d.name)}`}
+                      className="table-action-btn"
+                    >
+                      Browse All Materials
+                    </Link>
+                  </div>
+
+                  <div className="table">
+                    <div className="tr head admin-dept-courses-grid">
+                      <span>Course Code</span>
+                      <span>Course Title</span>
+                      <span>Level</span>
+                      <span>Semester</span>
+                      <span>Materials</span>
+                      <span>Action</span>
+                    </div>
+                    {d.courses.length === 0 ? (
+                      <div className="tr empty-state-row">
+                        <span className="empty-state" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '1rem' }}>
+                          No courses listed for this department.
+                        </span>
+                      </div>
+                    ) : (
+                      d.courses.map((c, idx) => (
+                        <div className="tr admin-dept-courses-grid" key={`${c.code}-${idx}`}>
+                          <span>
+                            <b className="course-code-highlight">{c.code}</b>
+                          </span>
+                          <span>{c.name}</span>
+                          <span>{c.level} Level</span>
+                          <span>{c.semester}</span>
+                          <span>{countCourse(d.name, c.code)}</span>
+                          <span>
+                            <Link
+                              to={`/library?department=${encodeURIComponent(d.name)}&q=${encodeURIComponent(c.code)}`}
+                              className="table-action-btn"
+                            >
+                              Search Files
+                            </Link>
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
       )}
     </div>
@@ -1640,8 +1757,22 @@ function AdminDepartmentsTab() {
 
 // 7. Admin Courses Tab
 function AdminCoursesTab() {
+  const { toast } = useToast();
+  const { profile, isSuperAdmin } = useAuth();
+  const store = useStore();
+  const [liveRefresh, setLiveRefresh] = useState(0);
+  const { catalogue: liveCatalogue } = useLiveCatalogue(liveRefresh);
   const [searchTerm, setSearchTerm] = useState('');
-  const allCourses = catalogue.flatMap((f) =>
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [showPublisher, setShowPublisher] = useState(false);
+  const [published, setPublished] = useState<any[]>([]);
+  const [publishedLoading, setPublishedLoading] = useState(true);
+  const approved = React.useMemo(() => store.getApprovedMaterials(), []);
+
+  const countCourse = (dept: string, code: string) =>
+    approved.filter((m) => m.department === dept && m.course.toUpperCase() === code.toUpperCase()).length;
+
+  const allCourses = liveCatalogue.flatMap((f) =>
     f.departments.flatMap((d) =>
       d.courses.map((c) => ({
         code: c.code,
@@ -1653,6 +1784,46 @@ function AdminCoursesTab() {
       }))
     )
   );
+
+  const loadPublished = async () => {
+    setPublishedLoading(true);
+    try {
+      const { fetchAdminPublishedCourses } = await import('../lib/adminCourses');
+      const data = await fetchAdminPublishedCourses();
+      setPublished(data);
+    } catch (err: any) {
+      toast(err.message || 'Failed to load published courses.', 'error');
+    } finally {
+      setPublishedLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadPublished();
+  }, []);
+
+  const handlePublished = async () => {
+    try {
+      const { invalidateLiveCourseCache } = await import('../lib/liveCatalogue');
+      invalidateLiveCourseCache();
+    } catch {
+      // cache invalidation is best-effort
+    }
+    setLiveRefresh((n) => n + 1);
+    await loadPublished();
+  };
+
+  const handleDeletePublished = async (id: string) => {
+    if (!confirm('Delete this course from the official catalogue? Any linked material stays in the library.')) return;
+    try {
+      const { deleteAdminPublishedCourse } = await import('../lib/adminCourses');
+      await deleteAdminPublishedCourse(id);
+      setPublished((prev) => prev.filter((c) => c.id !== id));
+      toast('Course removed from the catalogue.', 'success');
+    } catch (err: any) {
+      toast(err.message || 'Delete failed.', 'error');
+    }
+  };
 
   const displayed = allCourses.filter((c) => {
     if (!searchTerm.trim()) return true;
@@ -1671,11 +1842,74 @@ function AdminCoursesTab() {
         <div>
           <p className="kicker">CURRICULUM DIRECTORY</p>
           <h1>Courses & curriculum levels ({allCourses.length})</h1>
-          <p className="subtitle">Accredited course codes mapped across departments and academic semesters.</p>
+          <p className="subtitle">Accredited course codes mapped across departments and academic semesters. Publish new courses instantly from here.</p>
         </div>
+        <button
+          type="button"
+          className="primary submit-btn"
+          style={{ maxWidth: 'fit-content', whiteSpace: 'nowrap' }}
+          onClick={() => setShowPublisher((v) => !v)}
+        >
+          <Plus size={16} /> {showPublisher ? 'Close Publisher' : 'Add Course'}
+        </button>
       </div>
 
-      <div className="manage-tools compact">
+      {showPublisher && <AdminCoursePublisher onPublished={() => void handlePublished()} />}
+
+      {/* Courses published directly by administrators (auto-published, live now) */}
+      <div className="form-section" style={{ marginTop: '1rem' }}>
+        <h3>Published by administrators ({published.length})</h3>
+        {publishedLoading ? (
+          <div className="empty-state card-empty">
+            <Loader2 size={28} className="animate-spin" />
+            <span>Loading published courses…</span>
+          </div>
+        ) : published.length === 0 ? (
+          <div className="empty-state card-empty">
+            <GraduationCap size={32} />
+            <b>No administrator-published courses yet.</b>
+            <span>Publish courses using "Add Course" above. Published courses are added to the official catalogue immediately — no approval needed.</span>
+          </div>
+        ) : (
+          <div className="table">
+            <div className="tr head admin-published-courses-grid">
+              <span>Course Code</span>
+              <span>Course Title</span>
+              <span>Department</span>
+              <span>Level</span>
+              <span>Semester</span>
+              <span>Published</span>
+              <span>Action</span>
+            </div>
+            {published.map((c) => (
+              <div className="tr admin-published-courses-grid" key={c.id}>
+                <span>
+                  <b className="course-code-highlight">{c.code}</b>
+                </span>
+                <span>{c.title}</span>
+                <span>
+                  {c.department}
+                  {c.faculty && <small>{c.faculty}</small>}
+                </span>
+                <span>{c.level || '—'}</span>
+                <span>{c.semester || '—'}</span>
+                <span>{new Date(c.created_at).toLocaleDateString()}</span>
+                <span>
+                  {isSuperAdmin || c.created_by === profile?.id ? (
+                    <button type="button" className="table-action-btn danger" onClick={() => handleDeletePublished(c.id)}>
+                      <Trash2 size={13} /> Remove
+                    </button>
+                  ) : (
+                    <span className="table-action-btn" style={{ opacity: 0.55, cursor: 'default' }}>Locked</span>
+                  )}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="manage-tools compact" style={{ marginTop: '1rem' }}>
         <Search size={17} />
         <input
           value={searchTerm}
@@ -1693,8 +1927,8 @@ function AdminCoursesTab() {
       {displayed.length === 0 ? (
         <div className="empty-state card-empty">
           <GraduationCap size={32} />
-          <b>No courses match “{searchTerm.trim()}”.</b>
-          <span>Try a course code like “CSC 201”, a title keyword, or clear the search.</span>
+          <b>No courses match "{searchTerm.trim()}".</b>
+          <span>Try a course code like "CSC 201", a title keyword, or clear the search.</span>
         </div>
       ) : (
       <div className="table">
@@ -1707,30 +1941,455 @@ function AdminCoursesTab() {
           <span>Library Resources</span>
         </div>
 
-        {displayed.map((c) => (
-          <div className="tr courses-table-grid" key={c.code}>
-            <span>
-              <b className="course-code-highlight">{c.code}</b>
-            </span>
-            <span>{c.name}</span>
-            <span>{c.dept}</span>
-            <span>{c.level}</span>
-            <span>{c.semester}</span>
-            <span>
-              <Link to={`/library?q=${encodeURIComponent(c.code)}`} className="table-action-btn">
-                Search Files
-              </Link>
-            </span>
-          </div>
-        ))}
+        {displayed.map((c, idx) => {
+          const open = expanded === `${c.dept}\u0001${c.code}`;
+          const rowKey = `${c.dept}-${c.code}-${idx}`;
+          const courseMaterials = countCourse(c.dept, c.code);
+          return (
+            <div className="admin-row-group" key={rowKey}>
+              <div
+                className={`tr courses-table-grid admin-expand-row${open ? ' open' : ''}`}
+                onClick={() => setExpanded(open ? null : `${c.dept}\u0001${c.code}`)}
+              >
+                <span>
+                  <b className="course-code-highlight">{c.code}</b>
+                </span>
+                <span>{c.name}</span>
+                <span>{c.dept}</span>
+                <span>{c.level}</span>
+                <span>{c.semester}</span>
+                <span className="row-action-cell">
+                  <Link
+                    to={`/library?q=${encodeURIComponent(c.code)}`}
+                    className="table-action-btn"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    Search Files
+                  </Link>
+                </span>
+              </div>
+
+              {open && (
+                <div className="admin-row-detail">
+                  <div className="detail-summary">
+                    <span>
+                      <b>{courseMaterials}</b> materials in the library for {c.code}
+                    </span>
+                    <Link
+                      to={`/library?department=${encodeURIComponent(c.dept)}&q=${encodeURIComponent(c.code)}`}
+                      className="table-action-btn"
+                    >
+                      Browse All Materials
+                    </Link>
+                  </div>
+
+                  <div className="detail-fields">
+                    <label>
+                      Course Code<b>{c.code}</b>
+                    </label>
+                    <label>
+                      Course Title<b>{c.name}</b>
+                    </label>
+                    <label>
+                      Department<b>{c.dept}</b>
+                    </label>
+                    <label>
+                      Faculty<b>{c.faculty}</b>
+                    </label>
+                    <label>
+                      Level<b>{c.level}</b>
+                    </label>
+                    <label>
+                      Semester<b>{c.semester}</b>
+                    </label>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
       )}
     </div>
   );
 }
 
+// 7b. Admin Course Publisher — admins add courses that publish automatically
+// (no pending/approval stage, unlike the student course-upload workflow).
+interface AdminCourseEntry {
+  id: string;
+  code: string;
+  title: string;
+  errors: { code?: string; title?: string };
+}
+
+function AdminCoursePublisher({ onPublished }: { onPublished: () => void }) {
+  const { toast } = useToast();
+  const [filters, setFilters] = useState<FilterState>({
+    faculty: '',
+    department: '',
+    level: '',
+    semester: '',
+    type: '',
+    course: ''
+  });
+  const [entries, setEntries] = useState<AdminCourseEntry[]>([
+    { id: crypto.randomUUID(), code: '', title: '', errors: {} }
+  ]);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [step, setStep] = useState<'form' | 'preview'>('form');
+
+  const addEntry = () => {
+    setEntries((prev) => [...prev, { id: crypto.randomUUID(), code: '', title: '', errors: {} }]);
+  };
+
+  const removeEntry = (id: string) => {
+    setEntries((prev) => (prev.length <= 1 ? prev : prev.filter((e) => e.id !== id)));
+  };
+
+  const updateEntry = (id: string, field: 'code' | 'title', value: string) => {
+    setEntries((prev) =>
+      prev.map((e) => (e.id === id ? { ...e, [field]: value, errors: { ...e.errors, [field]: undefined } } : e))
+    );
+  };
+
+  const editEntry = (id: string) => {
+    setStep('form');
+    setTimeout(() => {
+      const el = document.getElementById(`admin-course-entry-${id}`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
+  };
+
+  const validate = (): boolean => {
+    if (!filters.faculty || !filters.department || !filters.level || !filters.semester) {
+      setMessage({ type: 'error', text: 'Please select Faculty, Department, Level, and Semester.' });
+      return false;
+    }
+
+    let valid = true;
+    const seen = new Set<string>();
+    const updated = entries.map((e) => {
+      const errors: AdminCourseEntry['errors'] = {};
+      const code = e.code.trim().toUpperCase();
+      const title = e.title.trim();
+
+      if (!code) {
+        errors.code = 'Course Code is required.';
+        valid = false;
+      } else if (seen.has(code)) {
+        errors.code = `${code} has already been added.`;
+        valid = false;
+      } else {
+        seen.add(code);
+      }
+
+      if (!title) {
+        errors.title = 'Course Title is required.';
+        valid = false;
+      }
+
+      return { ...e, code, title, errors };
+    });
+
+    setEntries(updated);
+    if (!valid) {
+      setMessage({ type: 'error', text: 'Please fix the highlighted errors below.' });
+    } else {
+      setMessage(null);
+    }
+    return valid;
+  };
+
+  const handlePreview = () => {
+    if (validate()) {
+      setStep('preview');
+      setMessage(null);
+    }
+  };
+
+  const handleSubmit = async () => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const { publishAdminCourses } = await import('../lib/adminCourses');
+      const input = entries.map((e) => ({
+        faculty: filters.faculty,
+        department: filters.department,
+        level: filters.level,
+        semester: filters.semester,
+        course_code: e.code.trim().toUpperCase(),
+        course_title: e.title.trim()
+      }));
+
+      const result = await publishAdminCourses(input);
+
+      if (result.inserted > 0) {
+        toast(`${result.inserted} course(s) published to the catalogue.`, 'success');
+        let text = `${result.inserted} course(s) published to the official catalogue.`;
+        if (result.skipped > 0) {
+          text += ` ${result.skipped} duplicate(s) were skipped.`;
+        }
+        setMessage({ type: 'success', text });
+        setTimeout(() => {
+          onPublished();
+          setStep('form');
+          setEntries([{ id: crypto.randomUUID(), code: '', title: '', errors: {} }]);
+        }, 1500);
+      } else {
+        setMessage({ type: 'error', text: 'All courses already exist in the catalogue for this academic structure.' });
+      }
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'Failed to publish courses.' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="upload-container">
+      <div className="upload-form full-upload-form">
+        <div className="form-section">
+          <h3>Publish new courses</h3>
+          <p className="subtitle">
+            Courses published here appear in the official catalogue immediately — there is no approval step.
+          </p>
+        </div>
+
+        {/* Step indicator */}
+        <div className="step-pills">
+          <span className={`step-pill${step === 'form' ? ' active' : ''}`}>1. Enter Courses</span>
+          <ChevronRight size={16} className="step-pill-arrow" />
+          <span className={`step-pill${step === 'preview' ? ' active' : ''}`}>2. Review & Publish</span>
+        </div>
+
+        {step === 'form' ? (
+          <>
+            <div className="form-section">
+              <h3>Academic Information</h3>
+              <CatalogueFilters
+                filters={filters}
+                onChange={setFilters}
+                compact
+                fields={['faculty', 'department', 'level', 'semester']}
+              />
+            </div>
+
+            <div className="form-section">
+              <h3>Courses</h3>
+              {entries.map((e) => (
+                <div
+                  key={e.id}
+                  id={`admin-course-entry-${e.id}`}
+                  className="course-entry-row"
+                >
+                  <label>
+                    Course Code *
+                    <input
+                      value={e.code}
+                      placeholder="e.g. ECO 101"
+                      onChange={(ev) => updateEntry(e.id, 'code', ev.target.value)}
+                      className={e.errors.code ? 'course-entry-input-error' : ''}
+                    />
+                    {e.errors.code && <span className="course-entry-error">{e.errors.code}</span>}
+                  </label>
+                  <label>
+                    Course Title *
+                    <input
+                      value={e.title}
+                      placeholder="e.g. Introduction to Economics"
+                      onChange={(ev) => updateEntry(e.id, 'title', ev.target.value)}
+                      className={e.errors.title ? 'course-entry-input-error' : ''}
+                    />
+                    {e.errors.title && <span className="course-entry-error">{e.errors.title}</span>}
+                  </label>
+                  <button
+                    type="button"
+                    className="icon-btn danger mt-lg"
+                    onClick={() => removeEntry(e.id)}
+                    disabled={entries.length <= 1}
+                    title="Remove course"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              ))}
+
+              <button type="button" className="add-course-btn" onClick={addEntry}>
+                <Plus size={18} /> Add Another Course
+              </button>
+            </div>
+
+            {message && (
+              <div className={`form-feedback-box ${message.type}`}>
+                {message.type === 'success' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+                <p>{message.text}</p>
+              </div>
+            )}
+
+            <div className="form-submit-row">
+              <button className="primary submit-btn" onClick={handlePreview}>
+                <Eye size={16} /> Review Courses
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="form-section">
+              <h3>Academic Information</h3>
+              <div className="course-preview-grid">
+                <div><b>Faculty:</b> {filters.faculty}</div>
+                <div><b>Department:</b> {filters.department}</div>
+                <div><b>Level:</b> {filters.level}</div>
+                <div><b>Semester:</b> {filters.semester}</div>
+              </div>
+            </div>
+
+            <div className="form-section">
+              <h3>Courses ({entries.length})</h3>
+              <div className="course-preview-table-wrap">
+                <table className="course-preview-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Course Code</th>
+                      <th>Course Title</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {entries.map((e, idx) => (
+                      <tr key={e.id}>
+                        <td className="preview-idx">{idx + 1}</td>
+                        <td className="preview-code">{e.code}</td>
+                        <td className="preview-title">{e.title}</td>
+                        <td style={{ padding: '0.5rem' }}>
+                          <div className="course-preview-actions">
+                            <button type="button" className="link-btn" onClick={() => editEntry(e.id)}>
+                              <Pencil size={13} /> Edit
+                            </button>
+                            <button
+                              type="button"
+                              className="link-btn danger"
+                              onClick={() => {
+                                setEntries((prev) => prev.filter((x) => x.id !== e.id));
+                                if (entries.length <= 1) setStep('form');
+                              }}
+                            >
+                              <Trash2 size={13} /> Remove
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {message && (
+              <div className={`form-feedback-box ${message.type}`}>
+                {message.type === 'success' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+                <p>{message.text}</p>
+              </div>
+            )}
+
+            <div className="form-submit-row">
+              <button className="back-to-edit-btn" onClick={() => setStep('form')}>
+                <ArrowLeft size={16} /> Back to Edit
+              </button>
+              <button className="primary submit-btn" disabled={busy} onClick={handleSubmit}>
+                <Upload size={16} />
+                {busy ? 'Publishing…' : 'Publish Courses'}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // 8. Admin Categories Tab
 function AdminCategoriesTab() {
+  const { toast } = useToast();
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [form, setForm] = useState({
+    name: '',
+    label: '',
+    is_active: false,
+    starts_on: '',
+    ends_on: ''
+  });
+  const [formError, setFormError] = useState('');
+
+  const loadSessions = async () => {
+    setLoading(true);
+    try {
+      const { fetchAcademicSessions } = await import('../lib/academicSessions');
+      const data = await fetchAcademicSessions();
+      setSessions(data);
+    } catch (err: any) {
+      toast(err.message || 'Failed to load academic sessions.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadSessions();
+  }, []);
+
+  const handleCreate = async () => {
+    if (!form.name.trim()) {
+      setFormError('A session name is required (e.g. 2026/2027).');
+      return;
+    }
+    setFormError('');
+    setBusy(true);
+    try {
+      const { createAcademicSession } = await import('../lib/academicSessions');
+      const { created } = await createAcademicSession(form);
+      toast(created ? `Session “${form.name.trim()}” created.` : `Session “${form.name.trim()}” updated.`, 'success');
+      setShowCreate(false);
+      setForm({ name: '', label: '', is_active: false, starts_on: '', ends_on: '' });
+      await loadSessions();
+    } catch (err: any) {
+      setFormError(err.message || 'Failed to save session.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleSetActive = async (id: string) => {
+    try {
+      const { setActiveAcademicSession } = await import('../lib/academicSessions');
+      await setActiveAcademicSession(id);
+      toast('Active session updated.', 'success');
+      await loadSessions();
+    } catch (err: any) {
+      toast(err.message || 'Failed to update active session.', 'error');
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Delete this academic session?')) return;
+    try {
+      const { deleteAcademicSession } = await import('../lib/academicSessions');
+      await deleteAcademicSession(id);
+      setSessions((prev) => prev.filter((s) => s.id !== id));
+      toast('Session deleted.', 'success');
+    } catch (err: any) {
+      toast(err.message || 'Delete failed.', 'error');
+    }
+  };
+
+  const activeSession = sessions.find((s) => s.is_active);
+
   return (
     <div className="portal-view-fade">
       <div className="portal-top">
@@ -1756,14 +2415,103 @@ function AdminCategoriesTab() {
         </div>
 
         <div className="category-box">
-          <h3>Academic Calendar Sessions</h3>
-          <ul className="cat-list">
-            <li>2025/2026 Academic Session (Current / Active)</li>
-            <li>2024/2025 Academic Session</li>
-            <li>2023/2024 Academic Session</li>
-            <li>2022/2023 Academic Session</li>
-            <li>2021/2022 Academic Session</li>
-          </ul>
+          <div className="category-box-head">
+            <h3 style={{ margin: 0 }}>Academic Calendar Sessions</h3>
+            <button type="button" className="add-course-btn" onClick={() => setShowCreate((v) => !v)}>
+              <Plus size={14} /> {showCreate ? 'Cancel' : 'Create Session'}
+            </button>
+          </div>
+
+          {activeSession && (
+            <div className="active-session-banner">
+              <Calendar size={15} />
+              <b>{activeSession.label || activeSession.name}</b> is the session currently marked active.
+            </div>
+          )}
+
+          {showCreate && (
+            <div className="session-create-form">
+              <label>
+                Session name *
+                <input
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  placeholder="e.g. 2026/2027"
+                />
+              </label>
+              <label>
+                Display label
+                <input
+                  value={form.label}
+                  onChange={(e) => setForm({ ...form, label: e.target.value })}
+                  placeholder="e.g. 2026/2027 Academic Session"
+                />
+              </label>
+              <div className="form-grid-2">
+                <label>
+                  Starts
+                  <input
+                    type="date"
+                    value={form.starts_on}
+                    onChange={(e) => setForm({ ...form, starts_on: e.target.value })}
+                  />
+                </label>
+                <label>
+                  Ends
+                  <input
+                    type="date"
+                    value={form.ends_on}
+                    onChange={(e) => setForm({ ...form, ends_on: e.target.value })}
+                  />
+                </label>
+              </div>
+              <label className="session-active-toggle">
+                <input
+                  type="checkbox"
+                  checked={form.is_active}
+                  onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
+                />
+                Mark as active / current session
+              </label>
+              {formError && <div className="form-feedback-box error"><AlertCircle size={18} /><p>{formError}</p></div>}
+              <button className="primary submit-btn" disabled={busy} onClick={handleCreate}>
+                {busy ? <><Loader2 size={16} className="animate-spin" /> Saving…</> : <><Save size={16} /> Save Session</>}
+              </button>
+            </div>
+          )}
+
+          {loading ? (
+            <div className="empty-state"><Loader2 size={28} className="animate-spin" /><span>Loading sessions…</span></div>
+          ) : sessions.length === 0 ? (
+            <div className="empty-state">
+              <Calendar size={28} />
+              <b>No academic sessions yet.</b>
+              <span>Click “Create Session” to add the first academic calendar session.</span>
+            </div>
+          ) : (
+            <ul className="cat-list session-list">
+              {sessions.map((s) => (
+                <li className="session-item" key={s.id}>
+                  <span className="session-item-main">
+                    {s.label || s.name}
+                    <small>
+                      {s.starts_on ? `Starts ${s.starts_on}` : ''}
+                      {s.starts_on && s.ends_on ? ' · ' : ''}
+                      {s.ends_on ? `Ends ${s.ends_on}` : ''}
+                    </small>
+                  </span>
+                  {s.is_active ? (
+                    <span className="status-badge-pill" style={{ background: '#10b981' }}>Active</span>
+                  ) : (
+                    <span className="session-actions">
+                      <button type="button" className="link-btn" onClick={() => handleSetActive(s.id)}>Set Active</button>
+                      <button type="button" className="link-btn danger" onClick={() => handleDelete(s.id)}>Delete</button>
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
     </div>
