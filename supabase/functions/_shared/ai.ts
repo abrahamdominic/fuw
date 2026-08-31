@@ -5,17 +5,53 @@
 //   AI_MODEL        (optional, default gpt-4o-mini)
 //   EMBEDDING_MODEL (optional, default text-embedding-3-small)
 
+// CORS: respond only to a request whose Origin is allow-listed. These edge
+// functions authenticate via the Authorization header (never cookies), so the
+// practical risk of `*` was low, but echoing a vetted origin is stricter (F6).
+// Allowed origins come from the APP_ORIGIN env (comma-separated); a permissive
+// default is NOT supplied — an Origin with no explicit match gets no CORS
+// headers, so cross-origin callers fail at the browser.
+const allowedOrigins = (): string[] =>
+  (Deno.env.get('APP_ORIGIN') ?? '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+
+export function corsFor(req: Request): Record<string, string> {
+  const origin = (req.headers.get('origin') ?? '').toLowerCase();
+  const allowed = allowedOrigins();
+  if (origin && allowed.includes(origin)) {
+    return {
+      'Access-Control-Allow-Origin': origin,
+      'Access-Control-Allow-Headers':
+        'authorization, apikey, x-client-info, content-type, prefer',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Max-Age': '86400'
+    };
+  }
+  // No matching origin -> omit CORS headers entirely (non-CORS same-origin
+  // requests still work; browser cross-origin requests are blocked).
+  return {
+    'Access-Control-Allow-Headers':
+      'authorization, apikey, x-client-info, content-type, prefer',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS'
+  };
+}
+
 export const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': '',
   'Access-Control-Allow-Headers':
     'authorization, x-client-info, apikey, content-type, prefer',
   'Access-Control-Allow-Methods': 'POST, OPTIONS'
 };
 
-export function json(body: unknown, status = 200): Response {
+export function json(body: unknown, status = 200, req?: Request): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    headers: {
+      ...(req ? corsFor(req) : corsHeaders),
+      'Content-Type': 'application/json'
+    }
   });
 }
 

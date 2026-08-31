@@ -5,10 +5,10 @@
 
 [[rules]]
   id = "fuw-supabase-service-role"
-  description = "Supabase service_role key (JWT signed with eyJhbGciOiJIUzI1NiJ9 with role=service_role)"
-  regex = '''sb_secret_[a-zA-Z0-9]+|(?:^|[^A-Za-z0-9])(eyJhbGciOiJIUzI1NiJ9\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{20,})'''
+  description = "Supabase service_role key (base64url JWT with role=service_role)"
+  regex = '''sb_secret_[a-zA-Z0-9]+|(?:^|[^A-Za-z0-9])(eyJ[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{20,})'''
   secretGroup = 1
-  keywords = ["service_role", "supabase", "eyJhbGciOiJIUzI1NiJ9"]
+  keywords = ["service_role", "supabase", "eyJ"]
 
 [[rules]]
   id = "fuw-ai-provider-key"

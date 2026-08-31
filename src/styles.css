@@ -2864,8 +2864,7 @@ textarea.form-input {
 }
 
 .admin-row-detail {
-  grid-column: 1 / -1;
-  padding: 0 0 0.5rem;
+  padding: 0 20px 20px;
   display: flex;
   flex-direction: column;
   gap: 0.8rem;

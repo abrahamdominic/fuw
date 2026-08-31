@@ -2,20 +2,20 @@
 // POST { message, conversationId?, materialId?, filters? { department, level, courseCode } }
 // Requires an authenticated student/admin JWT. Secrets stay server-side.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { aiConfig, chatComplete, embedTexts, corsHeaders, json, ChatMessage } from '../_shared/ai.ts';
+import { aiConfig, chatComplete, embedTexts, corsFor, json, ChatMessage } from '../_shared/ai.ts';
 
 const MAX_MESSAGE_LENGTH = 2000;
 const HOURLY_MESSAGE_LIMIT = 40;
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
-  if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsFor(req) });
+  if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405, req);
 
   const authHeader = req.headers.get('Authorization') ?? '';
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-  if (!supabaseUrl || !anonKey || !serviceKey) return json({ error: 'Server misconfigured' }, 500);
+  if (!supabaseUrl || !anonKey || !serviceKey) return json({ error: 'Server misconfigured' }, 500, req);
 
   // RLS-scoped client for user-identity checks; service client for writes the
   // user cannot perform directly (assistant messages, conversations bookkeeping).
@@ -31,24 +31,24 @@ Deno.serve(async (req) => {
     data: { user },
     error: userError
   } = await userClient.auth.getUser();
-  if (userError || !user) return json({ error: 'Authentication required' }, 401);
+  if (userError || !user) return json({ error: 'Authentication required' }, 401, req);
 
   let body: any;
   try {
     body = await req.json();
   } catch {
-    return json({ error: 'Invalid JSON body' }, 400);
+    return json({ error: 'Invalid JSON body' }, 400, req);
   }
 
   const message = String(body.message ?? '').trim();
-  if (!message) return json({ error: 'A question is required.' }, 400);
+  if (!message) return json({ error: 'A question is required.' }, 400, req);
   if (message.length > MAX_MESSAGE_LENGTH) {
-    return json({ error: `Messages are limited to ${MAX_MESSAGE_LENGTH} characters.` }, 413);
+    return json({ error: `Messages are limited to ${MAX_MESSAGE_LENGTH} characters.` }, 413, req);
   }
 
   const cfg = aiConfig();
   if (!cfg.configured) {
-    return json({ error: 'AI_NOT_CONFIGURED', message: 'The AI assistant is not configured yet. Please contact the library administrator.' }, 503);
+    return json({ error: 'AI_NOT_CONFIGURED', message: 'The AI assistant is not configured yet. Please contact the library administrator.' }, 503, req);
   }
 
   try {
@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
       usedThisHour = count ?? 0;
     }
     if (usedThisHour >= HOURLY_MESSAGE_LIMIT) {
-      return json({ error: 'RATE_LIMITED', message: 'You have reached your hourly AI limit. Please try again later.' }, 429);
+      return json({ error: 'RATE_LIMITED', message: 'You have reached your hourly AI limit. Please try again later.' }, 429, req);
     }
 
     // ---- Conversation resolution ----
@@ -206,13 +206,13 @@ Deno.serve(async (req) => {
       answer,
       citations,
       usedContext: matched.length > 0
-    });
+    }, 200, req);
   } catch (err) {
     const raw = String(err?.message ?? err);
     if (raw.startsWith('AI_NOT_CONFIGURED')) {
-      return json({ error: 'AI_NOT_CONFIGURED', message: 'The AI assistant is not configured yet.' }, 503);
+      return json({ error: 'AI_NOT_CONFIGURED', message: 'The AI assistant is not configured yet.' }, 503, req);
     }
     console.error('ai-chat error:', raw);
-    return json({ error: 'AI_REQUEST_FAILED', message: 'The AI service is temporarily unavailable. Please try again shortly.' }, 502);
+    return json({ error: 'AI_REQUEST_FAILED', message: 'The AI service is temporarily unavailable. Please try again shortly.' }, 502, req);
   }
 });

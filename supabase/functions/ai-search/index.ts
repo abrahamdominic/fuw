@@ -3,17 +3,17 @@
 // Embeds the natural-language query and returns the most relevant approved
 // materials using pgvector similarity over material_chunks.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { aiConfig, embedTexts, corsHeaders, json } from '../_shared/ai.ts';
+import { aiConfig, embedTexts, corsFor, json } from '../_shared/ai.ts';
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
-  if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsFor(req) });
+  if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405, req);
 
   const authHeader = req.headers.get('Authorization') ?? '';
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-  if (!supabaseUrl || !anonKey || !serviceKey) return json({ error: 'Server misconfigured' }, 500);
+  if (!supabaseUrl || !anonKey || !serviceKey) return json({ error: 'Server misconfigured' }, 500, req);
 
   // Authenticated users only (students + admins).
   const userClient = createClient(supabaseUrl, anonKey, {
@@ -24,22 +24,22 @@ Deno.serve(async (req) => {
     data: { user },
     error: userError
   } = await userClient.auth.getUser();
-  if (userError || !user) return json({ error: 'Authentication required' }, 401);
+  if (userError || !user) return json({ error: 'Authentication required' }, 401, req);
 
   let body: any;
   try {
     body = await req.json();
   } catch {
-    return json({ error: 'Invalid JSON body' }, 400);
+    return json({ error: 'Invalid JSON body' }, 400, req);
   }
 
   const query = String(body.query ?? '').trim();
-  if (!query) return json({ error: 'A search query is required.' }, 400);
-  if (query.length > 500) return json({ error: 'Search queries are limited to 500 characters.' }, 413);
+  if (!query) return json({ error: 'A search query is required.' }, 400, req);
+  if (query.length > 500) return json({ error: 'Search queries are limited to 500 characters.' }, 413, req);
 
   const cfg = aiConfig();
   if (!cfg.configured) {
-    return json({ error: 'AI_NOT_CONFIGURED', message: 'AI search is not configured yet.' }, 503);
+    return json({ error: 'AI_NOT_CONFIGURED', message: 'AI search is not configured yet.' }, 503, req);
   }
 
   const serviceClient = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
@@ -76,7 +76,7 @@ Deno.serve(async (req) => {
     }
 
     const ids = [...bestPerMaterial.keys()].slice(0, limit);
-    if (!ids.length) return json({ results: [] });
+    if (!ids.length) return json({ results: [] }, 200, req);
 
     const { data: materials, error: matErr } = await serviceClient
       .from('materials')
@@ -96,11 +96,11 @@ Deno.serve(async (req) => {
       }))
       .sort((a: any, b: any) => b.relevance - a.relevance);
 
-    return json({ results });
+    return json({ results }, 200, req);
   } catch (err) {
     const raw = String(err?.message ?? err);
-    if (raw.startsWith('AI_NOT_CONFIGURED')) return json({ error: 'AI_NOT_CONFIGURED' }, 503);
+    if (raw.startsWith('AI_NOT_CONFIGURED')) return json({ error: 'AI_NOT_CONFIGURED' }, 503, req);
     console.error('ai-search error:', raw);
-    return json({ error: 'AI_SEARCH_FAILED', message: 'AI search is temporarily unavailable.' }, 502);
+    return json({ error: 'AI_SEARCH_FAILED', message: 'AI search is temporarily unavailable.' }, 502, req);
   }
 });

@@ -5,7 +5,11 @@
 set -e
 
 # Pattern: Supabase service_role JWTs or sb_secret_* values.
-SERVICE_REGEX='(sb_secret_[a-zA-Z0-9]+|eyJhbGciOiJIUzI1NiJ9\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{20,})'
+# Real Supabase keys are standard base64url JWTs (header "eyJhbGciOi...") of the
+# form eyJ<header>.<payload>.<signature>. The header is variable-length because
+# it carries a base64url "typ" claim, so match any JWT-shaped token rather than
+# a rigid header literal (the previous regex missed the real key, C-02).
+SERVICE_REGEX='(sb_secret_[a-zA-Z0-9]+|eyJ[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{20,})'
 AI_REGEX='(sk-[a-zA-Z0-9]{20,})'
 
 FOUND=0

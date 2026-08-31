@@ -4,19 +4,19 @@
 // embeddings and stores them in material_chunks. Job status is tracked in
 // ai_processing_jobs: pending -> processing -> ready | failed.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { aiConfig, embedTexts, chunkText, corsHeaders, json } from '../_shared/ai.ts';
+import { aiConfig, embedTexts, chunkText, corsFor, json } from '../_shared/ai.ts';
 
 const MAX_DOCUMENT_BYTES = 20 * 1024 * 1024;
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
-  if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsFor(req) });
+  if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405, req);
 
   const authHeader = req.headers.get('Authorization') ?? '';
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-  if (!supabaseUrl || !anonKey || !serviceKey) return json({ error: 'Server misconfigured' }, 500);
+  if (!supabaseUrl || !anonKey || !serviceKey) return json({ error: 'Server misconfigured' }, 500, req);
 
   // Verify the caller is an authenticated admin.
   const userClient = createClient(supabaseUrl, anonKey, {
@@ -27,28 +27,28 @@ Deno.serve(async (req) => {
     data: { user },
     error: userError
   } = await userClient.auth.getUser();
-  if (userError || !user) return json({ error: 'Authentication required' }, 401);
+  if (userError || !user) return json({ error: 'Authentication required' }, 401, req);
   const { data: profile } = await userClient
     .from('profiles')
     .select('role, is_active')
     .eq('id', user.id)
     .maybeSingle();
   if (!profile || !['admin', 'super_admin'].includes(profile.role) || !profile.is_active) {
-    return json({ error: 'Administrator access required' }, 403);
+    return json({ error: 'Administrator access required' }, 403, req);
   }
 
   let body: any;
   try {
     body = await req.json();
   } catch {
-    return json({ error: 'Invalid JSON body' }, 400);
+    return json({ error: 'Invalid JSON body' }, 400, req);
   }
   const materialId = String(body.materialId ?? '');
-  if (!materialId) return json({ error: 'materialId is required.' }, 400);
+  if (!materialId) return json({ error: 'materialId is required.' }, 400, req);
 
   const cfg = aiConfig();
   if (!cfg.configured) {
-    return json({ error: 'AI_NOT_CONFIGURED', message: 'Set AI_API_KEY as a function secret to enable processing.' }, 503);
+    return json({ error: 'AI_NOT_CONFIGURED', message: 'Set AI_API_KEY as a function secret to enable processing.' }, 503, req);
   }
 
   const serviceClient = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
@@ -59,11 +59,11 @@ Deno.serve(async (req) => {
       .select('*')
       .eq('id', materialId)
       .maybeSingle();
-    if (matErr || !material) return json({ error: 'Material not found' }, 404);
+    if (matErr || !material) return json({ error: 'Material not found' }, 404, req);
 
     // Only approved materials are indexed for the AI.
     if (material.status !== 'approved') {
-      return json({ error: 'Only approved materials can be processed for AI.' }, 409);
+      return json({ error: 'Only approved materials can be processed for AI.' }, 409, req);
     }
 
     await serviceClient.from('ai_processing_jobs').upsert(
@@ -77,16 +77,38 @@ Deno.serve(async (req) => {
     );
 
     // ---- Fetch file bytes ----
-    let bytes: Uint8Array;
-    if ((material.file_url ?? '').includes('/storage/v1/object/')) {
-      const res = await fetch(material.file_url);
-      if (!res.ok) throw new Error(`DOWNLOAD_FAILED:${res.status}`);
-      bytes = new Uint8Array(await res.arrayBuffer());
-    } else {
-      return await failJob(serviceClient, materialId, 'UNSUPPORTED_SOURCE: no storage-backed file for this material');
+    // SSRF-hardening: never fetch the DB-controlled `file_url` verbatim. The
+    // download URL is reconstructed server-side from the server-derived
+    // `file_path` inside the public library bucket, pinned to this project's
+    // own Supabase storage host. This blocks any attempt to point ai-process at
+    // cloud-metadata / internal / attacker hosts via a crafted material row.
+    const filePath = String(material.file_path ?? '').trim();
+    const storageHost = (() => {
+      try {
+        return new URL(supabaseUrl).hostname; // e.g. <ref>.supabase.co
+      } catch {
+        return '';
+      }
+    })();
+    const downloadUrl = filePath
+      ? `https://${storageHost}/storage/v1/object/public/library-materials/${encodeURI(filePath)}`
+      : '';
+
+    if (!downloadUrl) {
+      return await failJob(serviceClient, materialId, 'UNSUPPORTED_SOURCE: no storage-backed file for this material', req);
     }
+    let res: Response;
+    try {
+      res = await fetch(downloadUrl, { redirect: 'manual' });
+    } catch {
+      return await failJob(serviceClient, materialId, 'DOWNLOAD_FAILED: network error', req);
+    }
+    if (res.status >= 300) {
+      return await failJob(serviceClient, materialId, `DOWNLOAD_FAILED:${res.status}`, req);
+    }
+    bytes = new Uint8Array(await res.arrayBuffer());
     if (bytes.byteLength > MAX_DOCUMENT_BYTES) {
-      return await failJob(serviceClient, materialId, `Document exceeds the ${MAX_DOCUMENT_BYTES / (1024 * 1024)} MB AI processing limit`);
+      return await failJob(serviceClient, materialId, `Document exceeds the ${MAX_DOCUMENT_BYTES / (1024 * 1024)} MB AI processing limit`, req);
     }
 
     // ---- Extract text per format ----
@@ -111,21 +133,22 @@ Deno.serve(async (req) => {
         return await failJob(
           serviceClient,
           materialId,
-          'Unsupported file type for AI processing. Supported: PDF, TXT, DOCX.'
+          'Unsupported file type for AI processing. Supported: PDF, TXT, DOCX.',
+          req
         );
       }
     } catch (extractErr) {
-      return await failJob(serviceClient, materialId, `TEXT_EXTRACTION_FAILED:${String(extractErr).slice(0, 300)}`);
+      return await failJob(serviceClient, materialId, `TEXT_EXTRACTION_FAILED:${String(extractErr).slice(0, 300)}`, req);
     }
 
     if (!text.trim()) {
-      return await failJob(serviceClient, materialId, 'No readable text found in this document (it may be a scanned image).');
+      return await failJob(serviceClient, materialId, 'No readable text found in this document (it may be a scanned image).', req);
     }
 
     // ---- Chunk + embed ----
     const chunks = chunkText(text);
     if (!chunks.length) {
-      return await failJob(serviceClient, materialId, 'Document produced no usable text chunks.');
+      return await failJob(serviceClient, materialId, 'Document produced no usable text chunks.', req);
     }
     const embeddings = await embedTexts(cfg, chunks);
 
@@ -164,19 +187,19 @@ Deno.serve(async (req) => {
     );
     if (readyErr) throw new Error(readyErr.message);
 
-    return json({ status: 'ready', chunks: chunks.length });
+    return json({ status: 'ready', chunks: chunks.length }, 200, req);
   } catch (err) {
     console.error('ai-process error:', err);
     try {
-      await failJob(serviceClient, materialId, String(err?.message ?? err).slice(0, 400));
+      await failJob(serviceClient, materialId, String(err?.message ?? err).slice(0, 400), req);
     } catch {
       /* ignore */
     }
-    return json({ error: 'PROCESSING_FAILED', message: 'AI processing failed. See the job details in the admin dashboard.' }, 502);
+    return json({ error: 'PROCESSING_FAILED', message: 'AI processing failed. See the job details in the admin dashboard.' }, 502, req);
   }
 });
 
-async function failJob(client: any, materialId: string, message: string): Promise<Response> {
+async function failJob(client: any, materialId: string, message: string, req?: Request): Promise<Response> {
   await client.from('ai_processing_jobs').upsert(
     {
       material_id: materialId,
@@ -186,7 +209,7 @@ async function failJob(client: any, materialId: string, message: string): Promis
     },
     { onConflict: 'material_id' }
   );
-  return json({ status: 'failed', error: message }, 200);
+  return json({ status: 'failed', error: message }, 200, req);
 }
 
 function parsePageMarker(content: string): number | null {
