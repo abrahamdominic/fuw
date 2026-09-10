@@ -2660,12 +2660,23 @@ function AdminSettingsTab() {
 
   const [activeTab, setActiveTab] = useState<'general' | 'materials' | 'users' | 'notifications' | 'security' | 'taxonomy'>('general');
   const [settings, setSettings] = useState(store.getAdminSettings());
+  const [semesterCalendar, setSemesterCalendar] = useState({
+    first: { label: 'First Semester', starts_on: '2025-09-15', ends_on: '2026-01-31' },
+    second: { label: 'Second Semester', starts_on: '2026-02-01', ends_on: '2026-06-30' }
+  });
   const [resetModalOpen, setResetModalOpen] = useState(false);
   const [adminPasswordState, setAdminPasswordState] = useState({
     currentPassword: '',
     newPassword: '',
     confirmPassword: ''
   });
+
+  useEffect(() => {
+    import('../lib/academicCalendar')
+      .then(({ fetchSemesterCalendar }) => fetchSemesterCalendar())
+      .then(setSemesterCalendar)
+      .catch(() => {});
+  }, []);
 
   const handleSaveSettings = (e: React.FormEvent) => {
     e.preventDefault();
@@ -2927,6 +2938,61 @@ function AdminSettingsTab() {
                   </button>
                 </div>
               </form>
+
+              <div className="settings-section-card" style={{ marginTop: 16 }}>
+                <div className="settings-card-header">
+                  <div>
+                    <h2>Semester Duration</h2>
+                    <p>Set the dates shown to students when they choose a level and semester.</p>
+                  </div>
+                </div>
+                <div className="form-grid-2">
+                  {(['first', 'second'] as const).map((key) => (
+                    <div key={key} className="category-box">
+                      <h3>{semesterCalendar[key].label}</h3>
+                      <label>
+                        Starts
+                        <input
+                          type="date"
+                          value={semesterCalendar[key].starts_on}
+                          onChange={(e) => setSemesterCalendar((current) => ({
+                            ...current,
+                            [key]: { ...current[key], starts_on: e.target.value }
+                          }))}
+                        />
+                      </label>
+                      <label>
+                        Ends
+                        <input
+                          type="date"
+                          value={semesterCalendar[key].ends_on}
+                          onChange={(e) => setSemesterCalendar((current) => ({
+                            ...current,
+                            [key]: { ...current[key], ends_on: e.target.value }
+                          }))}
+                        />
+                      </label>
+                    </div>
+                  ))}
+                </div>
+                <div className="settings-actions-bar">
+                  <button
+                    type="button"
+                    className="primary save-btn"
+                    onClick={async () => {
+                      try {
+                        const { saveSemesterCalendar } = await import('../lib/academicCalendar');
+                        await saveSemesterCalendar(semesterCalendar);
+                        toast('Semester dates updated for all users.', 'success');
+                      } catch (err: any) {
+                        toast(err.message || 'Failed to update semester dates.', 'error');
+                      }
+                    }}
+                  >
+                    <Save size={15} /> Save Semester Dates
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 

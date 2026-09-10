@@ -104,6 +104,23 @@ export function formatFileSize(bytes: number | null | undefined): string {
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+const CONTENT_TYPE_BY_EXT: Record<string, string> = {
+  '.pdf': 'application/pdf',
+  '.doc': 'application/msword',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.ppt': 'application/vnd.ms-powerpoint',
+  '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  '.xls': 'application/vnd.ms-excel',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  '.txt': 'text/plain'
+};
+
+/** Fall back to a storage-trigger-approved MIME type when the browser reports none. */
+function contentTypeByExtension(fileName: string): string {
+  const ext = fileName.toLowerCase().substring(fileName.lastIndexOf('.'));
+  return CONTENT_TYPE_BY_EXT[ext] || 'application/octet-stream';
+}
+
 const TONES: MaterialItem['tone'][] = ['orange', 'blue', 'purple', 'green', 'teal'];
 
 /** Map a `materials` row (optionally with an embedded uploader profile) to the UI shape. */
@@ -352,8 +369,12 @@ export async function submitMaterial(input: {
   }
 
   // 2. Upload the binary to Storage.
+  // Resolve a concrete MIME type by extension when the browser reports none,
+  // rather than falling back to application/octet-stream (which the storage
+  // integrity trigger rejects as generic/unsafe).
+  const contentType = input.file.type || contentTypeByExtension(input.file.name);
   const { error: storageError } = await client.storage.from(BUCKET).upload(path, input.file, {
-    contentType: input.file.type || 'application/octet-stream',
+    contentType,
     upsert: false
   });
 

@@ -106,7 +106,7 @@ Deno.serve(async (req) => {
     if (res.status >= 300) {
       return await failJob(serviceClient, materialId, `DOWNLOAD_FAILED:${res.status}`, req);
     }
-    bytes = new Uint8Array(await res.arrayBuffer());
+    const bytes = new Uint8Array(await res.arrayBuffer());
     if (bytes.byteLength > MAX_DOCUMENT_BYTES) {
       return await failJob(serviceClient, materialId, `Document exceeds the ${MAX_DOCUMENT_BYTES / (1024 * 1024)} MB AI processing limit`, req);
     }

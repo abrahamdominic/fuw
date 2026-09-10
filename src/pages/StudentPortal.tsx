@@ -75,6 +75,7 @@ import { fetchMyStudentCourses } from '../lib/studentCourses';
 import { fetchConversations, fetchMessages, sendMessage, markConversationRead, startConversation, Conversation, Message } from '../lib/messages';
 import { submitProfileChangeRequest, fetchMyChangeRequests, ProfileChangeRequest } from '../lib/profileChangeRequests';
 import { fetchMySessions, terminateSession, terminateAllOtherSessions, detectConnection, ActiveSession } from '../lib/sessions';
+import { fetchAcademicSessions, AcademicSession } from '../lib/academicSessions';
 
 
 interface StudentPortalProps {
@@ -705,6 +706,8 @@ function StudentUploadTab({ onUploaded }: { onUploaded: () => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [academicSessions, setAcademicSessions] = useState<AcademicSession[]>([]);
+  const [academicSession, setAcademicSession] = useState('');
 
   const [filters, setFilters] = useState<FilterState>({
     faculty: 'Faculty of Computing & Information System',
@@ -714,6 +717,19 @@ function StudentUploadTab({ onUploaded }: { onUploaded: () => void }) {
     semester: 'First Semester',
     type: materialTypes[0]
   });
+
+  useEffect(() => {
+    fetchAcademicSessions()
+      .then((rows) => {
+        setAcademicSessions(rows);
+        if (rows.length) {
+          setAcademicSession((current) => rows.some((row) => row.name === current) ? current : rows[0].name);
+        }
+      })
+      .catch((err: Error) => {
+        setMessage({ type: 'error', text: err.message || 'Unable to load academic sessions.' });
+      });
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -728,6 +744,10 @@ function StudentUploadTab({ onUploaded }: { onUploaded: () => void }) {
 
     if (!title || !description) {
       setMessage({ type: 'error', text: 'Title and description are required.' });
+      return;
+    }
+    if (!academicSession) {
+      setMessage({ type: 'error', text: 'Please select an academic session.' });
       return;
     }
 
@@ -747,6 +767,7 @@ function StudentUploadTab({ onUploaded }: { onUploaded: () => void }) {
         course_title: filters.course ? courseTitleByCode(filters.course) : undefined,
         level: filters.level || '100 Level',
         semester: filters.semester || 'First Semester',
+        academic_session: academicSession,
         material_type: filters.type || materialTypes[0],
         file
       });
@@ -805,6 +826,21 @@ function StudentUploadTab({ onUploaded }: { onUploaded: () => void }) {
           <div className="form-section">
             <h3>2. Academic Categorization</h3>
             <CatalogueFilters filters={filters} onChange={setFilters} compact />
+            <label>
+              Academic Session *
+              <select
+                required
+                disabled={!academicSessions.length}
+                value={academicSession}
+                onChange={(e) => setAcademicSession(e.target.value)}
+              >
+                {academicSessions.map((session) => (
+                  <option key={session.name} value={session.name}>
+                    {session.label || `${session.name} Academic Session`}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
 
           <div className="form-section">
