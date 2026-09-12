@@ -76,7 +76,29 @@ export function MaterialCard({ material, onReadOnline, onAskAi }: MaterialCardPr
       </h3>
 
       <p className="card-course">
-        <b>{material.course}</b> · {material.department}
+        <b>{material.course}</b> ·{' '}
+        {material.assignedDepartments && material.assignedDepartments.length > 1 ? (
+          <span>
+            {material.assignedDepartments[0].name}{' '}
+            <span
+              style={{
+                fontSize: '11px',
+                fontWeight: 600,
+                color: '#0B6B3A',
+                backgroundColor: '#eaf3ec',
+                padding: '1px 6px',
+                borderRadius: '10px',
+                marginLeft: '4px',
+                display: 'inline-block'
+              }}
+              title={material.assignedDepartments.map((d) => d.name).join(', ')}
+            >
+              +{material.assignedDepartments.length - 1} more
+            </span>
+          </span>
+        ) : (
+          material.department
+        )}
       </p>
 
       <p className="card-meta">

@@ -239,15 +239,32 @@ export function LibraryPage({ onReadOnline }: PublicPagesProps) {
           m.course.toLowerCase().includes(q) ||
           m.department.toLowerCase().includes(q) ||
           m.faculty.toLowerCase().includes(q) ||
+          m.assignedDepartments?.some(
+            (d) => d.name.toLowerCase().includes(q) || d.facultyName?.toLowerCase().includes(q)
+          ) ||
           m.description.toLowerCase().includes(q);
         if (!matches) return false;
       }
 
-      // Faculty filter
-      if (queryFaculty && m.faculty !== queryFaculty) return false;
+      // Faculty filter - matches if primary faculty or any assigned department's faculty matches
+      if (queryFaculty) {
+        const facLower = queryFaculty.toLowerCase();
+        const matchesFaculty =
+          m.faculty.toLowerCase() === facLower ||
+          m.assignedDepartments?.some((d) => d.facultyName && d.facultyName.toLowerCase() === facLower);
+        if (!matchesFaculty) return false;
+      }
 
-      // Department filter
-      if (queryDepartment && m.department !== queryDepartment) return false;
+      // Department filter - matches if primary department or any assigned department matches
+      if (queryDepartment) {
+        const deptLower = queryDepartment.toLowerCase();
+        const matchesDept =
+          m.department.toLowerCase() === deptLower ||
+          m.assignedDepartments?.some(
+            (d) => d.name.toLowerCase() === deptLower || (d.id && d.id.toLowerCase() === deptLower)
+          );
+        if (!matchesDept) return false;
+      }
 
       // Course filter
       if (queryCourse && m.course !== queryCourse) return false;
@@ -786,8 +803,20 @@ export function MaterialDetailPage({ onReadOnline }: PublicPagesProps) {
             <dt>Faculty</dt>
             <dd>{material.faculty}</dd>
 
-            <dt>Department</dt>
-            <dd>{material.department}</dd>
+            <dt>{material.assignedDepartments && material.assignedDepartments.length > 1 ? 'Assigned Departments' : 'Department'}</dt>
+            <dd>
+              {material.assignedDepartments && material.assignedDepartments.length > 1 ? (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px' }}>
+                  {material.assignedDepartments.map((d, idx) => (
+                    <span key={d.id || idx} className="filter-chip" style={{ fontSize: '12px' }}>
+                      {d.name} {d.facultyName && d.facultyName !== material.faculty ? `(${d.facultyName.replace(/^Faculty of\s+/i, '')})` : ''}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                material.department
+              )}
+            </dd>
 
             <dt>Level & Semester</dt>
             <dd>{material.level} · {material.semester}</dd>

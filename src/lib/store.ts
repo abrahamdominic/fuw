@@ -154,6 +154,13 @@ export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
   }
 };
 
+export interface AssignedDepartment {
+  id: string;
+  name: string;
+  facultyId?: string;
+  facultyName?: string;
+}
+
 export interface MaterialItem {
   id: string;
   title: string;
@@ -161,6 +168,7 @@ export interface MaterialItem {
   courseTitle?: string;
   faculty: string;
   department: string;
+  assignedDepartments?: AssignedDepartment[];
   type: string;
   level: string;
   semester: string;
@@ -293,38 +301,89 @@ class MaterialsStore {
   public async syncMaterialsFromSupabase() {
     if (!supabase) return;
     try {
-      const { data, error } = await supabase.from('materials').select('*').order('created_at', { ascending: false });
-      if (!error && data) {
+      let data: any[] | null = null;
+      const res = await supabase
+        .from('materials')
+        .select('*, uploader:uploaded_by(full_name, role), material_departments(department_id, departments:department_id(id, name, faculty_id, faculties:faculty_id(id, name)))')
+        .order('created_at', { ascending: false });
+
+      if (!res.error && res.data) {
+        data = res.data;
+      } else {
+        const fb = await supabase.from('materials').select('*').order('created_at', { ascending: false });
+        if (!fb.error && fb.data) {
+          data = fb.data;
+        }
+      }
+
+      if (data) {
         const toneList: MaterialItem['tone'][] = ['orange', 'blue', 'purple', 'green', 'teal'];
-        const mapped: MaterialItem[] = data.map((row: any, i: number) => ({
-          id: row.id,
-          title: row.title,
-          course: row.course_code || 'GEN 101',
-          courseTitle: row.course_title || row.title,
-          faculty: row.faculty,
-          department: row.department,
-          type: row.material_type || 'Lecture Note',
-          level: normalizeLevel(row.level) || '100 Level',
-          semester: row.semester || 'First Semester',
-          session: row.academic_session || row.session || '2025/2026',
-          date: row.created_at ? new Date(row.created_at).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }) : '',
-          createdAt: row.created_at || undefined,
-          downloads: row.downloads || 0,
-          views: row.views || 0,
-          tone: toneList[i % toneList.length],
-          status: row.status || 'approved',
-          rejectionReason: row.rejection_reason,
-          uploadedBy: {
-            id: row.uploaded_by || 'system',
-            name: row.uploaded_by_name || 'FUW Repository',
-            role: 'student'
-          },
-          fileUrl: row.file_url || '/docs/sample.pdf',
-          fileName: row.file_name || `${row.title}.pdf`,
-          fileSize: row.file_size || '3.5 MB',
-          description: row.description || ''
-        }));
-        this.materials = mapped;
+        const mapped: MaterialItem[] = data.map((row: any, i: number) => {
+          let assignedDepartments: AssignedDepartment[] = [];
+          if (Array.isArray(row.material_departments) && row.material_departments.length > 0) {
+            assignedDepartments = row.material_departments
+              .map((md: any) => {
+                const d = md.departments;
+                if (!d) return null;
+                return {
+                  id: d.id,
+                  name: d.name,
+                  facultyId: d.faculty_id || d.faculties?.id,
+                  facultyName: d.faculties?.name || row.faculty
+                };
+              })
+              .filter(Boolean) as AssignedDepartment[];
+          }
+          if (assignedDepartments.length === 0 && row.department) {
+            assignedDepartments = [{
+              id: row.department_id || row.department,
+              name: row.department,
+              facultyId: row.faculty_id,
+              facultyName: row.faculty
+            }];
+          }
+
+          const uploaderRole = row.uploader?.role === 'admin' || row.uploader?.role === 'super_admin' ? 'admin' : 'student';
+
+          return {
+            id: row.id,
+            title: row.title,
+            course: row.course_code || 'GEN 101',
+            courseTitle: row.course_title || row.title,
+            faculty: row.faculty,
+            department: row.department,
+            assignedDepartments,
+            type: row.material_type || 'Lecture Note',
+            level: normalizeLevel(row.level) || '100 Level',
+            semester: row.semester || 'First Semester',
+            session: row.academic_session || row.session || '2025/2026',
+            date: row.created_at ? new Date(row.created_at).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }) : '',
+            createdAt: row.created_at || undefined,
+            downloads: row.downloads || 0,
+            views: row.views || 0,
+            tone: toneList[i % toneList.length],
+            status: row.status || 'approved',
+            rejectionReason: row.rejection_reason,
+            uploadedBy: {
+              id: row.uploaded_by || 'system',
+              name: row.uploader?.full_name || row.uploaded_by_name || 'FUW Repository',
+              role: uploaderRole
+            },
+            fileUrl: row.file_url || '/docs/sample.pdf',
+            fileName: row.file_name || `${row.title}.pdf`,
+            fileSize: row.file_size || '3.5 MB',
+            description: row.description || ''
+          };
+        });
+
+        // Deduplicate materials by ID to guarantee single appearance
+        const dedupedMap = new Map<string, MaterialItem>();
+        for (const item of mapped) {
+          if (!dedupedMap.has(item.id)) {
+            dedupedMap.set(item.id, item);
+          }
+        }
+        this.materials = Array.from(dedupedMap.values());
         this.saveMaterials();
         this.notify();
       }
@@ -412,6 +471,38 @@ class MaterialsStore {
 
   public getApprovedMaterials(): MaterialItem[] {
     return this.materials.filter((m) => m.status === 'approved');
+  }
+
+  /**
+   * Return approved materials assigned to a specific department.
+   * Matches both the primary department and any assigned departments in material_departments.
+   * Deduplicates by material ID so materials never appear twice.
+   */
+  public getApprovedMaterialsForDepartment(departmentName?: string): MaterialItem[] {
+    const approved = this.getApprovedMaterials();
+    if (!departmentName || !departmentName.trim()) return approved;
+
+    const deptLower = departmentName.trim().toLowerCase();
+    const seen = new Set<string>();
+    const matched: MaterialItem[] = [];
+
+    for (const m of approved) {
+      const matches =
+        (m.department && m.department.trim().toLowerCase() === deptLower) ||
+        m.assignedDepartments?.some(
+          (d) =>
+            (d.name && d.name.trim().toLowerCase() === deptLower) ||
+            (d.id && d.id.trim().toLowerCase() === deptLower)
+        );
+
+      if (matches && !seen.has(m.id)) {
+        seen.add(m.id);
+        matched.push(m);
+      }
+    }
+
+    // If the student's department has materials, return them; otherwise fall back to all approved materials
+    return matched.length > 0 ? matched : approved;
   }
 
   public getAllMaterials(): MaterialItem[] {
@@ -672,9 +763,22 @@ class MaterialsStore {
     this.saveMaterials();
 
     if (supabase) {
-      safeSync(
-        supabase.from('materials').update(updates).eq('id', materialId)
-      );
+      const dbPayload: any = {};
+      if (updates.title !== undefined) dbPayload.title = updates.title;
+      if (updates.description !== undefined) dbPayload.description = updates.description;
+      if (updates.faculty !== undefined) dbPayload.faculty = updates.faculty;
+      if (updates.department !== undefined) dbPayload.department = updates.department;
+      if (updates.course !== undefined) dbPayload.course_code = updates.course;
+      if (updates.courseTitle !== undefined) dbPayload.course_title = updates.courseTitle;
+      if (updates.level !== undefined) dbPayload.level = updates.level;
+      if (updates.semester !== undefined) dbPayload.semester = updates.semester;
+      if (updates.type !== undefined) dbPayload.material_type = updates.type;
+      if (updates.session !== undefined) dbPayload.academic_session = updates.session;
+      if (Object.keys(dbPayload).length > 0) {
+        safeSync(
+          supabase.from('materials').update(dbPayload).eq('id', materialId)
+        );
+      }
     }
 
     this.addAuditLog(

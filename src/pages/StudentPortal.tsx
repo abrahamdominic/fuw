@@ -140,7 +140,7 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
     verificationStatus: 'VERIFIED' as const,
     joinedDate: profile?.joinedDate || storeUser.joinedDate || '2026'
   };
-  const approvedMaterials = store.getApprovedMaterials();
+  const approvedMaterials = store.getApprovedMaterialsForDepartment(currentUser.department);
   const studentUploads = store.getStudentUploads(currentUser.id);
   const savedMaterials = store.getSavedMaterials();
   const recentMaterials = store.getRecentMaterials();

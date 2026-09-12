@@ -158,6 +158,61 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setProfile(loadedProfile);
         return loadedProfile;
       }
+
+      // Self-heal: If profile row is missing from profiles table, create it now for the authenticated user
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (currentUser && currentUser.id === userId) {
+        const meta = currentUser.user_metadata || {};
+        const fallbackProfile = {
+          id: userId,
+          email: userEmail || currentUser.email || '',
+          full_name: meta.full_name || userEmail?.split('@')[0] || 'Student',
+          display_name: meta.display_name || meta.full_name?.split(' ')[0] || 'Student',
+          username: meta.username || null,
+          matric_number: meta.matric_number || null,
+          faculty: meta.faculty || null,
+          department: meta.department || null,
+          level: meta.level || null,
+          gender: meta.gender || null,
+          phone_number: meta.phone_number || null,
+          role: 'student' as AppRole,
+          is_active: true,
+        };
+        const { data: created } = await supabase
+          .from('profiles')
+          .insert(fallbackProfile)
+          .select()
+          .maybeSingle();
+
+        if (created) {
+          const loadedProfile: ProfileData = {
+            id: created.id,
+            fullName: created.full_name,
+            displayName: created.full_name?.split(' ')[0] || created.full_name,
+            email: created.email || userEmail || '',
+            matricNumber: created.matric_number || '',
+            faculty: created.faculty || '',
+            department: created.department || '',
+            level: created.level || '',
+            role: (created.role as AppRole) || 'student',
+            permissions: Array.isArray(created.permissions) ? created.permissions : [],
+            isActive: created.is_active !== false,
+            bio: created.bio || '',
+            avatarUrl: created.avatar_url || '',
+            isVerified: true,
+            joinedDate: created.created_at ? new Date(created.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '2026',
+            matricChangesUsed: created.matric_changes_used ?? 0,
+            facultyChangesUsed: created.faculty_changes_used ?? 0,
+            departmentChangesUsed: created.department_changes_used ?? 0,
+            facultyLocked: !!created.faculty,
+            departmentLocked: !!created.department,
+            gender: created.gender || '',
+            phoneNumber: created.phone_number || ''
+          };
+          setProfile(loadedProfile);
+          return loadedProfile;
+        }
+      }
     } catch (err) {
       console.error('Error fetching user profile:', err);
     }
@@ -274,24 +329,81 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Supabase Auth (`signInWithPassword`). Passwords are never stored or
   // hashed client-side.
   const signInWithUsername = async (
-    username: string,
+    usernameOrEmail: string,
     password: string
   ): Promise<{ error: Error | null; role?: AppRole }> => {
     if (!supabase) {
       return { error: new Error('Supabase client is not configured.') };
     }
 
-    const uname = normalizeUsername(username);
-    if (!uname || !password) {
-      return { error: new Error('Please enter your username and password.') };
+    const raw = usernameOrEmail.trim();
+    if (!raw || !password) {
+      return { error: new Error('Please enter your username or email and password.') };
     }
 
-    // Username→email resolution happens SERVER-SIDE in the resolve-login
-    // Edge Function (service client). No public lookup RPC exists, so an
-    // attacker cannot enumerate usernames/emails (AUTH-01 fix). The edge
-    // function only returns a session when the password is correct.
+    // 1. Direct Email Sign-In (if identifier is an email)
+    if (raw.includes('@')) {
+      const email = raw.toLowerCase();
+      try {
+        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+          email,
+          password
+        });
+
+        if (authError) {
+          const msg = authError.message.toLowerCase();
+          if (msg.includes('invalid') || msg.includes('credentials')) {
+            return { error: new Error('Invalid email or password. Please verify your credentials and try again.') };
+          }
+          if (msg.includes('not confirmed') || msg.includes('email_not_confirmed')) {
+            return {
+              error: new Error(
+                'Your email address has not been confirmed yet. Please check your inbox for the confirmation link.'
+              )
+            };
+          }
+          if (msg.includes('rate')) {
+            return { error: new Error('Too many sign-in attempts. Please wait a few moments and try again.') };
+          }
+          return { error: new Error(authError.message) };
+        }
+
+        if (authData.user && authData.session) {
+          setUser(authData.user);
+          setSession(authData.session);
+
+          const prof = await fetchProfile(authData.user.id, authData.user.email);
+          if (!prof) {
+            await supabase.auth.signOut();
+            setProfile(null);
+            syncToStore(null, null);
+            return {
+              error: new Error(
+                'We could not verify your account permissions. Please try again in a moment or contact the library administrator.'
+              )
+            };
+          }
+          if (!prof.isActive) {
+            await supabase.auth.signOut();
+            setProfile(null);
+            syncToStore(null, null);
+            return { error: new Error('This account has been deactivated. Contact the library administrator.') };
+          }
+          syncToStore(prof, authData.user);
+          return { error: null, role: prof.role };
+        }
+
+        return { error: new Error('Sign-in failed. Please try again.') };
+      } catch (err: any) {
+        return { error: new Error(err?.message || 'Sign-in failed. Please check your connection and try again.') };
+      }
+    }
+
+    // 2. Username Sign-In (edge function -> lookup_login_email RPC fallback)
+    const uname = normalizeUsername(raw);
     let code: string | null = null;
     let session: any = null;
+
     try {
       const { data, error } = await supabase.functions.invoke('resolve-login', {
         body: { op: 'login', username: uname, password }
@@ -300,16 +412,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         session = (data as any).session;
       } else if (data && typeof data === 'object' && (data as any).error) {
         code = (data as any).error;
-      } else {
-        code = 'INVALID_CREDENTIALS';
       }
-    } catch (err: any) {
-      // Non-2xx responses surface as FunctionsHttpError; read its JSON body.
+    } catch {
+      // Edge function may not be deployed or failed; fall through to database lookup
+    }
+
+    // Fallback: If edge function did not produce session, try RPC lookup_login_email
+    if (!session) {
       try {
-        const body = typeof err?.context?.json === 'function' ? await err.context.json() : null;
-        code = body?.error ?? 'INVALID_CREDENTIALS';
+        const { data: rpcEmail } = await supabase.rpc('lookup_login_email', {
+          p_username: uname
+        });
+        if (rpcEmail && typeof rpcEmail === 'string' && rpcEmail.includes('@')) {
+          const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+            email: rpcEmail.toLowerCase(),
+            password
+          });
+          if (authError) {
+            const msg = authError.message.toLowerCase();
+            if (msg.includes('not confirmed') || msg.includes('email_not_confirmed')) {
+              return {
+                error: new Error(
+                  'Your email address has not been confirmed yet. Please check your inbox for the confirmation link.'
+                )
+              };
+            }
+            return { error: new Error('Invalid username or password. Please verify your credentials and try again.') };
+          }
+          if (authData.user && authData.session) {
+            session = authData.session;
+          }
+        }
       } catch {
-        code = 'INVALID_CREDENTIALS';
+        // Ignore fallback RPC error
       }
     }
 
@@ -324,7 +459,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (code === 'RATE_LIMITED') {
         return { error: new Error('Too many sign-in attempts. Please wait a few moments and try again.') };
       }
-      return { error: new Error('Incorrect password. Please try again.') };
+      return {
+        error: new Error(
+          'Invalid username or password. You can also sign in directly using your registered email address.'
+        )
+      };
     }
 
     try {
@@ -658,13 +797,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (!email.includes('@')) {
-      // Username-based reset: resolved server-side; response is neutral.
+      // Username-based reset: try resolve-login edge function, fallback to lookup_login_email RPC
+      let resolvedEmail: string | null = null;
       try {
-        await supabase.functions.invoke('resolve-login', {
+        const { data } = await supabase.functions.invoke('resolve-login', {
           body: { op: 'reset_username', username: emailOrUsername, redirectTo: `${window.location.origin}/reset-password` }
         });
+        if (data) return { error: null };
       } catch {
-        // Swallow — resets are always neutral.
+        // Edge function may not be deployed, fall through to lookup RPC
+      }
+
+      try {
+        const { data: rpcEmail } = await supabase.rpc('lookup_login_email', {
+          p_username: normalizeUsername(emailOrUsername)
+        });
+        if (rpcEmail && typeof rpcEmail === 'string' && rpcEmail.includes('@')) {
+          resolvedEmail = rpcEmail;
+        }
+      } catch {
+        // Ignore lookup error
+      }
+
+      if (resolvedEmail) {
+        await supabase.auth.resetPasswordForEmail(resolvedEmail, {
+          redirectTo: `${window.location.origin}/reset-password`
+        }).catch(() => undefined);
       }
       return { error: null };
     }

@@ -2,8 +2,17 @@
 // All mutations write to Supabase first (RLS-protected), storage uploads are
 // attached afterwards, and rows are mapped into the UI's MaterialItem shape.
 import { supabase, requireSupabase } from './supabase';
-import type { MaterialItem } from './store';
+import type { MaterialItem, AssignedDepartment } from './store';
 import { normalizeMaterialType, courseTitleByCode, normalizeLevel } from '../data/catalogue';
+
+export type { AssignedDepartment };
+
+export interface DepartmentOption {
+  id: string;
+  name: string;
+  facultyId?: string;
+  facultyName: string;
+}
 
 const BUCKET = 'library-materials';
 
@@ -123,9 +132,36 @@ function contentTypeByExtension(fileName: string): string {
 
 const TONES: MaterialItem['tone'][] = ['orange', 'blue', 'purple', 'green', 'teal'];
 
-/** Map a `materials` row (optionally with an embedded uploader profile) to the UI shape. */
+/** Map a `materials` row (optionally with an embedded uploader profile and assigned departments) to the UI shape. */
 export function mapMaterialRow(row: any, index = 0): MaterialItem {
   const uploaderRole = row.uploader?.role === 'admin' || row.uploader?.role === 'super_admin' ? 'admin' : 'student';
+
+  let assignedDepartments: AssignedDepartment[] = [];
+  if (Array.isArray(row.material_departments) && row.material_departments.length > 0) {
+    assignedDepartments = row.material_departments
+      .map((md: any) => {
+        const d = md.departments;
+        if (!d) return null;
+        return {
+          id: d.id,
+          name: d.name,
+          facultyId: d.faculty_id || d.faculties?.id,
+          facultyName: d.faculties?.name || row.faculty
+        };
+      })
+      .filter(Boolean) as AssignedDepartment[];
+  }
+  if (assignedDepartments.length === 0 && row.department) {
+    assignedDepartments = [
+      {
+        id: row.department_id || row.department,
+        name: row.department,
+        facultyId: row.faculty_id,
+        facultyName: row.faculty
+      }
+    ];
+  }
+
   return {
     id: row.id,
     title: row.title,
@@ -133,6 +169,7 @@ export function mapMaterialRow(row: any, index = 0): MaterialItem {
     courseTitle: row.course_title || courseTitleByCode(row.course_code) || undefined,
     faculty: row.faculty || '',
     department: row.department || '',
+    assignedDepartments,
     type: normalizeMaterialType(row.material_type),
     level: normalizeLevel(row.level),
     semester: row.semester || '',
@@ -158,12 +195,31 @@ export function mapMaterialRow(row: any, index = 0): MaterialItem {
   };
 }
 
-const BASE_SELECT = '*';
+const BASE_SELECT_WITH_DEPTS =
+  '*, uploader:uploaded_by(full_name, role), material_departments(department_id, departments:department_id(id, name, faculty_id, faculties:faculty_id(id, name)))';
+const BASE_SELECT_FALLBACK = '*, uploader:uploaded_by(full_name, role)';
 
-function applyFilters(query: any, filters: MaterialFilters): any {
+function applyFilters(query: any, filters: MaterialFilters, assignedMaterialIds?: string[] | null): any {
   if (filters.status && filters.status !== 'all') query = query.eq('status', filters.status);
   if (filters.faculty) query = query.eq('faculty', filters.faculty);
-  if (filters.department) query = query.eq('department', filters.department);
+  if (filters.department) {
+    const deptTerm = filters.department.trim();
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(deptTerm);
+    if (assignedMaterialIds && assignedMaterialIds.length > 0) {
+      const idFilter = `id.in.(${assignedMaterialIds.join(',')})`;
+      if (isUuid) {
+        query = query.or(`department_id.eq.${deptTerm},${idFilter}`);
+      } else {
+        query = query.or(`department.ilike.%${deptTerm}%,${idFilter}`);
+      }
+    } else {
+      if (isUuid) {
+        query = query.eq('department_id', deptTerm);
+      } else {
+        query = query.ilike('department', `%${deptTerm}%`);
+      }
+    }
+  }
   if (filters.level) query = query.eq('level', filters.level);
   if (filters.semester) query = query.eq('semester', filters.semester);
   if (filters.courseCode) query = query.ilike('course_code', `%${filters.courseCode}%`);
@@ -205,7 +261,7 @@ export interface PaginatedResult {
   hasMore: boolean;
 }
 
-/** Server-side paginated + filtered material listing. */
+/** Server-side paginated + filtered material listing. Guaranteed deduplicated. */
 export async function fetchMaterials(
   filters: MaterialFilters = {},
   sort: MaterialSort = {},
@@ -216,14 +272,60 @@ export async function fetchMaterials(
   const from = page * pageSize;
   const to = from + pageSize - 1;
 
-  let query = supabase.from('materials').select(BASE_SELECT, { count: 'exact' });
-  query = applyFilters(query, filters);
+  // Resolve assigned material IDs for department if filtered
+  let assignedMaterialIds: string[] | null = null;
+  if (filters.department) {
+    const deptTerm = filters.department.trim();
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(deptTerm);
+    try {
+      let mdQ: any;
+      if (isUuid) {
+        mdQ = supabase.from('material_departments').select('material_id').eq('department_id', deptTerm);
+      } else {
+        mdQ = supabase
+          .from('material_departments')
+          .select('material_id, departments:department_id!inner(name)')
+          .ilike('departments.name', `%${deptTerm}%`);
+      }
+      const { data: mdRows } = await mdQ;
+      if (mdRows && mdRows.length > 0) {
+        assignedMaterialIds = mdRows.map((r: any) => r.material_id).filter(Boolean);
+      }
+    } catch {}
+  }
+
+  let query = supabase.from('materials').select(BASE_SELECT_WITH_DEPTS, { count: 'exact' });
+  query = applyFilters(query, filters, assignedMaterialIds);
   const field = sort.field ?? 'created_at';
   query = query.order(field, { ascending: sort.ascending ?? field !== 'title' });
 
-  const { data, error, count } = await query.range(from, to);
-  if (error) throw new Error(error.message);
-  const items = (data ?? []).map((row: any, i: number) => mapMaterialRow(row, i));
+  let dataRes = await query.range(from, to);
+  if (dataRes.error) {
+    // Retry with plain fallback in case junction table or nested relation is not cached yet
+    let fallbackQ = supabase.from('materials').select(BASE_SELECT_FALLBACK, { count: 'exact' });
+    fallbackQ = applyFilters(fallbackQ, filters, assignedMaterialIds);
+    fallbackQ = fallbackQ.order(field, { ascending: sort.ascending ?? field !== 'title' });
+    dataRes = await fallbackQ.range(from, to);
+
+    if (dataRes.error) {
+      let plainQ = supabase.from('materials').select('*', { count: 'exact' });
+      plainQ = applyFilters(plainQ, filters, assignedMaterialIds);
+      plainQ = plainQ.order(field, { ascending: sort.ascending ?? field !== 'title' });
+      dataRes = await plainQ.range(from, to);
+      if (dataRes.error) throw new Error(dataRes.error.message);
+    }
+  }
+
+  const { data, count } = dataRes;
+  // Deduplicate materials by ID to guarantee single appearance
+  const seen = new Set<string>();
+  const items: MaterialItem[] = [];
+  for (const row of (data ?? [])) {
+    if (!seen.has(row.id)) {
+      seen.add(row.id);
+      items.push(mapMaterialRow(row, items.length));
+    }
+  }
   const total = count ?? items.length;
   return { items, total, hasMore: to + 1 < total };
 }
@@ -316,6 +418,7 @@ export async function submitMaterial(input: {
   description: string;
   faculty: string;
   department: string;
+  department_ids?: string[];
   course_code: string;
   course_title?: string;
   level: string;
@@ -368,10 +471,20 @@ export async function submitMaterial(input: {
     throw new Error(insertError?.message || 'Could not save your submission. Please try again.');
   }
 
+  // 1b. Multi-department assignment
+  if (input.department_ids && input.department_ids.length > 0) {
+    try {
+      const junctionRows = input.department_ids.map((deptId) => ({
+        material_id: inserted.id,
+        department_id: deptId
+      }));
+      await client.from('material_departments').upsert(junctionRows, { onConflict: 'material_id, department_id' });
+    } catch {
+      // Non-fatal if junction table not yet applied in DB
+    }
+  }
+
   // 2. Upload the binary to Storage.
-  // Resolve a concrete MIME type by extension when the browser reports none,
-  // rather than falling back to application/octet-stream (which the storage
-  // integrity trigger rejects as generic/unsafe).
   const contentType = input.file.type || contentTypeByExtension(input.file.name);
   const { error: storageError } = await client.storage.from(BUCKET).upload(path, input.file, {
     contentType,
@@ -379,7 +492,10 @@ export async function submitMaterial(input: {
   });
 
   if (storageError) {
-    // Keep the database clean — remove the row we just created.
+    // Keep the database clean — remove the row and any assignments
+    try {
+      await client.from('material_departments').delete().eq('material_id', inserted.id);
+    } catch {}
     await client.from('materials').delete().eq('id', inserted.id);
     if (storageError.message?.toLowerCase().includes('row-level security')) {
       throw new Error(
@@ -403,14 +519,102 @@ export async function submitMaterial(input: {
     .select('*')
     .single();
 
+  // Refresh the reactive store cache so every screen reflects the new item.
+  const { store } = await import('./store');
+  void store.syncMaterialsFromSupabase();
+
   if (updateError || !finalRow) {
     return mapMaterialRow({ ...inserted, file_url: urlData.publicUrl, file_name: input.file.name, file_size: input.file.size });
   }
 
-  // Refresh the reactive store cache so every screen reflects the new item.
-  const { store } = await import('./store');
-  void store.syncMaterialsFromSupabase();
   return mapMaterialRow(finalRow);
+}
+
+/** Update existing material metadata and multi-department assignments. */
+export async function updateMaterial(
+  materialId: string,
+  input: {
+    title?: string;
+    description?: string;
+    faculty?: string;
+    department?: string;
+    department_ids?: string[];
+    course_code?: string;
+    course_title?: string;
+    level?: string;
+    semester?: string;
+    material_type?: string;
+    academic_session?: string;
+  }
+): Promise<void> {
+  const client = requireSupabase();
+
+  const updatePayload: any = { updated_at: new Date().toISOString() };
+  if (input.title !== undefined) updatePayload.title = input.title.trim();
+  if (input.description !== undefined) updatePayload.description = input.description.trim();
+  if (input.faculty !== undefined) updatePayload.faculty = input.faculty;
+  if (input.department !== undefined) updatePayload.department = input.department;
+  if (input.course_code !== undefined) updatePayload.course_code = input.course_code.trim().toUpperCase();
+  if (input.course_title !== undefined) updatePayload.course_title = input.course_title?.trim() || null;
+  if (input.level !== undefined) updatePayload.level = input.level;
+  if (input.semester !== undefined) updatePayload.semester = input.semester;
+  if (input.material_type !== undefined) updatePayload.material_type = normalizeMaterialType(input.material_type);
+  if (input.academic_session !== undefined) updatePayload.academic_session = input.academic_session.trim();
+
+  const { error: updateErr } = await client.from('materials').update(updatePayload).eq('id', materialId);
+  if (updateErr) throw new Error(updateErr.message);
+
+  // Sync multi-department assignments if department_ids provided
+  if (input.department_ids && input.department_ids.length > 0) {
+    const rpcRes = await callRpc('assign_material_departments', {
+      p_material_id: materialId,
+      p_department_ids: input.department_ids
+    });
+
+    if (!rpcRes.ok) {
+      // Fallback to manual table operations
+      try {
+        await client.from('material_departments').delete().eq('material_id', materialId);
+        const junctionRows = input.department_ids.map((dId) => ({
+          material_id: materialId,
+          department_id: dId
+        }));
+        await client.from('material_departments').insert(junctionRows);
+      } catch {
+        // Table not yet active
+      }
+    }
+  }
+
+  await refreshAfterMutation();
+}
+
+/** Fetch department catalogue options for multi-select assignments. */
+export async function fetchDepartmentCatalogue(): Promise<DepartmentOption[]> {
+  if (supabase) {
+    try {
+      const { data: deptRows, error } = await supabase
+        .from('departments')
+        .select('id, name, faculty_id, faculties:faculty_id(id, name)')
+        .order('name');
+      if (!error && deptRows && deptRows.length > 0) {
+        return deptRows.map((d: any) => ({
+          id: d.id,
+          name: d.name,
+          facultyId: d.faculty_id || d.faculties?.id,
+          facultyName: d.faculties?.name || 'General Faculty'
+        }));
+      }
+    } catch {}
+  }
+
+  // Fallback to static catalogue
+  const { allDepartments } = await import('../data/catalogue');
+  return allDepartments().map((d) => ({
+    id: d.name,
+    name: d.name,
+    facultyName: d.faculty
+  }));
 }
 
 async function callRpc(fn: string, args: Record<string, unknown>): Promise<{ ok: boolean; message?: string }> {

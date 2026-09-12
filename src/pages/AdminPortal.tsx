@@ -69,8 +69,12 @@ import {
   approveMaterial as approveMaterialDb,
   rejectMaterial as rejectMaterialDb,
   deleteMaterial as deleteMaterialDb,
-  fetchMaterials
+  fetchMaterials,
+  type DepartmentOption
 } from '../lib/materials';
+import { DepartmentAssigner } from '../components/DepartmentAssigner';
+import { EditMaterialModal } from '../components/EditMaterialModal';
+import { AssignedDepartmentsModal } from '../components/AssignedDepartmentsModal';
 import { aiProcessMaterial } from '../lib/ai';
 import { ConfirmDialog, PromptDialog } from '../components/ConfirmDialog';
 import { DashboardSearch } from '../components/DashboardSearch';
@@ -797,6 +801,8 @@ function AdminMaterialsTab({
   const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'approved' | 'rejected'>('pending');
   const [searchTerm, setSearchTerm] = useState('');
   const [rejectTarget, setRejectTarget] = useState<{ id: string; title: string } | null>(null);
+  const [editingMaterial, setEditingMaterial] = useState<MaterialItem | null>(null);
+  const [deptListModalMaterial, setDeptListModalMaterial] = useState<MaterialItem | null>(null);
 
   let displayed =
     activeTab === 'pending'
@@ -814,6 +820,10 @@ function AdminMaterialsTab({
         m.title.toLowerCase().includes(q) ||
         m.course.toLowerCase().includes(q) ||
         m.department.toLowerCase().includes(q) ||
+        m.faculty.toLowerCase().includes(q) ||
+        m.assignedDepartments?.some(
+          (d) => d.name.toLowerCase().includes(q) || d.facultyName?.toLowerCase().includes(q)
+        ) ||
         m.uploadedBy.name.toLowerCase().includes(q)
     );
   }
@@ -907,81 +917,146 @@ function AdminMaterialsTab({
             <span>Submissions matching this filter will appear here.</span>
           </div>
         ) : (
-          displayed.map((m) => (
-            <div className="tr admin-materials-grid" key={m.id}>
-              <span>
-                <b>{m.title}</b>
-                <small>{m.course} · {m.type} · {m.fileSize}</small>
-              </span>
-              <span>
-                <b>{m.department}</b>
-                <small>{m.level} · {m.faculty}</small>
-              </span>
-              <span>
-                <b>{m.uploadedBy.name}</b>
-                <small>{m.uploadedBy.role === 'admin' ? 'Faculty Admin' : m.uploadedBy.matricNumber || 'Student'}</small>
-              </span>
-              <span>{m.date}</span>
-              <span>
-                {m.status === 'approved' && (
-                  <span className="status-badge approved">
-                    <CheckCircle2 size={12} /> Live / Approved
-                  </span>
-                )}
-                {m.status === 'pending' && (
-                  <span className="status-badge pending">
-                    <Clock size={12} /> Pending Review
-                  </span>
-                )}
-                {m.status === 'rejected' && (
-                  <span className="status-badge rejected" title={m.rejectionReason}>
-                    <AlertCircle size={12} /> Rejected
-                  </span>
-                )}
-              </span>
-              <span className="admin-row-actions">
-                <button
-                  className="action-icon-btn preview"
-                  onClick={() => onReadOnline(m)}
-                  title="Preview document"
-                >
-                  <Eye size={15} />
-                </button>
+          displayed.map((m) => {
+            const depts =
+              m.assignedDepartments && m.assignedDepartments.length > 0
+                ? m.assignedDepartments
+                : [{ id: '', name: m.department, facultyName: m.faculty }];
 
-                {m.status !== 'approved' && canApprove && (
+            return (
+              <div className="tr admin-materials-grid" key={m.id}>
+                <span>
+                  <b>{m.title}</b>
+                  <small>{m.course} · {m.type} · {m.fileSize}</small>
+                </span>
+                <span>
+                  {depts.length === 1 ? (
+                    <>
+                      <b>{depts[0].name}</b>
+                      <small>{m.level} · {depts[0].facultyName || m.faculty}</small>
+                    </>
+                  ) : depts.length === 2 ? (
+                    <>
+                      <b>{depts[0].name}, {depts[1].name}</b>
+                      <small>{m.level} · Multi-Department</small>
+                    </>
+                  ) : (
+                    <>
+                      <b>{depts[0].name}, {depts[1].name}</b>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+                        <button
+                          type="button"
+                          onClick={() => setDeptListModalMaterial(m)}
+                          style={{
+                            background: '#eaf3ec',
+                            border: '1px solid #cbe3d1',
+                            color: '#0B6B3A',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            padding: '1px 6px',
+                            borderRadius: '10px',
+                            cursor: 'pointer'
+                          }}
+                          title="Click to see all assigned departments"
+                        >
+                          +{depts.length - 2} more
+                        </button>
+                        <small style={{ color: '#666' }}>· {m.level}</small>
+                      </div>
+                    </>
+                  )}
+                </span>
+                <span>
+                  <b>{m.uploadedBy.name}</b>
+                  <small>{m.uploadedBy.role === 'admin' ? 'Faculty Admin' : m.uploadedBy.matricNumber || 'Student'}</small>
+                </span>
+                <span>{m.date}</span>
+                <span>
+                  {m.status === 'approved' && (
+                    <span className="status-badge approved">
+                      <CheckCircle2 size={12} /> Live / Approved
+                    </span>
+                  )}
+                  {m.status === 'pending' && (
+                    <span className="status-badge pending">
+                      <Clock size={12} /> Pending Review
+                    </span>
+                  )}
+                  {m.status === 'rejected' && (
+                    <span className="status-badge rejected" title={m.rejectionReason}>
+                      <AlertCircle size={12} /> Rejected
+                    </span>
+                  )}
+                </span>
+                <span className="admin-row-actions">
                   <button
-                    className="approval-btn approve small"
-                    onClick={() => onApprove(m.id)}
-                    title="Approve & Publish immediately to Frontend"
+                    className="action-icon-btn preview"
+                    onClick={() => onReadOnline(m)}
+                    title="Preview document"
                   >
-                    <CheckCircle2 size={13} /> Approve
+                    <Eye size={15} />
                   </button>
-                )}
 
-                {m.status === 'pending' && canReject && (
                   <button
-                    className="approval-btn reject small"
-                    onClick={() => setRejectTarget({ id: m.id, title: m.title })}
-                    title="Reject"
+                    className="action-icon-btn edit"
+                    onClick={() => setEditingMaterial(m)}
+                    title="Edit material details & assigned departments"
                   >
-                    <XCircle size={13} /> Reject
+                    <Pencil size={15} />
                   </button>
-                )}
 
-                {canDelete && (
-                  <button
-                    className="action-icon-btn delete"
-                    onClick={() => onDelete(m.id)}
-                    title="Delete from database"
-                  >
-                    <Trash2 size={15} />
-                  </button>
-                )}
-              </span>
-            </div>
-          ))
+                  {m.status !== 'approved' && canApprove && (
+                    <button
+                      className="approval-btn approve small"
+                      onClick={() => onApprove(m.id)}
+                      title="Approve & Publish immediately to Frontend"
+                    >
+                      <CheckCircle2 size={13} /> Approve
+                    </button>
+                  )}
+
+                  {m.status === 'pending' && canReject && (
+                    <button
+                      className="approval-btn reject small"
+                      onClick={() => setRejectTarget({ id: m.id, title: m.title })}
+                      title="Reject"
+                    >
+                      <XCircle size={13} /> Reject
+                    </button>
+                  )}
+
+                  {canDelete && (
+                    <button
+                      className="action-icon-btn delete"
+                      onClick={() => onDelete(m.id)}
+                      title="Delete from database"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  )}
+                </span>
+              </div>
+            );
+          })
         )}
       </div>
+
+      {/* Edit Material Modal */}
+      <EditMaterialModal
+        isOpen={!!editingMaterial}
+        material={editingMaterial}
+        onClose={() => setEditingMaterial(null)}
+        onSaved={() => {
+          setEditingMaterial(null);
+        }}
+      />
+
+      {/* Assigned Departments Viewer Modal */}
+      <AssignedDepartmentsModal
+        isOpen={!!deptListModalMaterial}
+        material={deptListModalMaterial}
+        onClose={() => setDeptListModalMaterial(null)}
+      />
 
       {/* Rejection reason dialog */}
       <PromptDialog
@@ -1012,14 +1087,16 @@ function AdminUploadTab({ onUploaded }: { onUploaded: () => void }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const [filters, setFilters] = useState<FilterState>({
-    faculty: 'Faculty of Social Sciences',
-    department: 'Sociology',
-    course: '',
-    level: '300 Level',
-    semester: 'First Semester',
-    type: materialTypes[0]
-  });
+  const [courseCode, setCourseCode] = useState('');
+  const [courseTitle, setCourseTitle] = useState('');
+  const [level, setLevel] = useState('100 Level');
+  const [semester, setSemester] = useState('First Semester');
+  const [materialType, setMaterialType] = useState(materialTypes[0] || 'Lecture Note');
+  const [academicSession, setAcademicSession] = useState('2025/2026');
+
+  const [assignedDepartments, setAssignedDepartments] = useState<DepartmentOption[]>([
+    { id: '', name: 'Computer Science', facultyName: 'Faculty of Computing' }
+  ]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -1037,8 +1114,17 @@ function AdminUploadTab({ onUploaded }: { onUploaded: () => void }) {
       return;
     }
 
+    if (assignedDepartments.length === 0) {
+      setMessage({ type: 'error', text: 'Please assign this material to at least one department.' });
+      return;
+    }
+
     setBusy(true);
     setMessage(null);
+
+    const primaryDept = assignedDepartments[0].name;
+    const primaryFaculty = assignedDepartments[0].facultyName || 'General Faculty';
+    const departmentIds = assignedDepartments.map((d) => d.id).filter(Boolean);
 
     try {
       // Database-first publish: admins with the "upload_as_approved" permission
@@ -1046,22 +1132,24 @@ function AdminUploadTab({ onUploaded }: { onUploaded: () => void }) {
       await submitMaterialDb({
         title,
         description,
-        faculty: filters.faculty || 'Faculty of Social Sciences',
-        department: filters.department || 'Sociology',
-        course_code: filters.course || '',
-        course_title: filters.course ? courseTitleByCode(filters.course) : undefined,
-        level: filters.level || '300 Level',
-        semester: filters.semester || 'First Semester',
-        material_type: filters.type || materialTypes[0],
+        faculty: primaryFaculty,
+        department: primaryDept,
+        department_ids: departmentIds,
+        course_code: courseCode.trim() || 'GEN 101',
+        course_title: courseTitle.trim() || (courseCode ? courseTitleByCode(courseCode) : undefined),
+        level,
+        semester,
+        material_type: materialType,
+        academic_session: academicSession,
         file,
         admin: true
       });
       void store.syncMaterialsFromSupabase();
 
-      toast('Material published successfully! It is now live on the public library and course pages.', 'success');
+      toast('Material published successfully! It is now live in all assigned department catalogues.', 'success');
       setMessage({
         type: 'success',
-        text: 'Material successfully published! It is immediately accessible in the public catalogue.'
+        text: `Material successfully published! Assigned to ${assignedDepartments.length} department${assignedDepartments.length > 1 ? 's' : ''} and immediately accessible in the library.`
       });
 
       setTimeout(() => {
@@ -1081,7 +1169,7 @@ function AdminUploadTab({ onUploaded }: { onUploaded: () => void }) {
           <p className="kicker">DIRECT REPOSITORY PUBLISHING</p>
           <h1>Publish academic material</h1>
           <p className="subtitle">
-            Admin published materials are automatically approved and instantly made live across the public library and course directory.
+            Admin published materials are automatically approved and instantly made live across all assigned departments and the public library.
           </p>
         </div>
       </div>
@@ -1095,7 +1183,7 @@ function AdminUploadTab({ onUploaded }: { onUploaded: () => void }) {
               <input
                 name="title"
                 required
-                placeholder="e.g. Constitutional Law of Nigeria Case Compendium"
+                placeholder="e.g. CSC 201 — Data Structures and Algorithms"
               />
             </label>
 
@@ -1107,11 +1195,74 @@ function AdminUploadTab({ onUploaded }: { onUploaded: () => void }) {
                 placeholder="Provide comprehensive details about what syllabus units, cases, or modules this material encompasses..."
               />
             </label>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginTop: '8px' }}>
+              <label>
+                Course Code
+                <input
+                  value={courseCode}
+                  onChange={(e) => setCourseCode(e.target.value)}
+                  placeholder="e.g. CSC 201"
+                />
+              </label>
+
+              <label>
+                Course Title
+                <input
+                  value={courseTitle}
+                  onChange={(e) => setCourseTitle(e.target.value)}
+                  placeholder="e.g. Data Structures"
+                />
+              </label>
+
+              <label>
+                Level
+                <select value={level} onChange={(e) => setLevel(e.target.value)}>
+                  {['100 Level', '200 Level', '300 Level', '400 Level', '500 Level', '600 Level'].map((lvl) => (
+                    <option key={lvl} value={lvl}>
+                      {lvl}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                Semester
+                <select value={semester} onChange={(e) => setSemester(e.target.value)}>
+                  <option value="First Semester">First Semester</option>
+                  <option value="Second Semester">Second Semester</option>
+                </select>
+              </label>
+
+              <label>
+                Material Type
+                <select value={materialType} onChange={(e) => setMaterialType(e.target.value)}>
+                  {materialTypes.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                Academic Session
+                <input
+                  value={academicSession}
+                  onChange={(e) => setAcademicSession(e.target.value)}
+                  placeholder="2025/2026"
+                />
+              </label>
+            </div>
           </div>
 
           <div className="form-section">
-            <h3>2. Faculty, Department & Course Classification</h3>
-            <CatalogueFilters filters={filters} onChange={setFilters} compact />
+            <h3>2. Department & Faculty Assignment</h3>
+            <DepartmentAssigner
+              selectedDepartments={assignedDepartments}
+              onChange={setAssignedDepartments}
+              error={assignedDepartments.length === 0 ? 'Please assign this material to at least one department.' : null}
+            />
           </div>
 
           <div className="form-section">
@@ -1144,9 +1295,9 @@ function AdminUploadTab({ onUploaded }: { onUploaded: () => void }) {
           <div className="form-submit-row">
             <button className="primary submit-btn" disabled={busy}>
               <Upload size={16} />
-              {busy ? 'Publishing live…' : 'Publish Material to Public Library'}
+              {busy ? 'Publishing live…' : 'Publish Material to Assigned Departments'}
             </button>
-            <span className="submit-hint">Material will be immediately live and searchable.</span>
+            <span className="submit-hint">Material will be immediately live and searchable across assigned departments.</span>
           </div>
         </form>
       </div>
