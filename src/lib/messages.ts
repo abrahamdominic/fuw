@@ -1,5 +1,30 @@
-// Data access layer for admin ↔ student messaging.
+// Data access layer for admin ↔ student AND student ↔ student messaging.
+//
+// Architecture notes:
+//   * A `conversations` row has exactly two participants: student_id and
+//     created_by. RLS treats BOTH as participants (SELECT/INSERT/UPDATE), so
+//     the same policies govern admin ↔ student and student ↔ student threads.
+//   * Direct (student ↔ student) conversations use a deterministic pair_key
+//     (LEAST/GREATEST of the two UUIDs), so Abraham↔John and John↔Abraham
+//     always resolve to the SAME conversation.
+//   * sender_id / receiver_id on messages are derived server-side (sender via
+//     auth.uid() in RLS, receiver via a BEFORE INSERT trigger). Never trust a
+//     client-supplied sender_id.
+//   * Cross-user display info comes from the `safe_profiles` view, which never
+//     exposes email, phone, permissions, or auth data.
 import { requireSupabase } from './supabase';
+
+export interface ProfilePreview {
+  id: string;
+  username: string | null;
+  full_name: string | null;
+  display_name: string | null;
+  role: string | null;
+  matric_number: string | null;
+  faculty: string | null;
+  department: string | null;
+  level: string | null;
+}
 
 export interface Conversation {
   id: string;
@@ -8,22 +33,51 @@ export interface Conversation {
   student_id: string;
   created_by: string;
   last_message_at: string;
-  last_message_body?: string;
   created_at: string;
-  // Joined
-  profiles?: { full_name: string; email: string; matric_number: string; faculty: string; department: string; level: string } | null;
-  messages?: Message[];
+  is_direct: boolean;
+  // Other participant's display info (resolved from safe_profiles).
+  peer?: ProfilePreview | null;
   unread_count?: number;
+  last_message_body?: string;
 }
 
 export interface Message {
   id: string;
   conversation_id: string;
   sender_id: string;
+  receiver_id: string | null;
   body: string;
   is_read: boolean;
+  read_at: string | null;
   created_at: string;
-  sender?: { full_name: string; role: string } | null;
+  sender?: ProfilePreview | null;
+}
+
+export interface StudentSearchResult {
+  id: string;
+  username: string | null;
+  full_name: string | null;
+  display_name: string | null;
+  matric_number: string | null;
+  faculty: string | null;
+  department: string | null;
+  level: string | null;
+}
+
+/** Resolve display fields for a set of profile ids from the safe view. */
+async function fetchProfilePreviews(ids: string[]): Promise<Map<string, ProfilePreview>> {
+  const client = requireSupabase();
+  const uniq = Array.from(new Set(ids)).filter(Boolean);
+  const map = new Map<string, ProfilePreview>();
+  if (uniq.length === 0) return map;
+
+  const { data, error } = await client
+    .from('safe_profiles')
+    .select('id, username, full_name, display_name, role, matric_number, faculty, department, level')
+    .in('id', uniq);
+  if (error) throw error;
+  for (const row of data || []) map.set(row.id, row as ProfilePreview);
+  return map;
 }
 
 /** Fetch conversations for the current user (student or admin). */
@@ -42,22 +96,27 @@ export async function fetchConversations(): Promise<Conversation[]> {
 
   let query = client
     .from('conversations')
-    .select(`
-      *,
-      profiles!conversations_student_id_fkey(full_name, email, matric_number, faculty, department, level)
-    `)
+    .select('*')
     .order('last_message_at', { ascending: false });
 
   if (!isAdmin) {
-    query = query.eq('student_id', user.id);
+    query = query.or(`student_id.eq.${user.id},created_by.eq.${user.id}`);
   }
 
   const { data, error } = await query;
   if (error) throw error;
 
-  // Fetch unread counts and last message body
   const convs = (data || []) as Conversation[];
+
+  // Resolve participant display info from safe_profiles (works for cross-user).
+  const ids = convs.flatMap((c) => [c.student_id, c.created_by]);
+  const previews = await fetchProfilePreviews(ids);
+
   for (const conv of convs) {
+    // The "peer" is whichever participant is not the current user.
+    const peerId = conv.student_id === user.id ? conv.created_by : conv.student_id;
+    conv.peer = previews.get(peerId) || null;
+
     const { count } = await client
       .from('messages')
       .select('*', { count: 'exact', head: true })
@@ -66,7 +125,6 @@ export async function fetchConversations(): Promise<Conversation[]> {
       .neq('sender_id', user.id);
     conv.unread_count = count || 0;
 
-    // Fetch last message body for preview
     const { data: lastMsg } = await client
       .from('messages')
       .select('body')
@@ -74,13 +132,13 @@ export async function fetchConversations(): Promise<Conversation[]> {
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (lastMsg) conv.last_message_body = lastMsg.body;
+    if (lastMsg) conv.last_message_body = (lastMsg as any).body;
   }
 
   return convs;
 }
 
-/** Fetch messages for a conversation. */
+/** Fetch messages for a conversation, with sender display info attached. */
 export async function fetchMessages(conversationId: string): Promise<Message[]> {
   const client = requireSupabase();
   const { data, error } = await client
@@ -90,10 +148,14 @@ export async function fetchMessages(conversationId: string): Promise<Message[]> 
     .order('created_at', { ascending: true });
 
   if (error) throw error;
-  return data || [];
+
+  const msgs = (data || []) as Message[];
+  const previews = await fetchProfilePreviews(msgs.map((m) => m.sender_id));
+  for (const m of msgs) m.sender = previews.get(m.sender_id) || null;
+  return msgs;
 }
 
-/** Admin: start a new conversation with a student. */
+/** Admin/student: create a new help-desk conversation (any authenticated user). */
 export async function startConversation(
   studentId: string,
   subject: string,
@@ -119,24 +181,36 @@ export async function startConversation(
 
   const { error: msgError } = await client
     .from('messages')
-    .insert({
-      conversation_id: conv.id,
-      sender_id: user.id,
-      body: body.trim()
-    });
+    .insert({ conversation_id: conv.id, sender_id: user.id, body: body.trim() });
 
   if (msgError) throw msgError;
 
-  // Notify student
-  await client.from('notifications').insert({
-    user_id: studentId,
-    title: 'New message from Admin',
-    message: `An administrator has sent you a message: ${subject}`,
-    type: 'info',
-    link: '/student/messages'
-  });
+  // Notifications are created server-side by the AFTER INSERT trigger.
+  return conv as Conversation;
+}
 
-  return conv;
+/**
+ * Find-or-create a direct (student ↔ student) conversation with another
+ * student. Uses the deterministic pair_key server-side so duplicate
+ * conversations between the same two people are impossible.
+ */
+export async function getOrCreateDirectConversation(peerId: string): Promise<Conversation> {
+  const client = requireSupabase();
+  const { data, error } = await client.rpc('get_or_create_direct_conversation', {
+    p_other_id: peerId
+  });
+  if (error) throw error;
+  return (data as unknown) as Conversation;
+}
+
+/** Search for students by username (safe fields only, server-side). */
+export async function searchStudents(query: string): Promise<StudentSearchResult[]> {
+  const client = requireSupabase();
+  const q = (query || '').trim();
+  if (!q) return [];
+  const { data, error } = await client.rpc('search_students', { p_query: q });
+  if (error) throw error;
+  return ((data || []) as unknown) as StudentSearchResult[];
 }
 
 /** Send a message in an existing conversation. */
@@ -145,49 +219,28 @@ export async function sendMessage(conversationId: string, body: string): Promise
   const { data: { user } } = await client.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
+  const trimmed = body.trim();
+  if (!trimmed) throw new Error('Message cannot be empty.');
+
   const { data, error } = await client
     .from('messages')
-    .insert({
-      conversation_id: conversationId,
-      sender_id: user.id,
-      body: body.trim()
-    })
+    .insert({ conversation_id: conversationId, sender_id: user.id, body: trimmed })
     .select('*')
     .single();
 
   if (error) throw error;
+  const msg = data as Message;
 
-  // Update last_message_at
+  // Bump last_message_at (now permitted by the participant UPDATE policy).
   await client
     .from('conversations')
     .update({ last_message_at: new Date().toISOString() })
     .eq('id', conversationId);
 
-  // Notify the other party
-  const { data: conv } = await client
-    .from('conversations')
-    .select('student_id, created_by')
-    .eq('id', conversationId)
-    .single();
-
-  if (conv) {
-    const recipientId = conv.student_id === user.id ? conv.created_by : conv.student_id;
-    const { data: senderProfile } = await client.from('profiles').select('full_name, role').eq('id', user.id).single();
-    const senderName = senderProfile?.role === 'admin' || senderProfile?.role === 'super_admin' ? 'Admin' : senderProfile?.full_name || 'Student';
-
-    await client.from('notifications').insert({
-      user_id: recipientId,
-      title: `New message from ${senderName}`,
-      message: body.trim().substring(0, 100) + (body.trim().length > 100 ? '…' : ''),
-      type: 'info',
-      link: '/student/messages'
-    });
-  }
-
-  return data;
+  return msg;
 }
 
-/** Mark messages in a conversation as read. */
+/** Mark incoming messages in a conversation as read. */
 export async function markConversationRead(conversationId: string): Promise<void> {
   const client = requireSupabase();
   const { data: { user } } = await client.auth.getUser();
@@ -195,7 +248,7 @@ export async function markConversationRead(conversationId: string): Promise<void
 
   await client
     .from('messages')
-    .update({ is_read: true })
+    .update({ is_read: true, read_at: new Date().toISOString() })
     .eq('conversation_id', conversationId)
     .neq('sender_id', user.id)
     .eq('is_read', false);

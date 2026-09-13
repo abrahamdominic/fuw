@@ -75,7 +75,7 @@ import { useToast } from '../components/Toast';
 import type { StudentCourse } from '../lib/studentCourses';
 import { submitDeletionRequest, fetchMyDeletionRequests, DeletionRequest } from '../lib/deletionRequests';
 import { fetchMyStudentCourses } from '../lib/studentCourses';
-import { fetchConversations, fetchMessages, sendMessage, markConversationRead, startConversation, Conversation, Message } from '../lib/messages';
+import { fetchConversations, fetchMessages, sendMessage, markConversationRead, startConversation, getOrCreateDirectConversation, searchStudents, Conversation, Message, StudentSearchResult } from '../lib/messages';
 import { submitProfileChangeRequest, fetchMyChangeRequests, ProfileChangeRequest } from '../lib/profileChangeRequests';
 import { fetchMySessions, terminateSession, terminateAllOtherSessions, detectConnection, ActiveSession } from '../lib/sessions';
 import { fetchAcademicSessions, AcademicSession } from '../lib/academicSessions';
@@ -3281,6 +3281,7 @@ function StudentCourseHistoryTab() {
 /* ── Student Messages Tab ────────────────────────────────────── */
 function StudentMessagesTab() {
   const { profile } = useAuth();
+  const userId = profile?.id;
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
@@ -3288,8 +3289,22 @@ function StudentMessagesTab() {
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [newMsg, setNewMsg] = useState('');
   const [sending, setSending] = useState(false);
+  const [sendOk, setSendOk] = useState<string | null>(null);
   const [convSearch, setConvSearch] = useState('');
   const { toast } = useToast();
+
+  // New Chat mode state
+  const [showNewChat, setShowNewChat] = useState(false);
+  const [showMsgAdmin, setShowMsgAdmin] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [searchResults, setSearchResults] = useState<StudentSearchResult[]>([]);
+  const [startingDirect, setStartingDirect] = useState(false);
+  // Message Admin form
+  const [adminSubject, setAdminSubject] = useState('');
+  const [adminBody, setAdminBody] = useState('');
+  const [adminSending, setAdminSending] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -3318,27 +3333,137 @@ function StudentMessagesTab() {
     return () => { cancelled = true; };
   }, [activeConvId]);
 
+  // Realtime: live-append messages for the open conversation. RLS ensures only
+  // participants receive the row (sender identity is server-derived).
+  useEffect(() => {
+    if (!activeConvId || !userId) return;
+    const client = requireSupabase();
+    const channel = client
+      .channel(`msg-${activeConvId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `conversation_id=eq.${activeConvId}`
+        },
+        async (payload) => {
+          const row = payload.new as any;
+          setMessages((prev) =>
+            prev.some((m) => m.id === row.id) ? prev : [...prev, row as Message]
+          );
+        }
+      )
+      .subscribe();
+    return () => {
+      client.removeChannel(channel);
+    };
+  }, [activeConvId, userId]);
+
+  const searchDebounce = useRef<number | null>(null);
+
+  const runSearch = async (q: string) => {
+    const query = q.trim();
+    if (!query) { setSearchResults([]); return; }
+    setSearching(true);
+    setSearchError(null);
+    try {
+      const rows = await searchStudents(query);
+      setSearchResults(rows);
+    } catch (err: any) {
+      setSearchError(err?.message || 'Search failed. Please try again.');
+      setSearchResults([]);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const handleSearchInput = (value: string) => {
+    setSearchQuery(value);
+    if (searchDebounce.current) window.clearTimeout(searchDebounce.current);
+    const t = value.trim();
+    if (t.length >= 2) {
+      searchDebounce.current = window.setTimeout(() => runSearch(t), 300);
+    } else {
+      setSearchResults([]);
+    }
+  };
+
+  const handleStartDirect = async (peerId: string) => {
+    if (startingDirect) return;
+    setStartingDirect(true);
+    try {
+      const conv = await getOrCreateDirectConversation(peerId);
+      setShowNewChat(false);
+      setSearchQuery('');
+      setSearchResults([]);
+      await loadConversations();
+      setActiveConvId(conv.id);
+      setSendOk(null);
+    } catch (err: any) {
+      toast(err?.message || 'Could not start the conversation.', 'error');
+    } finally {
+      setStartingDirect(false);
+    }
+  };
+
+  const loadConversations = async () => {
+    try {
+      const data = await fetchConversations();
+      setConversations(data);
+    } catch (err: any) { toast(err.message, 'error'); }
+  };
+
   const handleSend = async () => {
-    if (!activeConvId || !newMsg.trim()) return;
+    if (!activeConvId || !newMsg.trim() || sending) return;
     setSending(true);
+    setSendOk(null);
     try {
       const msg = await sendMessage(activeConvId, newMsg.trim());
       setMessages((prev) => [...prev, msg]);
       setNewMsg('');
+      setSendOk('Message sent successfully. Your message has been delivered.');
+      setTimeout(() => setSendOk(null), 3500);
       setConversations((prev) =>
-        prev.map((c) => c.id === activeConvId ? { ...c, last_message_at: msg.created_at } : c)
+        prev.map((c) => c.id === activeConvId ? { ...c, last_message_at: msg.created_at, last_message_body: msg.body } : c)
           .sort((a, b) => new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime())
       );
-    } catch (err: any) { toast(err.message, 'error'); }
-    finally { setSending(false); }
+    } catch (err: any) {
+      toast(err?.message || 'Message could not be sent. Your draft was kept.', 'error');
+    } finally { setSending(false); }
+  };
+
+  const handleMsgAdmin = async () => {
+    if (!adminSubject.trim() || !adminBody.trim() || adminSending) return;
+    setAdminSending(true);
+    try {
+      const conv = await startConversation(userId!, adminSubject.trim(), adminBody.trim());
+      toast('Message sent successfully. Your message has been sent to the admin.', 'success');
+      setShowMsgAdmin(false);
+      setAdminSubject('');
+      setAdminBody('');
+      await loadConversations();
+      setActiveConvId(conv.id);
+    } catch (err: any) {
+      toast(err?.message || 'Message could not be sent. Your draft was kept.', 'error');
+    } finally { setAdminSending(false); }
   };
 
   const activeConv = conversations.find((c) => c.id === activeConvId);
+  const peerOf = (conv: Conversation) => {
+    if (conv.is_direct) {
+      return conv.peer?.display_name || conv.peer?.username || conv.peer?.full_name || 'Student';
+    }
+    return 'Administrator';
+  };
 
   const filteredConversations = convSearch
     ? conversations.filter((c) => {
         const q = convSearch.toLowerCase();
-        return (c.subject || '').toLowerCase().includes(q) || (c.profiles?.full_name || '').toLowerCase().includes(q);
+        return (c.subject || '').toLowerCase().includes(q)
+          || (peerOf(c) || '').toLowerCase().includes(q)
+          || (c.peer?.username || '').toLowerCase().includes(q);
       })
     : conversations;
 
@@ -3357,9 +3482,111 @@ function StudentMessagesTab() {
       <div className="request-page-header">
         <div>
           <h2 className="page-title"><MessageSquare size={22} />Messages</h2>
-          <p className="page-subtitle">Communicate securely with administrators regarding your uploads, requests, and account.</p>
+          <p className="page-subtitle">Message administrators about your uploads, requests, and account — or chat directly with other students.</p>
+        </div>
+        <div className="msg-actions">
+          <button className="secondary-btn" onClick={() => { setShowMsgAdmin(true); setAdminSubject(''); setAdminBody(''); }}>
+            <MessageSquare size={14} /> Message Admin
+          </button>
+          <button className="primary" onClick={() => { setShowNewChat(true); setSearchQuery(''); setSearchResults([]); setSearchError(null); }}>
+            <Plus size={15} /> New Student Chat
+          </button>
         </div>
       </div>
+
+      {/* Message Admin modal */}
+      {showMsgAdmin && (
+        <div className="modal-overlay" onClick={() => setShowMsgAdmin(false)}>
+          <div className="modal-card conv-modal" onClick={(e) => e.stopPropagation()}>
+            <form onSubmit={(e) => { e.preventDefault(); handleMsgAdmin(); }}>
+              <div className="modal-header">
+                <div className="modal-header-title">
+                  <span className="modal-head-icon"><MessageSquare size={17} /></span>
+                  <div>
+                    <h3>Message an Administrator</h3>
+                    <p className="modal-header-sub">Your message will be delivered securely to the admin team.</p>
+                  </div>
+                </div>
+                <button type="button" className="link-btn" onClick={() => setShowMsgAdmin(false)}><X size={18} /></button>
+              </div>
+              <div className="modal-body">
+                <div className="form-field">
+                  <label className="form-label">Subject *</label>
+                  <input className="form-input" value={adminSubject} onChange={(e) => setAdminSubject(e.target.value)} placeholder="e.g. Question about my upload" maxLength={120} />
+                </div>
+                <div className="form-field">
+                  <label className="form-label">Message *</label>
+                  <textarea className="form-input" rows={5} value={adminBody} onChange={(e) => setAdminBody(e.target.value)} placeholder="Write your message to the admin…" maxLength={2000} />
+                </div>
+                <button className="primary w-full" type="submit" disabled={adminSending || !adminSubject.trim() || !adminBody.trim()}>
+                  {adminSending ? <><Loader2 size={15} className="animate-spin" /> Sending…</> : <><Send size={14} /> Send Message</>}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* New Student Chat modal */}
+      {showNewChat && (
+        <div className="modal-overlay" onClick={() => setShowNewChat(false)}>
+          <div className="modal-card conv-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-header-title">
+                <span className="modal-head-icon"><Users size={17} /></span>
+                <div>
+                  <h3>New Student Chat</h3>
+                  <p className="modal-header-sub">Find another student by username and start a conversation.</p>
+                </div>
+              </div>
+              <button type="button" className="link-btn" onClick={() => setShowNewChat(false)}><X size={18} /></button>
+            </div>
+            <div className="modal-body">
+              <div className="form-field">
+                <label className="form-label">Search students</label>
+                <div className="filter-input-wrap">
+                  <Search size={14} />
+                  <input className="form-input" placeholder="@username…" value={searchQuery} onChange={(e) => handleSearchInput(e.target.value)} autoFocus />
+                </div>
+              </div>
+
+              {searching && (
+                <div className="loading-spinner-row"><Loader2 size={18} className="animate-spin" /> Searching…</div>
+              )}
+              {searchError && (
+                <div className="alert alert-error"><AlertCircle size={15} /> {searchError}</div>
+              )}
+              {!searching && !searchError && searchQuery.trim().length >= 2 && searchResults.length === 0 && (
+                <div className="empty-state-card">
+                  <Users size={32} />
+                  <b>No students found.</b>
+                  <span>Try checking the username and search again.</span>
+                </div>
+              )}
+
+              {searchResults.length > 0 && (
+                <div className="student-search-results">
+                  {searchResults.map((s) => (
+                    <div key={s.id} className="student-result-row">
+                      <div className="avatar-mini">{((s.display_name || s.full_name || s.username || '?').charAt(0)).toUpperCase()}</div>
+                      <div className="student-result-info">
+                        <div className="student-result-name">@{s.username || 'user'}</div>
+                        <div className="student-result-sub">
+                          {s.display_name || s.full_name || 'Student'}
+                          {s.matric_number ? ` · ${s.matric_number}` : ''}
+                        </div>
+                      </div>
+                      <button className="primary" onClick={() => handleStartDirect(s.id)} disabled={startingDirect}>
+                        {startingDirect ? <Loader2 size={14} className="animate-spin" /> : <MessageSquare size={14} />} Message
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="conv-layout">
         {/* Conversation list */}
@@ -3372,16 +3599,20 @@ function StudentMessagesTab() {
           ) : filteredConversations.length === 0 ? (
             <div className="empty-state-card mt-md">
               <MessageSquare size={36} />
-              <b>{convSearch ? 'No Matches' : 'No Messages'}</b>
-              <span>{convSearch ? 'No conversations match your search.' : 'No conversations yet. When an administrator messages you, it will appear here.'}</span>
+              <b>{convSearch ? 'No Matches' : 'No Conversations'}</b>
+              <span>{convSearch
+                ? 'No conversations match your search.'
+                : 'No conversations yet. Start a conversation with another student using their username, or message an administrator.'}</span>
             </div>
           ) : (
             filteredConversations.map((conv) => (
               <div key={conv.id} onClick={() => setActiveConvId(conv.id)} className={`conv-list-item${activeConvId === conv.id ? ' active' : ''}`}>
-                <div className="conv-subject">{conv.subject || 'Untitled conversation'}</div>
-                <div className="conv-admin-name">Administrator</div>
+                <div className="conv-list-head">
+                  <div className="conv-subject">{conv.is_direct ? (conv.peer?.username ? `@${conv.peer.username}` : peerOf(conv)) : (conv.subject || 'Message to Admin')}</div>
+                  <div className="conv-meta">{timeSince(conv.last_message_at)}</div>
+                </div>
+                <div className={`conv-peer-name${conv.is_direct ? ' direct' : ''}`}>{peerOf(conv)}</div>
                 {conv.last_message_body && <div className="conv-preview">{conv.last_message_body.length > 60 ? conv.last_message_body.slice(0, 60) + '…' : conv.last_message_body}</div>}
-                <div className="conv-meta">{timeSince(conv.last_message_at)}</div>
                 {(conv.unread_count ?? 0) > 0 && <span className="unread-badge">{conv.unread_count} unread</span>}
               </div>
             ))
@@ -3392,8 +3623,15 @@ function StudentMessagesTab() {
         {activeConvId && (
           <div className="thread-panel">
             <div className="thread-header">
-              <div className="thread-subject">{activeConv?.subject || 'Untitled conversation'}</div>
-              {activeConv?.material_id && <div className="thread-sub">Re: Material</div>}
+              <div className="thread-title-wrap">
+                <div className="thread-subject">{activeConv?.is_direct ? (activeConv.peer?.display_name || peerOf(activeConv!)) : (activeConv?.subject || 'Message to Admin')}</div>
+                <div className="thread-sub">{activeConv?.is_direct
+                  ? (activeConv.peer?.username ? `@${activeConv.peer.username}` : 'Direct message')
+                  : 'Administrator'}</div>
+              </div>
+              {sendOk && (
+                <div className="msg-sent-confirm"><CheckCircle2 size={15} /> {sendOk}</div>
+              )}
             </div>
 
             <div className="thread-messages">
@@ -3402,16 +3640,21 @@ function StudentMessagesTab() {
               ) : messages.length === 0 ? (
                 <div className="empty-state-card mt-lg mx-auto">
                   <MessageSquare size={36} />
-                  <b>No Messages</b>
-                  <span>Send a message to start the conversation.</span>
+                  <b>No messages yet.</b>
+                  <span>Start the conversation by sending the first message.</span>
                 </div>
               ) : (
                 messages.map((msg) => {
                   const isOwn = msg.sender_id === profile?.id;
                   return (
-                    <div key={msg.id} className={`msg-bubble ${isOwn ? 'sent' : 'received'}`}>
-                      <div>{msg.body}</div>
-                      <div className="msg-bubble-time">{new Date(msg.created_at).toLocaleTimeString()}</div>
+                    <div key={msg.id} className="msg-bubble-wrap">
+                      {!isOwn && msg.sender?.display_name && (
+                        <div className="msg-sender-name">{msg.sender.display_name || msg.sender.full_name || 'User'}</div>
+                      )}
+                      <div className={`msg-bubble ${isOwn ? 'sent' : 'received'}`}>
+                        <div>{msg.body}</div>
+                        <div className="msg-bubble-time">{new Date(msg.created_at).toLocaleTimeString()}</div>
+                      </div>
                     </div>
                   );
                 })
@@ -3421,7 +3664,7 @@ function StudentMessagesTab() {
             <div className="chat-input-row">
               <input className="form-input" value={newMsg} onChange={(e) => setNewMsg(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()} placeholder="Type a message…" disabled={sending} />
               <button className="primary" onClick={handleSend} disabled={sending || !newMsg.trim()}>
-                <Send size={14} /> Send
+                {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} {sending ? 'Sending…' : 'Send'}
               </button>
             </div>
           </div>

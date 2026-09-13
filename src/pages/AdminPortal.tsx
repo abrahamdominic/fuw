@@ -5235,17 +5235,18 @@ function AdminMessagesTab() {
   }, [activeConvId, conversations]);
 
   const handleSend = async () => {
-    if (!activeConvId || !newMsg.trim()) return;
+    if (!activeConvId || !newMsg.trim() || sending) return;
     setSending(true);
     try {
       const msg = await sendMessage(activeConvId, newMsg.trim());
       setMessages((prev) => [...prev, msg]);
       setNewMsg('');
       setConversations((prev) =>
-        prev.map((c) => c.id === activeConvId ? { ...c, last_message_at: msg.created_at } : c)
+        prev.map((c) => c.id === activeConvId ? { ...c, last_message_at: msg.created_at, last_message_body: msg.body } : c)
           .sort((a, b) => new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime())
       );
-    } catch (err: any) { toast(err.message, 'error'); }
+      toast('Message sent successfully.', 'success');
+    } catch (err: any) { toast(err.message || 'Message could not be sent. Your draft was kept.', 'error'); }
     finally { setSending(false); }
   };
 
@@ -5284,7 +5285,7 @@ function AdminMessagesTab() {
   const filteredConversations = convSearch
     ? conversations.filter((c) => {
         const q = convSearch.toLowerCase();
-        return (c.subject || '').toLowerCase().includes(q) || (c.profiles?.full_name || '').toLowerCase().includes(q) || (c.profiles?.matric_number || '').toLowerCase().includes(q);
+        return (c.subject || '').toLowerCase().includes(q) || (c.peer?.full_name || '').toLowerCase().includes(q) || (c.peer?.matric_number || '').toLowerCase().includes(q);
       })
     : conversations;
 
@@ -5418,13 +5419,13 @@ function AdminMessagesTab() {
           ) : (
             filteredConversations.map((conv) => (
               <div key={conv.id} onClick={() => { setActiveConvId(conv.id); setShowNewConv(false); }} className={`conv-list-item${activeConvId === conv.id ? ' active' : ''}`}>
-                <span className="avatar-mini" style={{ background: adminAvatarColor(conv.profiles?.full_name) }}>{adminInitials(conv.profiles?.full_name)}</span>
+                <span className="avatar-mini" style={{ background: adminAvatarColor(conv.peer?.full_name) }}>{adminInitials(conv.peer?.full_name)}</span>
                 <div className="conv-item-main">
                   <div className="conv-item-top">
-                    <span className="conv-subject">{conv.subject || 'Untitled'}</span>
+                    <span className="conv-subject">{conv.subject || (conv.is_direct ? 'Student Chat' : 'Untitled')}</span>
                     <span className="conv-meta-sm nowrap-cell">{formatConvTime(conv.last_message_at)}</span>
                   </div>
-                  <div className="conv-admin-name">{conv.profiles?.full_name || 'Student'}{conv.profiles?.matric_number ? ` · ${conv.profiles.matric_number}` : ''}</div>
+                  <div className="conv-admin-name">{conv.peer?.full_name || 'Student'}{conv.peer?.matric_number ? ` · ${conv.peer.matric_number}` : ''}</div>
                   {conv.last_message_body && <div className="conv-preview">{conv.last_message_body.length > 60 ? conv.last_message_body.slice(0, 60) + '…' : conv.last_message_body}</div>}
                   {(conv.unread_count ?? 0) > 0 && <span className="unread-badge">{conv.unread_count}</span>}
                 </div>
@@ -5437,13 +5438,13 @@ function AdminMessagesTab() {
         {activeConv ? (
           <div className="thread-panel">
             <div className="thread-header">
-              <span className="avatar-mini" style={{ background: adminAvatarColor(activeConv.profiles?.full_name) }}>{adminInitials(activeConv.profiles?.full_name)}</span>
+              <span className="avatar-mini" style={{ background: adminAvatarColor(activeConv?.peer?.full_name) }}>{adminInitials(activeConv?.peer?.full_name)}</span>
               <div className="thread-header-main">
-                <div className="thread-subject">{activeConv.subject || 'Untitled'}</div>
+                <div className="thread-subject">{activeConv.subject || (activeConv.is_direct ? 'Student Chat' : 'Untitled')}</div>
                 <div className="thread-sub">
-                  <span className="thread-student-name">{activeConv.profiles?.full_name || 'Student'}</span>
-                  {activeConv.profiles?.matric_number && <span className="cell-secondary"> · {activeConv.profiles.matric_number}</span>}
-                  {activeConv.profiles?.faculty && <span className="cell-secondary"> · {activeConv.profiles.faculty} · {activeConv.profiles.department}</span>}
+                  <span className="thread-student-name">{activeConv?.peer?.full_name || 'Student'}</span>
+                  {activeConv?.peer?.matric_number && <span className="cell-secondary"> · {activeConv.peer.matric_number}</span>}
+                  {activeConv?.peer?.faculty && <span className="cell-secondary"> · {activeConv.peer.faculty} · {activeConv.peer.department}</span>}
                 </div>
               </div>
             </div>
@@ -5469,7 +5470,7 @@ function AdminMessagesTab() {
                         <div className="msg-day-divider"><span>{new Date(msg.created_at).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</span></div>
                       )}
                       <div className={`msg-row ${isOwn ? 'sent' : 'received'}`}>
-                        {!isOwn && <span className="avatar-mini xs" style={{ background: adminAvatarColor(activeConv.profiles?.full_name) }}>{adminInitials(activeConv.profiles?.full_name)}</span>}
+                        {!isOwn && <span className="avatar-mini xs" style={{ background: adminAvatarColor(activeConv?.peer?.full_name) }}>{adminInitials(activeConv?.peer?.full_name)}</span>}
                         <div className="msg-bubble">
                           <div>{msg.body}</div>
                           <div className="msg-bubble-time">{timeStr}</div>
