@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { supabase, requireSupabase } from '../lib/supabase';
 import {
@@ -84,8 +84,9 @@ import { fetchAllDeletionRequests, updateDeletionRequestStatus, DeletionRequest 
 import { fetchConversations, fetchMessages, sendMessage, markConversationRead, startConversation, Conversation, Message } from '../lib/messages';
 import { fetchAllChangeRequests, approveProfileChangeRequest, rejectProfileChangeRequest, ProfileChangeRequest } from '../lib/profileChangeRequests';
 import { fetchAllSessions, terminateSession as terminateSessionDb, ActiveSession } from '../lib/sessions';
-import { fetchGenderCounts, fetchMaterialsByFaculty, fetchMaterialsByDepartment } from '../lib/analytics';
+import { fetchGenderCounts, fetchMaterialsByFaculty, fetchMaterialsByDepartment, fetchAnalyticsDashboard, fetchTopMaterials, fetchRecentAnalyticsEvents, purgeAnalyticsData } from '../lib/analytics';
 import { AnalyticsChart, AnalyticsDatum } from '../components/AnalyticsCharts';
+import type { AnalyticsDashboard, TopMaterialRow, RecentAnalyticsEventRow } from '../lib/analyticsTypes';
 
 interface AdminPortalProps {
   onReadOnline: (material: MaterialItem) => void;
@@ -107,6 +108,7 @@ const adminNavItems = [
   { label: 'Student Courses', path: '/admin/student-courses', icon: List, permission: 'manage_catalogue' },
   { label: 'Categories & sessions', path: '/admin/categories', icon: Bookmark, permission: 'manage_catalogue' },
   { label: 'Audit logs', path: '/admin/logs', icon: ShieldCheck, permission: 'view_analytics' },
+  { label: 'Usage analytics', path: '/admin/usage-analytics', icon: BarChart3, permission: 'view_analytics' },
   { label: 'Settings', path: '/admin/settings', icon: Settings, permission: null }
 ];
 
@@ -381,6 +383,8 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
           <AdminCategoriesTab />
         ) : currentPath.startsWith('/admin/logs') ? (
           <AdminAuditLogsTab logs={auditLogs} />
+        ) : currentPath.startsWith('/admin/usage-analytics') ? (
+          <AdminUsageAnalyticsTab />
         ) : currentPath.startsWith('/admin/settings') ? (
           <AdminSettingsTab />
         ) : (
@@ -2749,6 +2753,245 @@ function AdminAuditLogsTab({ logs }: { logs: any[] }) {
           ))
         )}
       </div>
+    </div>
+  );
+}
+
+// 9c. Usage / Platform analytics tab (20260913_platform_analytics migration).
+function AdminUsageAnalyticsTab() {
+  const [loading, setLoading] = useState(true);
+  const [dashboard, setDashboard] = useState<AnalyticsDashboard | null>(null);
+  const [topMaterials, setTopMaterials] = useState<TopMaterialRow[]>([]);
+  const [recentEvents, setRecentEvents] = useState<RecentAnalyticsEventRow[]>([]);
+  const [purgeDays, setPurgeDays] = useState(180);
+  const [purgeBusy, setPurgeBusy] = useState(false);
+  const { toast } = useToast();
+
+  const load = useCallback(async () => {
+    const [dash, top, recent] = await Promise.all([
+      fetchAnalyticsDashboard(),
+      fetchTopMaterials(10, 30),
+      fetchRecentAnalyticsEvents(30)
+    ]);
+    setDashboard(dash);
+    setTopMaterials(top);
+    setRecentEvents(recent);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    load();
+    const id = window.setInterval(load, 60000);
+    return () => clearInterval(id);
+  }, [load]);
+
+  const handlePurge = async () => {
+    setPurgeBusy(true);
+    try {
+      const removed = await purgeAnalyticsData(purgeDays);
+      toast(`Purged ${removed} analytics rows older than ${purgeDays} days.`, 'success');
+      load();
+    } catch {
+      toast('Failed to purge analytics data.', 'error');
+    }
+    setPurgeBusy(false);
+  };
+
+  const toPairs = (list?: { screen?: string; platform?: string; version?: string; device_type?: string; network?: string; country?: string; count?: number }[]) =>
+    (list || []).map((x) => ({
+      label: x.screen ?? x.platform ?? x.version ?? x.device_type ?? x.network ?? x.country ?? 'Unknown',
+      value: x.count ?? 0
+    }));
+
+  return (
+    <div className="portal-view-fade">
+      <div className="portal-top">
+        <div>
+          <p className="kicker">PLATFORM ANALYTICS</p>
+          <h1>Usage analytics</h1>
+          <p className="subtitle">
+            Anonymous usage, device and performance telemetry collected from the app and website
+            (no IP addresses or precise locations are recorded).
+          </p>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="empty-state">
+          <Loader2 size={32} className="spin-icon" />
+          <b>Loading analytics&hellip;</b>
+        </div>
+      ) : !dashboard ? (
+        <div className="empty-state">
+          <BarChart3 size={40} />
+          <b>No analytics data yet</b>
+          <span>Open the website or mobile app to start collecting usage telemetry. If this persists, confirm the 20260913_platform_analytics migration has been applied.</span>
+        </div>
+      ) : (
+        <>
+          <div className="stat-cards">
+            <div className="stat-card"><span className="stat-value">{dashboard.total_sessions.toLocaleString()}</span><span className="stat-label">Total sessions</span></div>
+            <div className="stat-card"><span className="stat-value">{dashboard.total_events.toLocaleString()}</span><span className="stat-label">Total events</span></div>
+            <div className="stat-card"><span className="stat-value">{dashboard.daily_active_users}</span><span className="stat-label">Active today</span></div>
+            <div className="stat-card"><span className="stat-value">{dashboard.weekly_active_users}</span><span className="stat-label">Active (7d)</span></div>
+            <div className="stat-card"><span className="stat-value">{dashboard.monthly_active_users}</span><span className="stat-label">Active (30d)</span></div>
+            <div className="stat-card"><span className="stat-value">{Math.round(dashboard.avg_session_duration_seconds)}s</span><span className="stat-label">Avg session</span></div>
+            <div className="stat-card"><span className="stat-value">{dashboard.searches_last_7d}</span><span className="stat-label">Searches (7d)</span></div>
+            <div className="stat-card"><span className="stat-value">{dashboard.errors_last_7d}</span><span className="stat-label">Errors (7d)</span></div>
+          </div>
+
+          <div className="analytics-block">
+            <div className="analytics-block-head">
+              <p className="kicker">AUDIENCE</p>
+              <h2>Most used screens</h2>
+              <p>Frequently visited screens across web and mobile.</p>
+            </div>
+            <div className="analytics-grid">
+              <AnalyticsChart
+                title="Top Screens"
+                description="Most frequent screen views."
+                items={toPairs(dashboard.most_used_screens).slice(0, 10)}
+                loading={false}
+                horizontal
+                emptyText="No screen views recorded yet."
+                valueLabel="views"
+              />
+            </div>
+          </div>
+
+          <div className="analytics-block">
+            <div className="analytics-block-head">
+              <p className="kicker">DISTRIBUTIONS</p>
+              <h2>Devices & networks</h2>
+              <p>Coarse platform, version, device and network information.</p>
+            </div>
+            <div className="analytics-grid">
+              <AnalyticsChart title="Platform" description="iOS, Android, web, etc." items={toPairs(dashboard.platform_distribution)} loading={false} horizontal emptyText="No platform data yet." valueLabel="users" />
+              <AnalyticsChart title="App Version" description="Major deployment versions." items={toPairs(dashboard.app_version_distribution)} loading={false} horizontal emptyText="No version data yet." valueLabel="users" />
+            </div>
+            <div className="analytics-grid">
+              <AnalyticsChart title="Device Type" description="Phone / tablet / desktop / TV." items={toPairs(dashboard.device_type_distribution)} loading={false} horizontal emptyText="No device data yet." valueLabel="users" />
+              <AnalyticsChart title="Network" description="wifi / cellular / ethernet." items={toPairs(dashboard.network_type_distribution)} loading={false} horizontal emptyText="No network data yet." valueLabel="users" />
+            </div>
+          </div>
+
+          <div className="analytics-block">
+            <div className="analytics-block-head">
+              <p className="kicker">COUNTRY</p>
+              <h2>Geographic distribution</h2>
+              <p>Coarse country aggregation derived from timezone/locale only — no precise location is stored.</p>
+            </div>
+            <div className="analytics-grid">
+              <AnalyticsChart title="Countries" description="Derived from timezone and locale." items={toPairs(dashboard.country_distribution)} loading={false} horizontal emptyText="No country data yet." valueLabel="users" />
+            </div>
+          </div>
+
+          <div className="analytics-block">
+            <div className="analytics-block-head">
+              <p className="kicker">MATERIALS</p>
+              <h2>Top materials (last 30 days)</h2>
+              <p>Most viewed and downloaded materials.</p>
+            </div>
+            {topMaterials.length === 0 ? (
+              <div className="empty-state">
+                <FileText size={32} />
+                <b>No material activity yet.</b>
+                <span>Views and downloads will appear here as students use the platform.</span>
+              </div>
+            ) : (
+              <div className="table">
+                <div className="tr head audit-table-grid">
+                  <span>Material</span>
+                  <span>Type</span>
+                  <span>Views</span>
+                  <span>Downloads</span>
+                </div>
+                {topMaterials.map((m) => (
+                  <div className="tr audit-table-grid" key={m.material_id}>
+                    <span>
+                      <b>{m.material_title}</b>
+                      <small>{m.material_id}</small>
+                    </span>
+                    <span><span className="status-badge approved">{m.material_type}</span></span>
+                    <span>{m.views.toLocaleString()}</span>
+                    <span>{m.downloads.toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="analytics-block">
+            <div className="analytics-block-head">
+              <p className="kicker">EVENTS</p>
+              <h2>Recent telemetry events</h2>
+              <p>The 30 most recent events received from clients.</p>
+            </div>
+            {recentEvents.length === 0 ? (
+              <div className="empty-state">
+                <Clock size={32} />
+                <b>No events yet.</b>
+                <span>Events will stream in as clients begin sending telemetry.</span>
+              </div>
+            ) : (
+              <div className="table">
+                <div className="tr head audit-table-grid">
+                  <span>Event</span>
+                  <span>Screen</span>
+                  <span>User</span>
+                  <span>Platform</span>
+                  <span>Timestamp</span>
+                </div>
+                {recentEvents.map((ev) => (
+                  <div className="tr audit-table-grid" key={ev.id}>
+                    <span><b>{ev.event_name}</b></span>
+                    <span>{ev.screen_name || '-'}</span>
+                    <span>{ev.user_id ? 'Authenticated' : 'Anonymous'}</span>
+                    <span>{ev.platform || '-'}</span>
+                    <span>{new Date(ev.created_at).toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="admin-section-block">
+            <div className="section-head">
+              <div>
+                <p className="kicker">DATA LIFECYCLE</p>
+                <h2>Retention & purge</h2>
+                <p>Remove telemetry older than the configured number of days from the database.</p>
+              </div>
+            </div>
+            <div className="danger-action-row">
+              <div>
+                <b>Purge analytics data</b>
+                <p>
+                  <label htmlFor="purge-days" className="sr-only">Days of history to keep</label>
+                  <input
+                    id="purge-days"
+                    type="number"
+                    min={30}
+                    max={3650}
+                    value={purgeDays}
+                    onChange={(e) => setPurgeDays(Number(e.target.value))}
+                    style={{ width: 90, marginRight: 8 }}
+                  />
+                  day(s) of history will be retained; older rows are permanently deleted.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="danger-btn-solid"
+                disabled={purgeBusy}
+                onClick={handlePurge}
+              >
+                <Trash2 size={15} /> Purge old data
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

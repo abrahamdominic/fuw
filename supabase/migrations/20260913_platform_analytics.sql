@@ -62,13 +62,15 @@ ALTER TABLE public.analytics_sessions ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "analytics_sessions_read_own" ON public.analytics_sessions
   FOR SELECT USING (auth.uid() = user_id);
 
--- Insert own session, or an anonymous session while signed out.
+-- Insert an anonymous row (always), or a user's own row. Analytics are
+-- anonymous by design: clients always send user_id = NULL and attribute rows
+-- via the installation-scoped anonymous_id.
 CREATE POLICY "analytics_sessions_insert_own" ON public.analytics_sessions
-  FOR INSERT WITH CHECK (auth.uid() = user_id OR (auth.uid() IS NULL AND user_id IS NULL));
+  FOR INSERT WITH CHECK (user_id IS NULL OR auth.uid() = user_id);
 
--- Update own session (heartbeat / end).
+-- Update own session, or an anonymous session (heartbeat / end).
 CREATE POLICY "analytics_sessions_update_own" ON public.analytics_sessions
-  FOR UPDATE USING (auth.uid() = user_id);
+  FOR UPDATE USING (user_id IS NULL OR auth.uid() = user_id);
 
 -- Admins may read sessions for reporting.
 CREATE POLICY "analytics_sessions_read_admin" ON public.analytics_sessions
@@ -108,11 +110,9 @@ ALTER TABLE public.analytics_events ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "analytics_events_read_own" ON public.analytics_events
   FOR SELECT USING (auth.uid() = user_id);
 
--- Insert own events, or anonymous events while signed out. The client-side
--- tracker always stamps the current user id at flush time so events recorded
--- anonymously are attributed once a session is restored.
+-- Insert an anonymous row (always), or a user's own row.
 CREATE POLICY "analytics_events_insert_own" ON public.analytics_events
-  FOR INSERT WITH CHECK (auth.uid() = user_id OR (auth.uid() IS NULL AND user_id IS NULL));
+  FOR INSERT WITH CHECK (user_id IS NULL OR auth.uid() = user_id);
 
 -- Admins may read events for reporting.
 CREATE POLICY "analytics_events_read_admin" ON public.analytics_events
@@ -145,9 +145,9 @@ ALTER TABLE public.performance_events ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "perf_events_read_own" ON public.performance_events
   FOR SELECT USING (auth.uid() = user_id);
 
--- Insert own events, or anonymous events while signed out.
+-- Insert an anonymous row (always), or a user's own row.
 CREATE POLICY "perf_events_insert_own" ON public.performance_events
-  FOR INSERT WITH CHECK (auth.uid() = user_id OR (auth.uid() IS NULL AND user_id IS NULL));
+  FOR INSERT WITH CHECK (user_id IS NULL OR auth.uid() = user_id);
 
 -- Admins may read performance events.
 CREATE POLICY "perf_events_read_admin" ON public.performance_events
@@ -174,7 +174,9 @@ BEGIN
          duration_seconds = GREATEST(0, EXTRACT(EPOCH FROM (p_ended_at - started_at))::numeric)
    WHERE session_key = p_session_key
      AND (
-       (v_user IS NOT NULL AND user_id = v_user)
+       -- A user may end their own sessions, or any anonymous session.
+       (v_user IS NOT NULL AND (user_id = v_user OR user_id IS NULL))
+       -- A signed-out visitor may only end an anonymous session.
        OR (v_user IS NULL AND user_id IS NULL)
      );
 END;
@@ -217,14 +219,17 @@ BEGIN
     'total_events',
       (SELECT COUNT(*) FROM public.analytics_events),
     'daily_active_users',
-      (SELECT COUNT(DISTINCT user_id) FROM public.analytics_events
-        WHERE user_id IS NOT NULL AND created_at >= now() - interval '1 day'),
+      (SELECT COUNT(DISTINCT COALESCE(user_id::text, anonymous_id))
+         FROM public.analytics_events
+        WHERE created_at >= now() - interval '1 day'),
     'weekly_active_users',
-      (SELECT COUNT(DISTINCT user_id) FROM public.analytics_events
-        WHERE user_id IS NOT NULL AND created_at >= now() - interval '7 days'),
+      (SELECT COUNT(DISTINCT COALESCE(user_id::text, anonymous_id))
+         FROM public.analytics_events
+        WHERE created_at >= now() - interval '7 days'),
     'monthly_active_users',
-      (SELECT COUNT(DISTINCT user_id) FROM public.analytics_events
-        WHERE user_id IS NOT NULL AND created_at >= now() - interval '30 days'),
+      (SELECT COUNT(DISTINCT COALESCE(user_id::text, anonymous_id))
+         FROM public.analytics_events
+        WHERE created_at >= now() - interval '30 days'),
     'avg_session_duration_seconds',
       (SELECT COALESCE(AVG(duration_seconds), 0) FROM public.analytics_sessions
         WHERE duration_seconds IS NOT NULL),

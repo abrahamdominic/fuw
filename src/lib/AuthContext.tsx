@@ -4,6 +4,7 @@ import { supabase } from './supabase';
 import { store, UserProfile } from './store';
 import { AppRole, can } from './rbac';
 import { createSession, touchSession, deleteCurrentSession } from './sessions';
+import { analyticsTracker } from './analyticsTracker';
 
 export interface ProfileData {
   id: string;
@@ -85,6 +86,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const lastUserIdRef = useRef<string | null>(null);
 
   // Sync profile to store currentUser whenever profile changes
   const syncToStore = (prof: ProfileData | null, authedUser: User | null) => {
@@ -266,6 +268,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = authClient.auth.onAuthStateChange(
       async (event: AuthChangeEvent, currentSession: Session | null) => {
         if (!mounted) return;
+
+        // Track auth lifecycle for analytics (attributed to the actual user).
+        if (currentSession?.user) {
+          lastUserIdRef.current = currentSession.user.id;
+          if (event === 'SIGNED_IN') {
+            analyticsTracker.trackAuthEvent('login', currentSession.user.id);
+          }
+        } else if (event === 'SIGNED_OUT') {
+          analyticsTracker.trackAuthEvent('logout', lastUserIdRef.current);
+          lastUserIdRef.current = null;
+        }
 
         setSession(currentSession);
         setUser(currentSession?.user || null);
@@ -583,6 +596,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (data.user) {
         setUser(data.user);
         setSession(data.session ?? null);
+        analyticsTracker.trackAuthEvent('registration', data.user.id, {
+          needs_email_confirmation: !data.session
+        });
         // The handle_new_user trigger creates the bare profile row (with the
         // username). Pull it into context so ProtectedRoute passes instantly.
         const prof = await fetchProfile(data.user.id, data.user.email);

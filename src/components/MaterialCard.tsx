@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { FileText, Bookmark, Download, ArrowRight, Eye, Sparkles } from 'lucide-react';
 import { MaterialItem, store } from '../lib/store';
 import { incrementDownload } from '../lib/materials';
+import { analyticsTracker } from '../lib/analyticsTracker';
 import { useToast } from './Toast';
 
 interface MaterialCardProps {
@@ -20,6 +21,7 @@ export function MaterialCard({ material, onReadOnline, onAskAi }: MaterialCardPr
     e.preventDefault();
     e.stopPropagation();
     const saved = store.toggleBookmark(material.id);
+    analyticsTracker.trackBookmarkToggle(material.id, saved);
     toast(saved ? `"${material.title}" saved to bookmarks` : `"${material.title}" removed from bookmarks`, 'info');
   };
 
@@ -31,6 +33,7 @@ export function MaterialCard({ material, onReadOnline, onAskAi }: MaterialCardPr
       return;
     }
     store.recordDownload(material.id);
+    analyticsTracker.trackMaterialDownload(material.id, material.title);
     // Persist the counter server-side so stats survive across devices.
     void incrementDownload(material.id);
     toast(`Downloading ${material.fileName} (${material.fileSize})`, 'success');

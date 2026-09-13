@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter, Route, Routes, Navigate } from 'react-router-dom';
+import { BrowserRouter, Route, Routes, Navigate, useLocation } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
 import './styles.css';
 
@@ -27,9 +27,82 @@ import { AdminPortal } from './pages/AdminPortal';
 import { SuperAdminPortal } from './pages/SuperAdminPortal';
 import { MaintenancePage } from './pages/MaintenancePage';
 
-import { AuthProvider } from './lib/AuthContext';
+import { AuthProvider, useAuth } from './lib/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { MaintenanceGate } from './components/MaintenanceGate';
+import { analyticsTracker } from './lib/analyticsTracker';
+
+// Captured when the JS bundle begins evaluating — the startup metric measures
+// the real path to a usable UI (analytics must not block it).
+const APP_BOOT_TS = performance.now();
+
+function AnalyticsLayer() {
+  const { user } = useAuth();
+  const location = useLocation().pathname;
+
+  useEffect(() => {
+    analyticsTracker.init(user?.id ?? null);
+    return () => {
+      void analyticsTracker.shutdown();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    analyticsTracker.setUserId(user?.id ?? null);
+  }, [user?.id]);
+
+  useEffect(() => {
+    analyticsTracker.onScreenView(location);
+  }, [location]);
+
+  useEffect(() => {
+    let coldStart = true;
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        if (coldStart) {
+          coldStart = false;
+          analyticsTracker.onAppOpen();
+          analyticsTracker.onSessionStart();
+          return;
+        }
+        analyticsTracker.onAppOpen();
+        analyticsTracker.onSessionStart();
+      } else {
+        analyticsTracker.onAppBackground();
+        analyticsTracker.onSessionEnd();
+      }
+    };
+
+    const onPageHide = () => {
+      analyticsTracker.onAppClose();
+    };
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('pagehide', onPageHide);
+
+    // Emit the initial open/session immediately (also covers the case where a
+    // hidden tab is loaded in the background).
+    analyticsTracker.onAppOpen();
+    analyticsTracker.onSessionStart();
+    analyticsTracker.trackPerformance(
+      'app_startup_ms',
+      Math.round(performance.now() - APP_BOOT_TS),
+      'ms',
+      { platform: 'web' }
+    );
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('pagehide', onPageHide);
+      analyticsTracker.onAppBackground();
+      analyticsTracker.onSessionEnd();
+    };
+  }, []);
+
+  return null;
+}
 
 function PublicLayout({
   children,
@@ -56,6 +129,7 @@ function App() {
 
   return (
     <AuthProvider>
+      <AnalyticsLayer />
       <ToastProvider>
         <MaintenanceGate>
           <Routes>

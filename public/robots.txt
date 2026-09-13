@@ -4,5 +4,9 @@ Disallow: /student/
 Disallow: /admin/
 Disallow: /super/
 Disallow: /maintenance
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
+Disallow: /reset-password
 
 Sitemap: https://fuwtest.netlify.app/sitemap.xml

@@ -76,6 +76,7 @@ import { fetchConversations, fetchMessages, sendMessage, markConversationRead, s
 import { submitProfileChangeRequest, fetchMyChangeRequests, ProfileChangeRequest } from '../lib/profileChangeRequests';
 import { fetchMySessions, terminateSession, terminateAllOtherSessions, detectConnection, ActiveSession } from '../lib/sessions';
 import { fetchAcademicSessions, AcademicSession } from '../lib/academicSessions';
+import { analyticsTracker } from '../lib/analyticsTracker';
 
 
 interface StudentPortalProps {
@@ -2000,6 +2001,7 @@ function StudentSettingsTab({ currentUser }: { currentUser: any }) {
 
   useEffect(() => {
     loadSessions();
+    analyticsTracker.trackEvent('profile_view', 'student', { profile_view_name: 'settings' });
     // Refresh connection info periodically
     const connInterval = setInterval(() => setConnectionInfo(detectConnection()), 30_000);
     return () => clearInterval(connInterval);
@@ -2666,7 +2668,7 @@ function StudentSettingsTab({ currentUser }: { currentUser: any }) {
             </div>
           )}
 
-          {/* 6. Danger Zone / Actions */}
+          {/* 7. Danger Zone / Actions */}
           {activeSection === 'danger' && (
             <div className="settings-section-card danger-card">
               <div className="settings-card-header">

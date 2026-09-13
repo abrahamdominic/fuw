@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { MaterialItem, store } from '../lib/store';
 import { useToast } from './Toast';
+import { analyticsTracker } from '../lib/analyticsTracker';
 
 interface DocumentReaderModalProps {
   material: MaterialItem | null;
@@ -45,6 +46,7 @@ export function DocumentReaderModal({ material, onClose }: DocumentReaderModalPr
       setPage(1);
       setZoom(100);
       store.recordView(material.id);
+      analyticsTracker.trackMaterialView(material.id, material.title, material.type);
       if (looksLikePdf) {
         // Native PDF viewing is continuous - log the session as completed
         store.saveReadingProgress(material.id, 1, 1);
@@ -66,6 +68,7 @@ export function DocumentReaderModal({ material, onClose }: DocumentReaderModalPr
 
   const handleDownload = () => {
     store.recordDownload(material.id);
+    analyticsTracker.trackMaterialDownload(material.id, material.title);
     toast(`Download initiated: ${material.fileName}`);
     // Trigger download of demo or actual document
     const link = document.createElement('a');
@@ -78,6 +81,7 @@ export function DocumentReaderModal({ material, onClose }: DocumentReaderModalPr
 
   const handleToggleBookmark = () => {
     const saved = store.toggleBookmark(material.id);
+    analyticsTracker.trackBookmarkToggle(material.id, saved);
     toast(saved ? 'Saved to your bookmarked materials.' : 'Removed from bookmarks.', 'info');
   };
 

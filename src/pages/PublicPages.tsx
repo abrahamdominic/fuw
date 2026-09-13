@@ -37,6 +37,7 @@ import { Logo } from '../components/Logo';
 import { useToast } from '../components/Toast';
 import { SEO } from '../components/SEO';
 import { mergeDbCourses } from '../lib/liveCatalogue';
+import { analyticsTracker } from '../lib/analyticsTracker';
 
 
 interface PublicPagesProps {
@@ -60,7 +61,7 @@ export function HomePage({ onReadOnline }: PublicPagesProps) {
   return (
     <>
       <SEO
-        title="Home"
+        title="Federal University Wukari Digital Library — Lecture Notes, Past Questions & Textbooks"
         description="Federal University Wukari Digital E-Library — access verified lecture notes, past questions, textbooks, and research materials across all faculties and departments."
         path="/"
       />
@@ -198,6 +199,12 @@ export function LibraryPage({ onReadOnline }: PublicPagesProps) {
       params.delete('q');
     }
     setSearchParams(params);
+    analyticsTracker.trackMaterialSearch(searchInput.trim(), undefined, {
+      faculty: queryFaculty || null,
+      department: queryDepartment || null,
+      level: queryLevel || null,
+      course: queryCourse || null
+    });
   };
 
   // Run AI semantic search in the background whenever the keyword query
@@ -717,6 +724,14 @@ export function MaterialDetailPage({ onReadOnline }: PublicPagesProps) {
   const { toast } = useToast();
   const material = store.getMaterialById(id || '') || store.getApprovedMaterials()[0];
 
+  useEffect(() => {
+    if (material) {
+      analyticsTracker.trackMaterialView(material.id, material.title, material.type);
+      analyticsTracker.trackSearchResultClick(material.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [material?.id]);
+
   if (!material) {
     return (
       <main className="public-container empty-state">
@@ -733,6 +748,7 @@ export function MaterialDetailPage({ onReadOnline }: PublicPagesProps) {
 
   const handleDownload = () => {
     store.recordDownload(material.id);
+    analyticsTracker.trackMaterialDownload(material.id, material.title);
     toast(`Downloading ${material.fileName}`);
     const link = document.createElement('a');
     link.href = material.fileUrl;
@@ -744,6 +760,7 @@ export function MaterialDetailPage({ onReadOnline }: PublicPagesProps) {
 
   const handleToggleSave = () => {
     const saved = store.toggleBookmark(material.id);
+    analyticsTracker.trackBookmarkToggle(material.id, saved);
     toast(saved ? 'Saved to bookmarks' : 'Removed from bookmarks', 'info');
   };
 
@@ -759,6 +776,10 @@ export function MaterialDetailPage({ onReadOnline }: PublicPagesProps) {
         description={`${material.title} — ${material.type} for ${material.course} in ${material.department}, ${material.faculty}. ${material.description.slice(0, 150)}`}
         path={`/materials/${material.id}`}
         type="article"
+        article={{
+          datePublished: material.createdAt,
+          author: material.uploadedBy?.name || 'FUW E-Library'
+        }}
       />
       <div className="crumb">
         <Link to="/library">Library</Link> <ChevronRight size={14} /> <span>{material.course}</span> <ChevronRight size={14} /> <span>{material.title}</span>
