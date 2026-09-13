@@ -14,6 +14,7 @@ import {
   LogOut,
   Search,
   Plus,
+  Minus,
   CheckCircle2,
   XCircle,
   Clock,
@@ -2765,6 +2766,7 @@ function AdminUsageAnalyticsTab() {
   const [recentEvents, setRecentEvents] = useState<RecentAnalyticsEventRow[]>([]);
   const [purgeDays, setPurgeDays] = useState(180);
   const [purgeBusy, setPurgeBusy] = useState(false);
+  const [purgeConfirming, setPurgeConfirming] = useState(false);
   const { toast } = useToast();
 
   const load = useCallback(async () => {
@@ -2795,6 +2797,7 @@ function AdminUsageAnalyticsTab() {
       toast('Failed to purge analytics data.', 'error');
     }
     setPurgeBusy(false);
+    setPurgeConfirming(false);
   };
 
   const toPairs = (list?: { screen?: string; platform?: string; version?: string; device_type?: string; network?: string; country?: string; count?: number }[]) =>
@@ -2955,40 +2958,125 @@ function AdminUsageAnalyticsTab() {
             )}
           </div>
 
-          <div className="admin-section-block">
-            <div className="section-head">
-              <div>
-                <p className="kicker">DATA LIFECYCLE</p>
-                <h2>Retention & purge</h2>
-                <p>Remove telemetry older than the configured number of days from the database.</p>
-              </div>
+          <div className="analytics-block purge-block">
+            <div className="analytics-block-head">
+              <p className="kicker">DATA LIFECYCLE</p>
+              <h2>Retention &amp; purge</h2>
+              <p>Control how long anonymous telemetry is kept, then remove anything older.</p>
             </div>
-            <div className="danger-action-row">
-              <div>
+
+          <div className="purge-card">
+            <div className="purge-card-icon" aria-hidden="true">
+              <Database size={20} />
+            </div>
+
+            <div className="purge-card-body">
+              <div className="purge-card-title">
+                <span className="purge-tag">Danger zone</span>
                 <b>Purge analytics data</b>
-                <p>
-                  <label htmlFor="purge-days" className="sr-only">Days of history to keep</label>
-                  <input
-                    id="purge-days"
-                    type="number"
-                    min={30}
-                    max={3650}
-                    value={purgeDays}
-                    onChange={(e) => setPurgeDays(Number(e.target.value))}
-                    style={{ width: 90, marginRight: 8 }}
-                  />
-                  day(s) of history will be retained; older rows are permanently deleted.
+              </div>
+              <p className="purge-card-desc">
+                Choose how many days of history to keep. Anything older is
+                permanently erased from every analytics table and cannot be recovered.
+              </p>
+
+              <div className="purge-retention">
+                <div className="purge-stepper">
+                  <button
+                    type="button"
+                    aria-label="Keep less history"
+                    disabled={purgeBusy || purgeDays <= 30}
+                    onClick={() => setPurgeDays((d) => Math.max(30, d - 15))}
+                  >
+                    <Minus size={15} />
+                  </button>
+                  <label htmlFor="purge-days" className="purge-days-cell">
+                    <input
+                      id="purge-days"
+                      type="number"
+                      min={30}
+                      max={3650}
+                      value={purgeDays}
+                      disabled={purgeBusy}
+                      onChange={(e) =>
+                        setPurgeDays(Math.min(3650, Math.max(30, Number(e.target.value) || 30)))
+                      }
+                    />
+                    <span>days kept</span>
+                  </label>
+                  <button
+                    type="button"
+                    aria-label="Keep more history"
+                    disabled={purgeBusy || purgeDays >= 3650}
+                    onClick={() => setPurgeDays((d) => Math.min(3650, d + 15))}
+                  >
+                    <Plus size={15} />
+                  </button>
+                </div>
+
+                <input
+                  type="range"
+                  className="purge-range"
+                  min={30}
+                  max={3650}
+                  step={15}
+                  value={purgeDays}
+                  disabled={purgeBusy}
+                  onChange={(e) => setPurgeDays(Number(e.target.value))}
+                  aria-label="Days of history to keep"
+                />
+
+                <p className="purge-consequence">
+                  <Calendar size={13} />
+                  <span>
+                    Deletes everything recorded before{' '}
+                    <b>{new Date(Date.now() - purgeDays * 86400000).toLocaleDateString()}</b>
+                    {' '}— this action is irreversible.
+                  </span>
                 </p>
               </div>
-              <button
-                type="button"
-                className="danger-btn-solid"
-                disabled={purgeBusy}
-                onClick={handlePurge}
-              >
-                <Trash2 size={15} /> Purge old data
-              </button>
             </div>
+
+            <div className="purge-card-action">
+              {purgeConfirming ? (
+                <>
+                  <button
+                    type="button"
+                    className="danger-btn-solid purge-btn"
+                    disabled={purgeBusy}
+                    onClick={handlePurge}
+                  >
+                    {purgeBusy ? (
+                      <>
+                        <Loader2 size={15} className="spin-icon" /> Purging&hellip;
+                      </>
+                    ) : (
+                      <>
+                        <AlertTriangle size={15} /> Confirm purge
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary-btn"
+                    onClick={() => setPurgeConfirming(false)}
+                    disabled={purgeBusy}
+                  >
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="danger-btn-solid purge-btn"
+                  disabled={purgeBusy}
+                  onClick={() => setPurgeConfirming(true)}
+                >
+                  <Trash2 size={15} /> Purge old data
+                </button>
+              )}
+            </div>
+          </div>
           </div>
         </>
       )}

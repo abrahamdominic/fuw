@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, NavLink, useLocation, useNavigate, Routes, Route } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -47,6 +47,9 @@ import {
   UserCog,
   Wifi,
   Monitor,
+  Bot,
+  Copy,
+  CornerDownLeft,
   Smartphone as SmartphoneIcon
 } from 'lucide-react';
 import { useStore } from '../lib/useStore';
@@ -1167,7 +1170,19 @@ function StudentAiChatTab({
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notConfigured, setNotConfigured] = useState(false);
+  const [copiedId, setCopiedId] = useState<number | null>(null);
   const listRef = React.useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const copyAnswer = async (index: number, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedId(index);
+      window.setTimeout(() => setCopiedId(null), 1600);
+    } catch {
+      // Clipboard access may be blocked; quietly ignore.
+    }
+  };
 
   // Keep the scoped material in sync when the student uses "Ask AI" elsewhere.
   useEffect(() => {
@@ -1233,10 +1248,10 @@ function StudentAiChatTab({
       ];
 
   const quickActions = [
-    { label: 'Summarize', prompt: 'Summarize this material into clear exam-ready revision points.' },
-    { label: 'Key points', prompt: 'List the most important key points, definitions and formulas from this material.' },
-    { label: 'Practice quiz', prompt: 'Generate 10 practice questions with answers from this material.' },
-    { label: 'Revision notes', prompt: 'Create concise revision notes covering every major topic in this material.' }
+    { label: 'Summarize', prompt: 'Summarize this material into clear exam-ready revision points.', icon: FileText as React.ComponentType<{ size?: number }> },
+    { label: 'Key points', prompt: 'List the most important key points, definitions and formulas from this material.', icon: List as React.ComponentType<{ size?: number }> },
+    { label: 'Practice quiz', prompt: 'Generate 10 practice questions with answers from this material.', icon: GraduationCap as React.ComponentType<{ size?: number }> },
+    { label: 'Revision notes', prompt: 'Create concise revision notes covering every major topic in this material.', icon: Pencil as React.ComponentType<{ size?: number }> }
   ];
 
   const scrollToBottom = () => {
@@ -1306,7 +1321,7 @@ function StudentAiChatTab({
       <div className="ai-chat-shell">
         {/* Scoped-material context banner */}
         <div className={`ai-context-chip ${materialId ? '' : 'hidden'}`}>
-          <FileText size={14} />
+          <BookOpen size={14} />
           <span>
             Asking about: <b>{focusMaterial?.title || 'Selected material'}</b>
           </span>
@@ -1334,7 +1349,12 @@ function StudentAiChatTab({
           ) : (
             messages.length === 0 && (
               <div className="ai-chat-empty">
-                <Sparkles size={34} />
+                <div className="ai-empty-hero" aria-hidden="true">
+                  <Sparkles size={30} />
+                </div>
+                <span className="ai-empty-badge">
+                  <BookOpen size={11} /> Grounded in your e-library
+                </span>
                 <b>How can I help you study today?</b>
                 <span>{focusMaterial ? 'Try one of these about your selected material:' : 'Try one of these:'}</span>
                 <div className="ai-suggestions">
@@ -1359,9 +1379,21 @@ function StudentAiChatTab({
             ) : (
               <div key={i} className="chat-row assistant">
                 <div className="chat-avatar assistant" aria-hidden="true">
-                  <Sparkles size={14} />
+                  <Bot size={15} />
                 </div>
                 <div className="chat-bubble assistant">
+                  <div className="chat-bubble-head">
+                    <span className="chat-bubble-role">Study assistant</span>
+                    <button
+                      type="button"
+                      className="chat-copy-btn"
+                      onClick={() => copyAnswer(i, m.content)}
+                      aria-label="Copy answer to clipboard"
+                      title="Copy answer"
+                    >
+                      {copiedId === i ? <Check size={13} /> : <Copy size={13} />}
+                    </button>
+                  </div>
                   <AssistantText content={m.content} />
                   {m.citations && m.citations.length > 0 && (
                     <div className="chat-citations">
@@ -1401,7 +1433,7 @@ function StudentAiChatTab({
         <div className="ai-quick-actions">
           {quickActions.map((qa) => (
             <button key={qa.label} type="button" onClick={() => send(qa.prompt)} disabled={busy}>
-              {qa.label}
+              <qa.icon size={13} /> {qa.label}
             </button>
           ))}
         </div>
@@ -1413,7 +1445,16 @@ function StudentAiChatTab({
             send(input);
           }}
         >
+          <button
+            type="button"
+            className="ai-composer-add"
+            onClick={() => inputRef.current?.focus()}
+            aria-label="Focus the message box"
+          >
+            <Plus size={16} />
+          </button>
           <input
+            ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Ask anything about your course materials…"
@@ -1421,13 +1462,19 @@ function StudentAiChatTab({
             disabled={busy}
             aria-label="Message the AI assistant"
           />
-          <button type="submit" disabled={busy || !input.trim()}>
-            {busy ? 'Sending…' : 'Send'}
+          <button type="submit" className="ai-composer-send" disabled={busy || !input.trim()}>
+            {busy ? <Loader2 size={16} className="spin-icon" /> : <Send size={16} />}
+            <span className="ai-send-label">Send</span>
           </button>
         </form>
-        <p className="ai-chat-disclaimer">
-          Answers cite library materials where possible — always verify critical facts with your lecturers.
-        </p>
+        <div className="ai-chat-hints">
+          <span>
+            <Info size={12} /> Answers cite e-library sources where possible.
+          </span>
+          <span className="ai-chat-hint-key">
+            <CornerDownLeft size={12} /> Enter to send &middot; {input.length}/2000
+          </span>
+        </div>
       </div>
     </div>
   );
