@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Building2, Layers } from 'lucide-react';
+import { X, Building2, Layers, Hash } from 'lucide-react';
 import { MaterialItem } from '../lib/store';
 
 interface AssignedDepartmentsModalProps {
@@ -7,6 +7,9 @@ interface AssignedDepartmentsModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
+
+const shortFaculty = (name: string) =>
+  name.replace(/^Faculty\s+(of\s+)?/i, '').replace(/\s+College\s*$/i, '').trim();
 
 export function AssignedDepartmentsModal({
   material,
@@ -26,26 +29,35 @@ export function AssignedDepartmentsModal({
           }
         ];
 
+  // Group departments by faculty for a cleaner visual layout
+  const grouped = depts.reduce<Record<string, typeof depts>>((acc, d) => {
+    const key = d.facultyName || 'Other';
+    (acc[key] ??= []).push(d);
+    return acc;
+  }, {});
+
   return (
     <div className="modal-overlay" onClick={onClose} style={{ zIndex: 1100 }}>
       <div
-        className="modal-card"
+        className="adm-modal"
         onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: '520px' }}
       >
-        <div className="modal-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Building2 size={20} color="#0B6B3A" />
+        {/* Header */}
+        <div className="adm-header">
+          <div className="adm-header-left">
+            <div className="adm-header-icon">
+              <Building2 size={18} />
+            </div>
             <div>
-              <h3 style={{ margin: 0, fontSize: '15px' }}>Assigned Departments</h3>
-              <p style={{ margin: 0, fontSize: '12px', color: '#666' }}>
+              <h3 className="adm-title">Assigned Departments</h3>
+              <p className="adm-subtitle">
                 {material.course ? `${material.course} — ` : ''}{material.title}
               </p>
             </div>
           </div>
           <button
             type="button"
-            className="action-icon-btn"
+            className="adm-close"
             onClick={onClose}
             aria-label="Close modal"
           >
@@ -53,74 +65,62 @@ export function AssignedDepartmentsModal({
           </button>
         </div>
 
-        <div className="modal-body" style={{ padding: '16px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-            <span style={{ fontSize: '12px', fontWeight: 600, color: '#555' }}>
-              Total Assigned: <b>{depts.length} department{depts.length !== 1 ? 's' : ''}</b>
-            </span>
+        {/* Stats bar */}
+        <div className="adm-stats">
+          <div className="adm-stat">
+            <Layers size={14} />
+            <span><b>{depts.length}</b> department{depts.length !== 1 ? 's' : ''}</span>
           </div>
+          {Object.keys(grouped).length > 1 && (
+            <div className="adm-stat">
+              <Hash size={14} />
+              <span><b>{Object.keys(grouped).length}</b> faculties</span>
+            </div>
+          )}
+        </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '320px', overflowY: 'auto' }}>
-            {depts.map((d, index) => (
-              <div
-                key={d.id || `${d.name}-${index}`}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '10px 12px',
-                  backgroundColor: '#f8faf9',
-                  border: '1px solid #e1ece3',
-                  borderRadius: '6px'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Building2 size={16} color="#0B6B3A" />
-                  <div>
-                    <div style={{ fontSize: '13px', fontWeight: 600, color: '#1b382b' }}>
-                      {d.name}
-                    </div>
-                    {d.facultyName && (
-                      <div style={{ fontSize: '11px', color: '#55675b' }}>
-                        {d.facultyName}
-                      </div>
-                    )}
-                  </div>
+        {/* Department list */}
+        <div className="adm-body">
+          {Object.entries(grouped).map(([faculty, facultyDepts]) => (
+            <div key={faculty} className="adm-group">
+              {Object.keys(grouped).length > 1 && (
+                <div className="adm-group-header">
+                  <span className="adm-group-faculty">{shortFaculty(faculty)}</span>
+                  <span className="adm-group-count">{facultyDepts.length}</span>
                 </div>
-                <span
-                  style={{
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    padding: '2px 8px',
-                    borderRadius: '12px',
-                    backgroundColor: '#eaf3ec',
-                    color: '#0B6B3A'
-                  }}
+              )}
+              {facultyDepts.map((d, index) => (
+                <div
+                  key={d.id || `${d.name}-${index}`}
+                  className="adm-dept-row"
                 >
-                  Assigned
-                </span>
-              </div>
-            ))}
-          </div>
+                  <div className="adm-dept-info">
+                    <div className="adm-dept-dot" />
+                    <div className="adm-dept-text">
+                      <span className="adm-dept-name">{d.name}</span>
+                      {Object.keys(grouped).length <= 1 && d.facultyName && (
+                        <span className="adm-dept-fac">{shortFaculty(d.facultyName)}</span>
+                      )}
+                    </div>
+                  </div>
+                  <span className="adm-badge">
+                    Assigned
+                  </span>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px', borderTop: '1px solid #e1ece3', paddingTop: '12px' }}>
-            <button
-              type="button"
-              className="primary"
-              onClick={onClose}
-              style={{
-                padding: '6px 18px',
-                borderRadius: '6px',
-                backgroundColor: '#0B6B3A',
-                color: '#fff',
-                fontWeight: 600,
-                border: 'none',
-                cursor: 'pointer'
-              }}
-            >
-              Done
-            </button>
-          </div>
+        {/* Footer */}
+        <div className="adm-footer">
+          <button
+            type="button"
+            className="adm-done-btn"
+            onClick={onClose}
+          >
+            Done
+          </button>
         </div>
       </div>
     </div>

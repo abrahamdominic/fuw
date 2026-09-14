@@ -157,3 +157,9 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.assign_material_departments(UUID, UUID[]) TO authenticated;
+
+-- 8. Notify PostgREST to reload schema cache (fixes "schema out of sync" errors)
+DO $$
+BEGIN
+  NOTIFY pgrst, 'reload schema';
+END $$;

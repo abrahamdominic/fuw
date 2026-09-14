@@ -447,7 +447,37 @@ export async function submitMaterial(input: {
   const safeName = input.file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
   const path = `${user.id}/${Date.now()}-${safeName}`;
 
-  // 1. Insert the database row first.
+  // 1. Resolve department_id & faculty_id from names so the DB sync trigger fires.
+  let resolvedDeptId: string | undefined;
+  let resolvedFacId: string | undefined;
+  try {
+    const deptIds = input.department_ids?.filter(Boolean) ?? [];
+    if (deptIds.length > 0) {
+      resolvedDeptId = deptIds[0];
+    } else if (input.department) {
+      const { data: deptRow } = await client
+        .from('departments')
+        .select('id, faculty_id')
+        .ilike('name', input.department)
+        .maybeSingle();
+      if (deptRow) {
+        resolvedDeptId = deptRow.id;
+        resolvedFacId = deptRow.faculty_id;
+      }
+    }
+    if (!resolvedFacId && input.faculty) {
+      const { data: facRow } = await client
+        .from('faculties')
+        .select('id')
+        .ilike('name', input.faculty)
+        .maybeSingle();
+      if (facRow) resolvedFacId = facRow.id;
+    }
+  } catch {
+    // Non-critical: fallback to text-only fields if catalogue tables are unavailable.
+  }
+
+  // 2. Insert the database row first.
   const { data: inserted, error: insertError } = await client
     .from('materials')
     .insert({
@@ -455,6 +485,8 @@ export async function submitMaterial(input: {
       description: input.description.trim(),
       faculty: input.faculty,
       department: input.department,
+      faculty_id: resolvedFacId || null,
+      department_id: resolvedDeptId || null,
       course_code: input.course_code.trim().toUpperCase(),
       course_title: input.course_title?.trim() || null,
       level: input.level,
@@ -468,23 +500,37 @@ export async function submitMaterial(input: {
     .single();
 
   if (insertError || !inserted) {
-    throw new Error(insertError?.message || 'Could not save your submission. Please try again.');
+    const msg = insertError?.message || '';
+    // Detect PostgREST schema-cache mismatch — the most common cause when
+    // migrations have been applied but the schema cache hasn't reloaded.
+    if (/schema cache|does not exist|column .* does not exist|relation .* does not exist/i.test(msg)) {
+      throw new Error(
+        'The database schema is out of sync with the application. Run the latest migrations in the Supabase dashboard, then reload the schema cache by running: NOTIFY pgrst, \'reload schema\'; in the SQL Editor.'
+      );
+    }
+    throw new Error(msg || 'Could not save your submission. Please try again.');
   }
 
-  // 1b. Multi-department assignment
+  // 2b. Multi-department assignment — skip the primary department (the trigger
+  //     already inserted it into material_departments when department_id was set).
   if (input.department_ids && input.department_ids.length > 0) {
-    try {
-      const junctionRows = input.department_ids.map((deptId) => ({
-        material_id: inserted.id,
-        department_id: deptId
-      }));
-      await client.from('material_departments').upsert(junctionRows, { onConflict: 'material_id, department_id' });
-    } catch {
-      // Non-fatal if junction table not yet applied in DB
+    const extraIds = resolvedDeptId
+      ? input.department_ids.filter((id) => id !== resolvedDeptId)
+      : input.department_ids;
+    if (extraIds.length > 0) {
+      try {
+        const junctionRows = extraIds.map((deptId) => ({
+          material_id: inserted.id,
+          department_id: deptId
+        }));
+        await client.from('material_departments').upsert(junctionRows, { onConflict: 'material_id, department_id' });
+      } catch {
+        // Non-fatal if junction table not yet applied in DB
+      }
     }
   }
 
-  // 2. Upload the binary to Storage.
+  // 3. Upload the binary to Storage.
   const contentType = input.file.type || contentTypeByExtension(input.file.name);
   const { error: storageError } = await client.storage.from(BUCKET).upload(path, input.file, {
     contentType,
@@ -505,7 +551,7 @@ export async function submitMaterial(input: {
     throw new Error(storageError.message || 'File upload failed. Please try again.');
   }
 
-  // 3. Attach file metadata to the row.
+  // 4. Attach file metadata to the row.
   const { data: urlData } = client.storage.from(BUCKET).getPublicUrl(path);
   const { data: finalRow, error: updateError } = await client
     .from('materials')
@@ -562,7 +608,15 @@ export async function updateMaterial(
   if (input.academic_session !== undefined) updatePayload.academic_session = input.academic_session.trim();
 
   const { error: updateErr } = await client.from('materials').update(updatePayload).eq('id', materialId);
-  if (updateErr) throw new Error(updateErr.message);
+  if (updateErr) {
+    const msg = updateErr.message || '';
+    if (/schema cache|does not exist|column .* does not exist|relation .* does not exist/i.test(msg)) {
+      throw new Error(
+        'The database schema is out of sync with the application. Run the latest migrations in the Supabase dashboard, then reload the schema cache by running: NOTIFY pgrst, \'reload schema\'; in the SQL Editor.'
+      );
+    }
+    throw new Error(msg);
+  }
 
   // Sync multi-department assignments if department_ids provided
   if (input.department_ids && input.department_ids.length > 0) {
