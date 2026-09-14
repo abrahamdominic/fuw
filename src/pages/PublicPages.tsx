@@ -23,7 +23,8 @@ import {
   SlidersHorizontal,
   AlertCircle,
   RefreshCw,
-  EyeOff
+  EyeOff,
+  ArrowLeft
 } from 'lucide-react';
 import { useStore } from '../lib/useStore';
 import { MaterialItem } from '../lib/store';
@@ -39,6 +40,7 @@ import { SEO } from '../components/SEO';
 import { mergeDbCourses } from '../lib/liveCatalogue';
 import { analyticsTracker } from '../lib/analyticsTracker';
 import { aal2LoginChallenge, signInWithPasskey } from '../lib/security';
+import { MacPage, MacCard, MacBanner, PasswordControl } from './AuthScreens';
 
 
 interface PublicPagesProps {
@@ -1918,65 +1920,63 @@ export function ResetPasswordPage() {
   const invalidLink = checked && !user;
 
   return (
-    <main className="auth">
+    <MacPage pill="ACCOUNT RECOVERY">
       <SEO
         title="Reset Password"
         description="Set a new password for your FUW E-Library account."
         path="/reset-password"
         noindex
       />
-      <div className="auth-panel">
-        <div className="brand">
-          <Logo size={36} />
-          <b>FUW</b> E-Library
-        </div>
 
-        {invalidLink ? (
-          <>
-            <p className="kicker">ACCOUNT RECOVERY</p>
-            <h1>Link is invalid or expired</h1>
-            <p>This password reset link is no longer valid. Request a fresh one to continue.</p>
-            <div className="empty-state auth-invalid-state">
-              <HelpCircle size={28} />
+      {invalidLink ? (
+        <MacCard>
+          <div className="mac-view" key="reset-invalid">
+            <div className="mac-card-header">
+              <h2 className="mac-card-title">Link is invalid or expired</h2>
+              <p className="mac-card-subtitle">
+                This password reset link is no longer valid. Request a fresh one to continue.
+              </p>
+            </div>
+            <div className="mac-empty">
+              <HelpCircle size={30} />
               <b>We could not verify this reset link.</b>
               <span>Reset links expire shortly after being sent.</span>
             </div>
-            <Link to="/forgot-password" className="primary auth-submit-btn">
-              Request a new reset link
+            <Link to="/forgot-password" className="mac-btn mac-btn-primary">
+              Request a new reset link <ArrowRight size={17} aria-hidden />
             </Link>
-          </>
-        ) : !checked ? (
-          <>
-            <p className="kicker">ACCOUNT RECOVERY</p>
-            <h1>Verifying your link</h1>
-            <p>Please wait a moment while we confirm your reset link.</p>
-            <div className="empty-state auth-invalid-state">
-              <RefreshCw size={28} className="spin-icon" />
+          </div>
+        </MacCard>
+      ) : !checked ? (
+        <MacCard>
+          <div className="mac-view" key="reset-checking">
+            <div className="mac-card-header">
+              <h2 className="mac-card-title">Verifying your link</h2>
+              <p className="mac-card-subtitle">
+                Please wait a moment while we confirm your reset link.
+              </p>
+            </div>
+            <div className="mac-empty">
+              <RefreshCw size={30} className="spin-icon" />
               <b>Checking your reset link…</b>
             </div>
-          </>
-        ) : (
-          <>
-            <p className="kicker">ACCOUNT RECOVERY</p>
-            <h1>Choose a new password</h1>
-            <p>Set a strong new password for your FUW E-Library account.</p>
+          </div>
+        </MacCard>
+      ) : (
+        <MacCard>
+          <div className="mac-view" key="reset-form">
+            <div className="mac-card-header">
+              <h2 className="mac-card-title">Choose a new password</h2>
+              <p className="mac-card-subtitle">
+                Set a strong new password for your FUW E-Library account.
+              </p>
+            </div>
 
-            {errorMsg && (
-              <div className="form-feedback-box error">
-                <AlertCircle size={17} />
-                <p>{errorMsg}</p>
-              </div>
-            )}
+            {errorMsg && <MacBanner type="error">{errorMsg}</MacBanner>}
+            {successMsg && <MacBanner type="success">{successMsg}</MacBanner>}
 
-            {successMsg && (
-              <div className="form-feedback-box success">
-                <CheckCircle2 size={17} />
-                <p>{successMsg}</p>
-              </div>
-            )}
-
-            <form onSubmit={handleResetPassword} className="auth-flow-form">
-              <PasswordField
+            <form onSubmit={handleResetPassword} className="mac-form" noValidate>
+              <PasswordControl
                 label="New Password"
                 value={password}
                 onChange={setPassword}
@@ -1985,7 +1985,7 @@ export function ResetPasswordPage() {
                 disabled={busy}
               />
 
-              <PasswordField
+              <PasswordControl
                 label="Confirm New Password"
                 value={confirmPassword}
                 onChange={setConfirmPassword}
@@ -1994,31 +1994,26 @@ export function ResetPasswordPage() {
                 disabled={busy}
               />
 
-              <button type="submit" className="primary auth-submit-btn" disabled={busy}>
+              <button type="submit" className="mac-btn mac-btn-primary" disabled={busy}>
                 {busy ? (
                   <>
-                    <RefreshCw size={16} className="spin-icon" /> Saving new password…
+                    <RefreshCw size={17} className="spin-icon" /> Saving new password…
                   </>
                 ) : (
                   <>
-                    <ShieldCheck size={16} /> Update Password
+                    <ShieldCheck size={17} aria-hidden /> Update Password
                   </>
                 )}
               </button>
             </form>
-          </>
-        )}
+          </div>
+        </MacCard>
+      )}
 
-        <div className="auth-toggle-row">
-          <p>
-            Remembered your password?{' '}
-            <button type="button" className="auth-link-btn" onClick={() => navigate('/login')}>
-              Back to sign in
-            </button>
-          </p>
-        </div>
-      </div>
-    </main>
+      <button type="button" className="mac-btn mac-btn-ghost" onClick={() => navigate('/login')}>
+        <ArrowLeft size={16} aria-hidden /> Back to sign in
+      </button>
+    </MacPage>
   );
 }
 

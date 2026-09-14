@@ -1,0 +1,1074 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  AlertCircle,
+  ArrowLeft,
+  ArrowRight,
+  AtSign,
+  Building2,
+  CheckCircle2,
+  ChevronDown,
+  Eye,
+  EyeOff,
+  Fingerprint,
+  GraduationCap,
+  IdCard,
+  KeyRound,
+  Layers,
+  Lock,
+  Mail,
+  Phone,
+  RefreshCw,
+  School,
+  ShieldCheck,
+  Sparkles,
+  UserRound,
+  UserPlus
+} from 'lucide-react';
+import { SEO } from '../components/SEO';
+import { Logo } from '../components/Logo';
+import { useToast } from '../components/Toast';
+import { useAuth, USERNAME_PATTERN, normalizeUsername } from '../lib/AuthContext';
+import { catalogue, facultyByName, departmentByName, levelsFor, groupedFaculties } from '../data/catalogue';
+import { aal2LoginChallenge, signInWithPasskey } from '../lib/security';
+
+type AuthMode = 'login' | 'register' | 'forgot';
+
+/* ---------------------------------------------------------------------------
+ * Shared shell — mobile-style full-page auth layout.
+ * ------------------------------------------------------------------------- */
+
+export function MacPage({
+  pill,
+  subtitle,
+  children
+}: {
+  pill: string;
+  subtitle?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <main className="mac-page">
+      <div className="mac-orb mac-orb-a" aria-hidden />
+      <div className="mac-orb mac-orb-b" aria-hidden />
+      <div className="mac-shell">
+        <header className="mac-header">
+          <div className="mac-logo-circle">
+            <Logo size={54} />
+          </div>
+          <span className="mac-pill">
+            <School size={12} />
+            <span>{pill}</span>
+          </span>
+          <h1 className="mac-title">FUW E-Library</h1>
+          <p className="mac-subtitle">
+            {subtitle ?? 'Institutional Academic Repository & Study Portal'}
+          </p>
+        </header>
+
+        {children}
+
+        <footer className="mac-footer">
+          <span className="mac-badge">
+            <ShieldCheck size={13} />
+            Protected by FUW ICT
+          </span>
+          <p>
+            By continuing, you agree to Federal University Wukari’s Academic Fair Use Policy.
+          </p>
+        </footer>
+      </div>
+    </main>
+  );
+}
+
+export function MacCard({ children }: { children: React.ReactNode }) {
+  return <div className="mac-card">{children}</div>;
+}
+
+export function MacBanner({
+  type,
+  children
+}: {
+  type: 'error' | 'success';
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className={`mac-banner mac-banner-${type}`}
+      role={type === 'error' ? 'alert' : 'status'}
+    >
+      {type === 'error' ? <AlertCircle size={19} /> : <CheckCircle2 size={19} />}
+      <p>{children}</p>
+    </div>
+  );
+}
+
+export function PasswordControl({
+  label,
+  value,
+  onChange,
+  placeholder,
+  autoComplete = 'current-password',
+  disabled,
+  rightLabel,
+  onRightLabel
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  autoComplete?: string;
+  disabled?: boolean;
+  rightLabel?: string;
+  onRightLabel?: () => void;
+}) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div className="mac-field">
+      <div className="mac-label-row">
+        <label className="mac-label">{label}</label>
+        {rightLabel && (
+          <button type="button" className="mac-link-btn" onClick={onRightLabel} tabIndex={-1}>
+            {rightLabel}
+          </button>
+        )}
+      </div>
+      <div className={`mac-input-row${visible ? ' mac-input-row-focused' : ''}`}>
+        <Lock size={18} className="mac-icon" aria-hidden />
+        <input
+          className="mac-input"
+          type={visible ? 'text' : 'password'}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          autoComplete={autoComplete}
+          disabled={disabled}
+          required
+        />
+        <button
+          type="button"
+          className="mac-trailing"
+          onClick={() => setVisible((v) => !v)}
+          aria-label={visible ? 'Hide password' : 'Show password'}
+          title={visible ? 'Hide password' : 'Show password'}
+          tabIndex={-1}
+        >
+          {visible ? <EyeOff size={18} /> : <Eye size={18} />}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export function TextControl({
+  icon,
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = 'text',
+  autoComplete,
+  disabled,
+  hint,
+  maxLength,
+  spellCheck
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  type?: string;
+  autoComplete?: string;
+  disabled?: boolean;
+  hint?: string;
+  maxLength?: number;
+  spellCheck?: boolean;
+}) {
+  return (
+    <div className="mac-field">
+      <label className="mac-label">{label}</label>
+      <div className="mac-input-row">
+        {icon}
+        <input
+          className="mac-input"
+          type={type}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          autoComplete={autoComplete}
+          disabled={disabled}
+          maxLength={maxLength}
+          spellCheck={spellCheck}
+          autoCapitalize={type === 'email' || type === 'text' ? 'none' : undefined}
+          autoCorrect="off"
+          required
+        />
+      </div>
+      {hint && <p className="mac-hint">{hint}</p>}
+    </div>
+  );
+}
+
+export function SelectControl({
+  icon,
+  label,
+  value,
+  onChange,
+  disabled,
+  children
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="mac-field">
+      <label className="mac-label">{label}</label>
+      <div className="mac-input-row mac-input-row-select">
+        {icon}
+        <select
+          className="mac-input mac-select-native"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={disabled}
+          required
+        >
+          {children}
+        </select>
+        <ChevronDown size={18} className="mac-select-chevron" aria-hidden />
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------------------
+ * Two-step registration stepper.
+ * ------------------------------------------------------------------------- */
+
+function RegisterStepper({
+  currentStep,
+  onStepOne
+}: {
+  currentStep: 1 | 2;
+  onStepOne: () => void;
+}) {
+  return (
+    <div className="mac-stepper" role="group" aria-label="Registration progress">
+      <div className="mac-stepper-track">
+        <div
+          className="mac-stepper-fill"
+          style={{ width: currentStep === 1 ? '50%' : '100%' }}
+        />
+      </div>
+      <div className="mac-stepper-labels">
+        <button
+          type="button"
+          className="mac-step"
+          onClick={onStepOne}
+          aria-current={currentStep === 1 ? 'step' : undefined}
+        >
+          <span className={`mac-step-dot${currentStep > 1 ? ' mac-step-dot-done' : ''}${currentStep === 1 ? ' mac-step-dot-active' : ''}`}>
+            {currentStep > 1 ? '✓' : '1'}
+          </span>
+          <span className={`mac-step-label${currentStep === 1 ? ' mac-step-label-active' : ''}`}>
+            Credentials
+          </span>
+        </button>
+        <button type="button" className="mac-step" tabIndex={-1} aria-disabled="true">
+          <span
+            className={`mac-step-dot${currentStep === 2 ? ' mac-step-dot-active' : ' mac-step-dot-inactive'}`}
+          >
+            2
+          </span>
+          <span className={`mac-step-label${currentStep === 2 ? ' mac-step-label-active' : ''}`}>
+            Academic Profile
+          </span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------------------
+ * Main Auth Page (login / register / forgot) — mobile-style experience.
+ * ------------------------------------------------------------------------- */
+
+export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) {
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const {
+    signInWithUsername,
+    signUpWithPassword,
+    completeProfile,
+    sendPasswordReset,
+    signOut,
+    isAuthenticated,
+    isProfileComplete,
+    profile,
+    mfaRequired,
+    mfaVerifiedFactor,
+    clearMfaRequired
+  } = useAuth();
+
+  const [mode, setMode] = useState<AuthMode>(initialMode);
+  const [step, setStep] = useState<'credentials' | 'otp'>('credentials');
+  const [registerStep, setRegisterStep] = useState<1 | 2>(1);
+
+  const [busy, setBusy] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  // Credentials
+  const [fullName, setFullName] = useState('');
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+
+  // Recovery
+  const [forgotEmail, setForgotEmail] = useState('');
+
+  // Academic profile (register step 2)
+  const [profileData, setProfileData] = useState({
+    matricNumber: '',
+    faculty: catalogue[0]?.name || '',
+    department: catalogue[0]?.departments[0]?.name || '',
+    level: '100 Level',
+    gender: '' as 'Male' | 'Female' | '',
+    phoneNumber: '',
+    bio: ''
+  });
+
+  // MFA challenge
+  const [otp, setOtp] = useState('');
+  const [otpBusy, setOtpBusy] = useState(false);
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const [passkeyBusy, setPasskeyBusy] = useState(false);
+
+  // Same cascade logic the old register page used: level choices follow the
+  // selected department's programme duration (4/5/6 years).
+  const currentFaculty = useMemo(() => facultyByName(profileData.faculty) || catalogue[0], [profileData.faculty]);
+  const currentDepartment = useMemo(
+    () =>
+      departmentByName(profileData.faculty, profileData.department) ||
+      currentFaculty.departments[0],
+    [profileData.faculty, profileData.department, currentFaculty]
+  );
+  const availableLevels = useMemo(() => levelsFor(currentDepartment?.duration || 4), [currentDepartment]);
+
+  const handleFacultySelect = (facName: string) => {
+    const fac = facultyByName(facName) || catalogue[0];
+    const firstDept = fac.departments[0];
+    const deptLevels = levelsFor(firstDept.duration);
+    setProfileData((prev) => ({
+      ...prev,
+      faculty: facName,
+      department: firstDept.name,
+      level: deptLevels.includes(prev.level) ? prev.level : deptLevels[0]
+    }));
+  };
+
+  const handleDepartmentSelect = (deptName: string) => {
+    const dept = departmentByName(profileData.faculty, deptName);
+    const deptLevels = levelsFor(dept?.duration || 4);
+    setProfileData((prev) => ({
+      ...prev,
+      department: deptName,
+      level: deptLevels.includes(prev.level) ? prev.level : deptLevels[0]
+    }));
+  };
+
+  const switchMode = (next: AuthMode) => {
+    setMode(next);
+    setStep('credentials');
+    setRegisterStep(1);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    setOtp('');
+  };
+
+  // If already authenticated with a completed profile, forward to the right
+  // portal. Incomplete profiles stay here so the student finishes signup.
+  useEffect(() => {
+    if (isAuthenticated && isProfileComplete && step !== 'otp' && !mfaRequired) {
+      if (profile?.role === 'super_admin') navigate('/super', { replace: true });
+      else if (profile?.role === 'admin') navigate('/admin', { replace: true });
+      else navigate('/student', { replace: true });
+    }
+  }, [isAuthenticated, isProfileComplete, profile, navigate, step, mfaRequired]);
+
+  const goToPortal = () => {
+    if (profile?.role === 'super_admin') navigate('/super');
+    else if (profile?.role === 'admin') navigate('/admin');
+    else navigate('/student');
+  };
+
+  // Login
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+    setSuccessMsg(null);
+
+    if (!username.trim() || !password) {
+      setErrorMsg('Please enter your username or email and your password.');
+      return;
+    }
+
+    setBusy(true);
+    const res = await signInWithUsername(username, password);
+    setBusy(false);
+
+    if (res.error) {
+      setErrorMsg(res.error.message);
+      return;
+    }
+
+    if (res.mfaRequired) {
+      setOtp('');
+      setOtpError(null);
+      setStep('otp');
+      return;
+    }
+
+    toast('Welcome back to FUW E-Library!', 'success');
+    goToPortal();
+  };
+
+  // MFA code verification
+  const handleVerifyOtp = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    setOtpError(null);
+    if (!mfaVerifiedFactor) {
+      setOtpError('No security factor is available. Please go back and try again.');
+      return;
+    }
+    if (otp.trim().length !== 6) {
+      setOtpError('Enter the 6-digit code from your Authenticator App.');
+      return;
+    }
+    setOtpBusy(true);
+    try {
+      await aal2LoginChallenge(mfaVerifiedFactor.id, otp.trim());
+      clearMfaRequired();
+      setOtp('');
+      toast('Identity verified. Welcome back!', 'success');
+      goToPortal();
+    } catch (err: any) {
+      setOtpError(
+        err?.message || 'That code was not accepted. Please check your Authenticator App and try again.'
+      );
+    } finally {
+      setOtpBusy(false);
+    }
+  };
+
+  // Passkey sign-in
+  const handlePasskeySignIn = async () => {
+    setErrorMsg(null);
+    setPasskeyBusy(true);
+    try {
+      await signInWithPasskey();
+      toast('Signed in with your passkey!', 'success');
+      goToPortal();
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Passkey sign-in was cancelled or failed.');
+    } finally {
+      setPasskeyBusy(false);
+    }
+  };
+
+  // Forgot password
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+    setSuccessMsg(null);
+
+    const identifier = forgotEmail.trim().toLowerCase();
+    if (!identifier) {
+      setErrorMsg('Please enter your registered email address or username.');
+      return;
+    }
+    if (identifier.includes('@') && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier)) {
+      setErrorMsg('Please enter a valid email address.');
+      return;
+    }
+    if (!identifier.includes('@') && !USERNAME_PATTERN.test(identifier)) {
+      setErrorMsg('Please enter a valid username or email address.');
+      return;
+    }
+
+    setBusy(true);
+    const res = await sendPasswordReset(identifier);
+    setBusy(false);
+
+    if (res.error) {
+      setErrorMsg(res.error.message);
+      return;
+    }
+
+    setForgotEmail('');
+    setSuccessMsg(
+      'If an account exists for that email, a password reset link has been sent. Check your inbox (and spam folder) for instructions.'
+    );
+  };
+
+  // Register — step 1 validation
+  const validateStepOne = (): boolean => {
+    setErrorMsg(null);
+    if (!fullName.trim()) {
+      setErrorMsg('Please enter your full name.');
+      return false;
+    }
+    const uname = normalizeUsername(username);
+    if (!USERNAME_PATTERN.test(uname)) {
+      setErrorMsg(
+        'Username must be 3–20 characters using only lowercase letters, numbers, dots, dashes, or underscores.'
+      );
+      return false;
+    }
+    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setErrorMsg('Please enter a valid email address.');
+      return false;
+    }
+    if (password.length < 8) {
+      setErrorMsg('Password must be at least 8 characters long.');
+      return false;
+    }
+    if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+      setErrorMsg('Password must contain at least one letter and one number.');
+      return false;
+    }
+    if (password !== confirmPassword) {
+      setErrorMsg('Passwords do not match.');
+      return false;
+    }
+    return true;
+  };
+
+  // Register — step 2 validation + account creation
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+    setSuccessMsg(null);
+
+    const matric = profileData.matricNumber.trim();
+    if (!matric) {
+      setErrorMsg('Matriculation Number is required.');
+      return;
+    }
+    if (matric.length < 4 || !/[A-Z]/.test(matric) || !/[0-9]/.test(matric)) {
+      setErrorMsg('Please enter a valid matriculation number (e.g. CIS/CSC/20/001).');
+      return;
+    }
+    if (!profileData.gender) {
+      setErrorMsg('Please select your gender (Male or Female).');
+      return;
+    }
+    const phone = profileData.phoneNumber.trim();
+    const validPhone =
+      /^\+?[0-9\s()-]{7,20}$/.test(phone) &&
+      (phone.match(/\d/g) || []).length >= 8 &&
+      (phone.match(/\d/g) || []).length <= 15;
+    if (!phone) {
+      setErrorMsg('Phone Number is required.');
+      return;
+    }
+    if (!validPhone) {
+      setErrorMsg('Please enter a valid phone number (8–15 digits).');
+      return;
+    }
+
+    setBusy(true);
+    const res = await signUpWithPassword({ fullName, username, email, password });
+    if (res.error) {
+      setBusy(false);
+      setErrorMsg(res.error.message);
+      return;
+    }
+
+    if (res.needsEmailConfirmation) {
+      setBusy(false);
+      setPassword('');
+      setConfirmPassword('');
+      switchMode('login');
+      setSuccessMsg(
+        'Account created! Check your email inbox for the confirmation link, then log in with your username and password.'
+      );
+      toast('Account created — confirm your email to log in.', 'success');
+      return;
+    }
+
+    // Immediate session — finish the academic profile before entering.
+    const cp = await completeProfile({
+      fullName: fullName.trim(),
+      matricNumber: matric,
+      faculty: profileData.faculty,
+      department: profileData.department,
+      level: profileData.level,
+      gender: profileData.gender,
+      phoneNumber: phone,
+      bio: profileData.bio
+    });
+    setBusy(false);
+
+    if (cp.error) {
+      setErrorMsg(cp.error.message);
+      return;
+    }
+
+    toast('Student profile created successfully! Welcome to FUW E-Library.', 'success');
+    navigate('/student');
+  };
+
+  const title = mode === 'register' ? 'Create Student Account' : mode === 'forgot' ? 'Reset your Password' : 'Sign In';
+  const seoPath = mode === 'register' ? '/register' : mode === 'forgot' ? '/forgot-password' : '/login';
+
+  return (
+    <MacPage
+      pill={mode === 'register' ? 'STUDENT REGISTRATION' : 'FEDERAL UNIVERSITY WUKARI'}
+      subtitle={
+        mode === 'register'
+          ? 'Access thousands of verified lecture notes, test & exam past questions'
+          : undefined
+      }
+    >
+      <SEO
+        title={title}
+        description={
+          mode === 'register'
+            ? 'Create a student account on the FUW E-Library to access and share academic materials.'
+            : mode === 'forgot'
+              ? 'Reset your FUW E-Library password and regain access to your account.'
+              : 'Sign in to the FUW E-Library to access verified academic materials.'
+        }
+        path={seoPath}
+        noindex
+      />
+
+      {/* ============================ LOGIN ============================ */}
+      {mode === 'login' && (
+        <MacCard>
+          {step === 'credentials' ? (
+            <div className="mac-view" key="login">
+              <div className="mac-card-header">
+                <h2 className="mac-card-title">Welcome Back</h2>
+                <p className="mac-card-subtitle">
+                  Sign in with your registered username or email
+                </p>
+              </div>
+
+              {errorMsg && <MacBanner type="error">{errorMsg}</MacBanner>}
+              {successMsg && <MacBanner type="success">{successMsg}</MacBanner>}
+
+              <form onSubmit={handleLogin} noValidate>
+                <TextControl
+                  icon={
+                    username.includes('@') ? (
+                      <Mail size={18} className="mac-icon" aria-hidden />
+                    ) : (
+                      <UserRound size={18} className="mac-icon" aria-hidden />
+                    )
+                  }
+                  label="Username or Email"
+                  value={username}
+                  onChange={(v) => {
+                    setUsername(v);
+                    if (errorMsg) setErrorMsg(null);
+                  }}
+                  placeholder="e.g. cis.student or user@fuwukari.edu.ng"
+                  autoComplete="username"
+                  disabled={busy}
+                />
+
+                <PasswordControl
+                  label="Password"
+                  value={password}
+                  onChange={(v) => {
+                    setPassword(v);
+                    if (errorMsg) setErrorMsg(null);
+                  }}
+                  placeholder="Enter your account password"
+                  disabled={busy}
+                  rightLabel="Forgot Password?"
+                  onRightLabel={() => switchMode('forgot')}
+                />
+
+                <button type="submit" className="mac-btn mac-btn-primary" disabled={busy}>
+                  {busy ? (
+                    <>
+                      <RefreshCw size={17} className="spin-icon" /> Signing in…
+                    </>
+                  ) : (
+                    <>
+                      Sign In <ArrowRight size={17} aria-hidden />
+                    </>
+                  )}
+                </button>
+              </form>
+
+              <div className="mac-divider">
+                <span>NEW TO FUW E-LIBRARY?</span>
+              </div>
+
+              <button type="button" className="mac-btn mac-btn-register" onClick={() => switchMode('register')}>
+                <UserPlus size={18} aria-hidden />
+                Create Student Account
+              </button>
+
+              <button
+                type="button"
+                className="mac-btn mac-btn-passkey"
+                onClick={handlePasskeySignIn}
+                disabled={passkeyBusy}
+              >
+                {passkeyBusy ? (
+                  <>
+                    <RefreshCw size={17} className="spin-icon" /> Waiting for passkey…
+                  </>
+                ) : (
+                  <>
+                    <Fingerprint size={18} aria-hidden /> Sign in with a Passkey
+                  </>
+                )}
+              </button>
+            </div>
+          ) : (
+            <div className="mac-view" key="otp">
+              <div className="mac-card-header">
+                <h2 className="mac-card-title">Two-Factor Verification</h2>
+                <p className="mac-card-subtitle">
+                  Enter the 6-digit code from your authenticator app to finish signing in.
+                </p>
+              </div>
+
+              {errorMsg && <MacBanner type="error">{errorMsg}</MacBanner>}
+
+              <form onSubmit={handleVerifyOtp} noValidate>
+                <div className="mac-field">
+                  <label className="mac-label">Authenticator code</label>
+                  <div className="mac-input-row">
+                    <KeyRound size={18} className="mac-icon" aria-hidden />
+                    <input
+                      className="mac-input"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      placeholder="6-digit code"
+                      value={otp}
+                      onChange={(e) => {
+                        setOtp(e.target.value.replace(/\D/g, '').slice(0, 6));
+                        if (otpError) setOtpError(null);
+                      }}
+                      disabled={otpBusy}
+                      autoFocus
+                    />
+                  </div>
+                </div>
+
+                {otpError && <MacBanner type="error">{otpError}</MacBanner>}
+
+                <button
+                  type="submit"
+                  className="mac-btn mac-btn-primary"
+                  disabled={otpBusy || otp.trim().length !== 6}
+                >
+                  {otpBusy ? (
+                    <>
+                      <RefreshCw size={17} className="spin-icon" /> Verifying…
+                    </>
+                  ) : (
+                    <>
+                      Verify & Continue <ShieldCheck size={17} aria-hidden />
+                    </>
+                  )}
+                </button>
+              </form>
+
+              <button
+                type="button"
+                className="mac-btn mac-btn-ghost"
+                onClick={async () => {
+                  await signOut().catch(() => {});
+                  clearMfaRequired();
+                  setOtp('');
+                  setOtpError(null);
+                  setStep('credentials');
+                }}
+              >
+                <ArrowLeft size={16} aria-hidden /> Back to sign in
+              </button>
+            </div>
+          )}
+        </MacCard>
+      )}
+
+      {/* ============================ REGISTER ============================ */}
+      {mode === 'register' && (
+        <MacCard>
+          <RegisterStepper currentStep={registerStep} onStepOne={() => { setRegisterStep(1); setErrorMsg(null); }} />
+
+          <div className="mac-view" key={`register-${registerStep}`}>
+            {registerStep === 1 ? (
+              <form onSubmit={(e) => { e.preventDefault(); if (validateStepOne()) setRegisterStep(2); }} noValidate>
+                <div className="mac-card-header">
+                  <h2 className="mac-card-title">1. Account Information</h2>
+                  <p className="mac-card-subtitle">
+                    Enter your official name and login credentials.
+                  </p>
+                </div>
+
+                {errorMsg && <MacBanner type="error">{errorMsg}</MacBanner>}
+
+                <TextControl
+                  icon={<UserRound size={18} className="mac-icon" aria-hidden />}
+                  label="Full Name *"
+                  value={fullName}
+                  onChange={(v) => { setFullName(v); if (errorMsg) setErrorMsg(null); }}
+                  placeholder="e.g. Aisha Bello"
+                  autoComplete="name"
+                  disabled={busy}
+                />
+
+                <TextControl
+                  icon={<AtSign size={18} className="mac-icon" aria-hidden />}
+                  label="Choose Username *"
+                  value={username}
+                  onChange={(v) => { setUsername(v.toLowerCase()); if (errorMsg) setErrorMsg(null); }}
+                  placeholder="e.g. aisha.bello"
+                  autoComplete="username"
+                  disabled={busy}
+                  maxLength={20}
+                  hint="3–20 characters. Lowercase letters, numbers, dot, dash, underscore only."
+                />
+
+                <TextControl
+                  icon={<Mail size={18} className="mac-icon" aria-hidden />}
+                  label="Email Address *"
+                  value={email}
+                  onChange={(v) => { setEmail(v); if (errorMsg) setErrorMsg(null); }}
+                  placeholder="e.g. student@fuwukari.edu.ng"
+                  type="email"
+                  autoComplete="email"
+                  disabled={busy}
+                />
+
+                <PasswordControl
+                  label="Password *"
+                  value={password}
+                  onChange={(v) => { setPassword(v); if (errorMsg) setErrorMsg(null); }}
+                  placeholder="At least 8 characters (letter + number)"
+                  autoComplete="new-password"
+                  disabled={busy}
+                />
+
+                <PasswordControl
+                  label="Confirm Password *"
+                  value={confirmPassword}
+                  onChange={(v) => { setConfirmPassword(v); if (errorMsg) setErrorMsg(null); }}
+                  placeholder="Re-enter your password"
+                  autoComplete="new-password"
+                  disabled={busy}
+                />
+
+                <button type="submit" className="mac-btn mac-btn-primary">
+                  Continue to Academic Info <ArrowRight size={17} aria-hidden />
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleSignUp} noValidate>
+                <div className="mac-card-header">
+                  <h2 className="mac-card-title">2. Academic & Contact Details</h2>
+                  <p className="mac-card-subtitle">
+                    Your department and level personalize your library syllabus.
+                  </p>
+                </div>
+
+                {errorMsg && <MacBanner type="error">{errorMsg}</MacBanner>}
+
+                <TextControl
+                  icon={<IdCard size={18} className="mac-icon" aria-hidden />}
+                  label="Matriculation Number *"
+                  value={profileData.matricNumber}
+                  onChange={(v) => {
+                    setProfileData((prev) => ({ ...prev, matricNumber: v.toUpperCase() }));
+                    if (errorMsg) setErrorMsg(null);
+                  }}
+                  placeholder="e.g. CIS/CSC/20/001"
+                  autoComplete="off"
+                  disabled={busy}
+                />
+
+                <SelectControl
+                  icon={<School size={18} className="mac-icon" aria-hidden />}
+                  label="Faculty *"
+                  value={profileData.faculty}
+                  onChange={handleFacultySelect}
+                  disabled={busy}
+                >
+                  {groupedFaculties().map((group) =>
+                    group.college ? (
+                      <optgroup key={group.college} label={group.college}>
+                        {group.faculties.map((f) => (
+                          <option key={f.name} value={f.name}>
+                            {f.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ) : (
+                      group.faculties.map((f) => (
+                        <option key={f.name} value={f.name}>
+                          {f.name}
+                        </option>
+                      ))
+                    )
+                  )}
+                </SelectControl>
+
+                <SelectControl
+                  icon={<Building2 size={18} className="mac-icon" aria-hidden />}
+                  label="Department *"
+                  value={profileData.department}
+                  onChange={handleDepartmentSelect}
+                  disabled={busy}
+                >
+                  {currentFaculty.departments.map((d) => (
+                    <option key={d.name} value={d.name}>
+                      {d.name} ({d.duration} Years)
+                    </option>
+                  ))}
+                </SelectControl>
+
+                <SelectControl
+                  icon={<Layers size={18} className="mac-icon" aria-hidden />}
+                  label={`Academic Level * (${currentDepartment?.duration || 4}-Year Curriculum)`}
+                  value={profileData.level}
+                  onChange={(v) => setProfileData((prev) => ({ ...prev, level: v }))}
+                  disabled={busy}
+                >
+                  {availableLevels.map((lvl) => (
+                    <option key={lvl} value={lvl}>
+                      {lvl}
+                    </option>
+                  ))}
+                </SelectControl>
+
+                <div className="mac-field">
+                  <label className="mac-label">Gender *</label>
+                  <div className="mac-gender">
+                    <button
+                      type="button"
+                      className={`mac-gender-opt${profileData.gender === 'Male' ? ' mac-gender-opt-active' : ''}`}
+                      onClick={() => setProfileData((prev) => ({ ...prev, gender: 'Male' }))}
+                      disabled={busy}
+                    >
+                      <GraduationCap size={17} aria-hidden /> Male
+                    </button>
+                    <button
+                      type="button"
+                      className={`mac-gender-opt${profileData.gender === 'Female' ? ' mac-gender-opt-active' : ''}`}
+                      onClick={() => setProfileData((prev) => ({ ...prev, gender: 'Female' }))}
+                      disabled={busy}
+                    >
+                      <GraduationCap size={17} aria-hidden /> Female
+                    </button>
+                  </div>
+                </div>
+
+                <TextControl
+                  icon={<Phone size={18} className="mac-icon" aria-hidden />}
+                  label="Phone Number *"
+                  value={profileData.phoneNumber}
+                  onChange={(v) => {
+                    setProfileData((prev) => ({ ...prev, phoneNumber: v }));
+                    if (errorMsg) setErrorMsg(null);
+                  }}
+                  placeholder="e.g. 08012345678"
+                  autoComplete="tel"
+                  disabled={busy}
+                />
+
+                <div className="mac-btn-row">
+                  <button
+                    type="button"
+                    className="mac-btn mac-btn-back"
+                    onClick={() => setRegisterStep(1)}
+                    disabled={busy}
+                  >
+                    <ArrowLeft size={16} aria-hidden /> Back
+                  </button>
+                  <button type="submit" className="mac-btn mac-btn-primary" disabled={busy}>
+                    {busy ? (
+                      <>
+                        <RefreshCw size={17} className="spin-icon" /> Registering…
+                      </>
+                    ) : (
+                      <>
+                        Complete Signup <Sparkles size={17} aria-hidden />
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+
+          <button type="button" className="mac-btn mac-btn-ghost" onClick={() => switchMode('login')}>
+            Already registered at FUW? <b>Sign In to your Portal</b>
+          </button>
+        </MacCard>
+      )}
+
+      {/* ============================ FORGOT ============================ */}
+      {mode === 'forgot' && (
+        <MacCard>
+          <div className="mac-view" key="forgot">
+            <div className="mac-card-header">
+              <h2 className="mac-card-title">Reset your Password</h2>
+              <p className="mac-card-subtitle">
+                Enter the email address or username tied to your account and we will send you a reset link.
+              </p>
+            </div>
+
+            {errorMsg && <MacBanner type="error">{errorMsg}</MacBanner>}
+            {successMsg && <MacBanner type="success">{successMsg}</MacBanner>}
+
+            <form onSubmit={handleForgotPassword} noValidate>
+              <TextControl
+                icon={<Mail size={18} className="mac-icon" aria-hidden />}
+                label="Email or Username"
+                value={forgotEmail}
+                onChange={(v) => {
+                  setForgotEmail(v);
+                  if (errorMsg) setErrorMsg(null);
+                }}
+                placeholder="your.name@fuwukari.edu.ng or your.username"
+                autoComplete="email"
+                disabled={busy}
+              />
+
+              <button type="submit" className="mac-btn mac-btn-primary" disabled={busy}>
+                {busy ? (
+                  <>
+                    <RefreshCw size={17} className="spin-icon" /> Sending reset link…
+                  </>
+                ) : (
+                  <>
+                    <Mail size={17} aria-hidden /> Send Reset Link
+                  </>
+                )}
+              </button>
+            </form>
+
+            <button type="button" className="mac-btn mac-btn-ghost" onClick={() => switchMode('login')}>
+              <ArrowLeft size={16} aria-hidden /> Back to sign in
+            </button>
+          </div>
+        </MacCard>
+      )}
+    </MacPage>
+  );
+}

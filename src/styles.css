@@ -5900,7 +5900,7 @@ select.form-input:disabled { background-color: var(--surface-alt); }
    Auth Pages & Loading Screen
    ========================================================================== */
 .auth {
-  min-height: calc(100vh - 150px);
+  min-height: 100dvh;
   display: grid;
   place-items: center;
   background: #eef6f0;
@@ -11149,4 +11149,717 @@ button.form-submit-btn:disabled:hover {
   .adm-footer { padding: 0.6rem 1rem; }
   .adm-dept-row { padding: 0.5rem 0.6rem; }
   .adm-dept-name { font-size: 0.82rem; }
+}
+
+/* ==========================================================================
+   MOBILE-STYLE AUTHENTICATION SCREENS
+   Auth-first entry: unauthenticated visitors only ever see these pages.
+   ========================================================================== */
+
+.mac-page {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(24px, 6vw, 44px) 20px;
+  position: relative;
+  overflow: hidden;
+  background: #F8FAFC;
+}
+
+.mac-page::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(900px 480px at 85% -10%, rgba(11, 107, 58, 0.06), transparent 60%),
+    linear-gradient(180deg, #F8FAFC 0%, #F1F6F3 100%);
+  pointer-events: none;
+}
+
+.mac-orb {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0.55;
+}
+.mac-orb-a {
+  width: 340px;
+  height: 340px;
+  background: radial-gradient(circle, rgba(11, 107, 58, 0.14) 0%, transparent 70%);
+  top: -120px;
+  right: -110px;
+}
+.mac-orb-b {
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, rgba(87, 199, 133, 0.16) 0%, transparent 70%);
+  bottom: -120px;
+  left: -110px;
+}
+
+.mac-shell {
+  position: relative;
+  width: 100%;
+  max-width: 460px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+/* --- Header / brand --- */
+.mac-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 22px;
+  width: 100%;
+}
+.mac-logo-circle {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 1.5px solid #E2E8F0;
+  box-shadow: 0 6px 16px rgba(11, 107, 58, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+.mac-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #E8F5E9;
+  border: 1px solid #C8E6C9;
+  color: #0B6B3A;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  padding: 5px 13px;
+  border-radius: 20px;
+  margin-bottom: 8px;
+}
+.mac-title {
+  font-size: 26px;
+  font-weight: 800;
+  color: #0F172A;
+  letter-spacing: -0.5px;
+  text-align: center;
+  margin: 0;
+}
+.mac-subtitle {
+  font-size: 13px;
+  color: #64748B;
+  text-align: center;
+  margin-top: 4px;
+  max-width: 300px;
+  line-height: 18px;
+}
+
+/* --- Card --- */
+.mac-card {
+  width: 100%;
+  box-sizing: border-box;
+  background: #ffffff;
+  border-radius: 24px;
+  border: 1px solid #E2E8F0;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.07);
+  padding: 26px 24px;
+}
+.mac-card-header {
+  margin-bottom: 18px;
+  text-align: left;
+}
+.mac-card-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #0F172A;
+  margin: 0;
+}
+.mac-card-subtitle {
+  font-size: 13px;
+  color: #64748B;
+  margin: 5px 0 0;
+  line-height: 18px;
+}
+
+/* --- View transition between auth modes --- */
+.mac-view {
+  animation: macViewIn 0.34s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+@keyframes macViewIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* --- Feedback banners --- */
+.mac-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border-radius: 12px;
+  padding: 11px 14px;
+  margin-bottom: 16px;
+}
+.mac-banner svg { flex-shrink: 0; margin-top: 1px; }
+.mac-banner p {
+  flex: 1;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  margin: 0;
+}
+.mac-banner-error {
+  background: #FEF2F2;
+  border: 1px solid #FCA5A5;
+  color: #B91C1C;
+}
+.mac-banner-success {
+  background: #F0FDF4;
+  border: 1px solid #BBF7D0;
+  color: #15803D;
+}
+
+/* --- Inputs --- */
+.mac-field {
+  margin-bottom: 15px;
+  text-align: left;
+}
+.mac-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 6px;
+}
+.mac-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.mac-label-row .mac-label { margin-bottom: 0; }
+.mac-link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0B6B3A;
+  cursor: pointer;
+  font-family: inherit;
+}
+.mac-link-btn:hover { text-decoration: underline; }
+
+.mac-input-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #F8FAFC;
+  border: 1.5px solid #CBD5E1;
+  border-radius: 14px;
+  padding: 0 14px;
+  height: 52px;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+.mac-input-row:focus-within {
+  border-color: #0B6B3A;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(11, 107, 58, 0.12);
+}
+.mac-icon {
+  color: #9CA3AF;
+  flex-shrink: 0;
+}
+.mac-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 15px;
+  color: #0F172A;
+  font-family: inherit;
+}
+.mac-input::placeholder { color: #9CA3AF; }
+.mac-trailing {
+  background: none;
+  border: none;
+  padding: 4px;
+  color: #6B7280;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.mac-hint {
+  font-size: 11px;
+  color: #64748B;
+  margin: 5px 0 0;
+}
+
+/* --- Select controls --- */
+.mac-input-row-select { position: relative; }
+.mac-select-native {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  height: 100%;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+  padding: 0 26px 0 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 15px;
+  color: #0F172A;
+  font-family: inherit;
+}
+.mac-select-native:disabled { cursor: not-allowed; }
+.mac-select-chevron {
+  position: absolute;
+  right: 14px;
+  color: #64748B;
+  pointer-events: none;
+}
+
+/* --- Buttons --- */
+.mac-btn {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 52px;
+  border-radius: 14px;
+  border: none;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  font-family: inherit;
+  color: inherit;
+  text-decoration: none;
+  transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease, color 0.15s ease;
+}
+.mac-btn:active:not(:disabled) { transform: translateY(1px); }
+.mac-btn:disabled { cursor: not-allowed; }
+
+.mac-btn-primary {
+  background: #0B6B3A;
+  color: #ffffff;
+  box-shadow: 0 4px 10px rgba(11, 107, 58, 0.28);
+  margin-top: 6px;
+}
+.mac-btn-primary:hover:not(:disabled) { background: #0A5C32; }
+.mac-btn-primary:disabled { background: #689F7D; box-shadow: none; }
+
+.mac-btn-register {
+  background: #F0FDF4;
+  border: 1.5px solid #86EFAC;
+  color: #0B6B3A;
+  height: 50px;
+}
+.mac-btn-register:hover:not(:disabled) { background: #E8F9ED; }
+
+.mac-btn-passkey {
+  background: #ffffff;
+  border: 1.5px solid #0B6B3A;
+  color: #0B6B3A;
+  height: 48px;
+  margin-top: 10px;
+}
+.mac-btn-passkey:hover:not(:disabled) { background: #F0FDF4; }
+
+.mac-btn-ghost {
+  background: none;
+  color: #4B5563;
+  font-size: 13px;
+  font-weight: 600;
+  width: auto;
+  height: auto;
+  padding: 10px 4px;
+  margin: 14px auto 0;
+}
+.mac-btn-ghost:hover { color: #0B6B3A; }
+.mac-btn-ghost b { color: #0B6B3A; font-weight: 700; margin-left: 5px; }
+
+.mac-btn-back {
+  background: #F1F5F9;
+  color: #475569;
+  width: auto;
+  padding: 0 20px;
+  flex-shrink: 0;
+}
+.mac-btn-back:hover:not(:disabled) { background: #E2E8F0; }
+.mac-btn-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 6px;
+}
+.mac-btn-row .mac-btn-primary {
+  flex: 1;
+  margin-top: 0;
+}
+
+/* --- Divider --- */
+.mac-divider {
+  display: flex;
+  align-items: center;
+  margin: 18px 0;
+}
+.mac-divider::before,
+.mac-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #E2E8F0;
+}
+.mac-divider span {
+  font-size: 11px;
+  font-weight: 700;
+  color: #94A3B8;
+  letter-spacing: 0.6px;
+  margin: 0 12px;
+  white-space: nowrap;
+}
+
+/* --- Register stepper --- */
+.mac-stepper {
+  margin-bottom: 18px;
+}
+.mac-stepper-track {
+  height: 5px;
+  background: #E2E8F0;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+.mac-stepper-fill {
+  height: 100%;
+  background: #0B6B3A;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+.mac-stepper-labels {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.mac-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+}
+.mac-step-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #CBD5E1;
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  font-style: normal;
+}
+.mac-step-dot-active { background: #0B6B3A; }
+.mac-step-dot-done { background: #15803D; }
+.mac-step-dot-inactive { background: #E2E8F0; color: #64748B; }
+.mac-step-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748B;
+}
+.mac-step-label-active {
+  color: #0B6B3A;
+  font-weight: 700;
+}
+
+/* --- Gender segmented control --- */
+.mac-gender {
+  display: flex;
+  gap: 12px;
+}
+.mac-gender-opt {
+  flex: 1;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: #F8FAFC;
+  border: 1.5px solid #CBD5E1;
+  border-radius: 12px;
+  font-size: 14px;
+  color: #64748B;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.mac-gender-opt:hover:not(:disabled) { border-color: #86EFAC; }
+.mac-gender-opt-active {
+  border-color: #0B6B3A;
+  background: #F0FDF4;
+  color: #0B6B3A;
+  font-weight: 700;
+}
+.mac-gender-opt:disabled { cursor: not-allowed; }
+
+/* --- Footer (security badge + legal) --- */
+.mac-footer {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 16px;
+  text-align: center;
+}
+.mac-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #0B6B3A;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.mac-footer p {
+  font-size: 11px;
+  color: #94A3B8;
+  line-height: 16px;
+  max-width: 360px;
+  margin: 0;
+}
+
+/* --- Empty / informational state (reset page) --- */
+.mac-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+  padding: 10px 0 16px;
+  color: #64748B;
+}
+.mac-empty b { color: #334155; font-size: 14px; }
+.mac-empty span { font-size: 12px; }
+
+/* ==========================================================================
+   GLOBAL APP SPLASH (auth cold-start overlay)
+   ========================================================================== */
+.app-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: #062E20;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.6s ease 0.05s;
+}
+.app-splash-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.app-splash-orb {
+  position: absolute;
+  border-radius: 50%;
+}
+.app-splash-orb-large {
+  width: 360px;
+  height: 360px;
+  background: #0B6B3A;
+  opacity: 0.22;
+  top: -150px;
+  right: -130px;
+}
+.app-splash-orb-small {
+  width: 240px;
+  height: 240px;
+  background: #57C785;
+  opacity: 0.1;
+  bottom: -110px;
+  left: -100px;
+}
+
+.app-splash-content {
+  position: relative;
+  z-index: 2;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+  padding: clamp(42px, 10vh, 72px) 28px clamp(34px, 8vh, 58px);
+}
+
+.app-splash-ring {
+  width: clamp(128px, 34vw, 152px);
+  height: clamp(128px, 34vw, 152px);
+  border-radius: 50%;
+  background: rgba(126, 232, 174, 0.12);
+  border: 1px solid rgba(190, 255, 216, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: splashPulse 2.4s ease-in-out infinite;
+}
+.app-splash-logo {
+  width: 104px;
+  height: 104px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 5px solid rgba(190, 255, 216, 0.7);
+  box-shadow: 0 12px 20px rgba(0, 0, 0, 0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  animation: splashPop 0.7s cubic-bezier(0.22, 1.2, 0.36, 1) both;
+}
+.app-splash-logo .fuw-logo {
+  border-radius: 50%;
+}
+
+.app-splash-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 390px;
+  animation: splashFadeUp 0.5s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  animation-delay: 0.15s;
+}
+.app-splash-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #B8EFCB;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.1px;
+  margin-bottom: 12px;
+}
+.app-splash-eyebrow-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 4px;
+  background: #8CE6AD;
+}
+.app-splash-title {
+  color: #ffffff;
+  font-size: 36px;
+  font-weight: 800;
+  letter-spacing: -1px;
+  text-align: center;
+  margin: 0;
+}
+.app-splash-subtitle {
+  color: #8CE6AD;
+  font-size: 18px;
+  font-weight: 700;
+  margin: 8px 0 0;
+  letter-spacing: 0.2px;
+}
+.app-splash-desc {
+  color: #C4DCD0;
+  font-size: 14px;
+  line-height: 21px;
+  margin: 13px 0 0;
+  max-width: 290px;
+  text-align: center;
+}
+
+.app-splash-footer {
+  width: 100%;
+  max-width: 360px;
+  animation: splashFadeUp 0.5s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  animation-delay: 0.3s;
+}
+.app-splash-progress {
+  height: 4px;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.16);
+}
+.app-splash-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: #8CE6AD;
+  animation: splashFill 1.3s cubic-bezier(0.46, 0.03, 0.2, 1) both;
+}
+.app-splash-loading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+}
+.app-splash-loading span:first-child {
+  color: #B8EFCB;
+  font-size: 12px;
+  font-weight: 600;
+}
+.app-splash-dots {
+  display: flex;
+  gap: 5px;
+}
+.app-splash-dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 3px;
+  background: #8CE6AD;
+  animation: splashDot 1.2s ease-in-out infinite;
+}
+.app-splash-dots i:nth-child(2) { animation-delay: 0.2s; }
+.app-splash-dots i:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes splashPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.04); }
+}
+@keyframes splashPop {
+  from { opacity: 0; transform: scale(0.6); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes splashFadeUp {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes splashFill {
+  from { width: 0%; }
+  to { width: 100%; }
+}
+@keyframes splashDot {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-splash { transition: opacity 0.2s linear; }
+  .app-splash-ring,
+  .app-splash-logo,
+  .app-splash-text,
+  .app-splash-footer,
+  .app-splash-fill,
+  .app-splash-dots i {
+    animation: none;
+  }
 }

@@ -17,10 +17,10 @@ import {
   CoursesPage,
   MaterialDetailPage,
   AboutPage,
-  LoginPage,
   ResetPasswordPage,
   AdminLoginPage
 } from './pages/PublicPages';
+import { AuthPage } from './pages/AuthScreens';
 
 import { StudentPortal } from './pages/StudentPortal';
 import { AdminPortal } from './pages/AdminPortal';
@@ -30,6 +30,7 @@ import { MaintenancePage } from './pages/MaintenancePage';
 import { AuthProvider, useAuth } from './lib/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { MaintenanceGate } from './components/MaintenanceGate';
+import { AppSplash } from './components/AppSplash';
 import { analyticsTracker } from './lib/analyticsTracker';
 
 // Captured when the JS bundle begins evaluating — the startup metric measures
@@ -120,6 +121,24 @@ function PublicLayout({
   );
 }
 
+/**
+ * Auth-first gate: everything except the explicitly public auth pages requires
+ * a live session. While the session is still loading we render nothing (the
+ * AppSplash overlay covers the screen), so unauthenticated visitors can never
+ * glimpse the main site.
+ */
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  const { isLoading, isAuthenticated } = useAuth();
+  if (isLoading) return null;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  return <>{children}</>;
+}
+
+function AppSplashBoundary() {
+  const { isLoading } = useAuth();
+  return <AppSplash visible={isLoading} />;
+}
+
 function App() {
   const [readingMaterial, setReadingMaterial] = useState<MaterialItem | null>(null);
 
@@ -130,160 +149,188 @@ function App() {
   return (
     <AuthProvider>
       <AnalyticsLayer />
+      <AppSplashBoundary />
       <ToastProvider>
         <MaintenanceGate>
           <Routes>
             {/* Global maintenance screen — reachable for everyone */}
             <Route path="/maintenance" element={<MaintenancePage />} />
 
+            {/* Public auth routes — the only pages unauthenticated visitors see */}
+            <Route path="/login" element={<AuthPage initialMode="login" />} />
+            <Route path="/register" element={<AuthPage initialMode="register" />} />
+            <Route path="/forgot-password" element={<AuthPage initialMode="forgot" />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/admin/login" element={<AdminLoginPage />} />
+            <Route path="/super/login" element={<AdminLoginPage />} />
+
             {/* Protected Student Portal Routes */}
             <Route
               path="/student/*"
               element={
-                <ProtectedRoute>
-                  <StudentPortal onReadOnline={handleReadOnline} />
-                </ProtectedRoute>
+                <RequireAuth>
+                  <ProtectedRoute>
+                    <StudentPortal onReadOnline={handleReadOnline} />
+                  </ProtectedRoute>
+                </RequireAuth>
               }
             />
 
             {/* Protected Admin Portal Routes */}
             <Route
-              path="/admin/login"
-              element={<AdminLoginPage />}
-            />
-            <Route
               path="/admin/*"
               element={
-                <ProtectedRoute adminOnly>
-                  <AdminPortal onReadOnline={handleReadOnline} />
-                </ProtectedRoute>
+                <RequireAuth>
+                  <ProtectedRoute adminOnly>
+                    <AdminPortal onReadOnline={handleReadOnline} />
+                  </ProtectedRoute>
+                </RequireAuth>
               }
             />
 
             {/* Protected Super Admin Portal (owner only) */}
             <Route
-              path="/super/login"
-              element={<AdminLoginPage />}
-            />
-            <Route
               path="/super"
               element={
-                <ProtectedRoute superAdminOnly>
-                  <SuperAdminPortal />
-                </ProtectedRoute>
+                <RequireAuth>
+                  <ProtectedRoute superAdminOnly>
+                    <SuperAdminPortal />
+                  </ProtectedRoute>
+                </RequireAuth>
               }
             />
             <Route
               path="/super/*"
               element={
-                <ProtectedRoute superAdminOnly>
-                  <SuperAdminPortal />
-                </ProtectedRoute>
+                <RequireAuth>
+                  <ProtectedRoute superAdminOnly>
+                    <SuperAdminPortal />
+                  </ProtectedRoute>
+                </RequireAuth>
               }
             />
 
             {/* Friendly Route Aliases */}
-            <Route path="/dashboard" element={<Navigate to="/student" replace />} />
-            <Route path="/profile" element={<Navigate to="/student/profile" replace />} />
-            <Route path="/settings" element={<Navigate to="/student/settings" replace />} />
-            <Route path="/super-admin" element={<Navigate to="/super" replace />} />
-            <Route path="/superadmin" element={<Navigate to="/super" replace />} />
+            <Route
+              path="/dashboard"
+              element={
+                <RequireAuth>
+                  <Navigate to="/student" replace />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/profile"
+              element={
+                <RequireAuth>
+                  <Navigate to="/student/profile" replace />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <RequireAuth>
+                  <Navigate to="/student/settings" replace />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/super-admin"
+              element={
+                <RequireAuth>
+                  <Navigate to="/super" replace />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/superadmin"
+              element={
+                <RequireAuth>
+                  <Navigate to="/super" replace />
+                </RequireAuth>
+              }
+            />
 
-            {/* Public Pages Layout */}
+            {/* Public Pages Layout — everything here is behind the auth gate */}
             <Route
               path="/"
               element={
-                <PublicLayout onReadOnline={handleReadOnline}>
-                  <HomePage onReadOnline={handleReadOnline} />
-                </PublicLayout>
+                <RequireAuth>
+                  <PublicLayout onReadOnline={handleReadOnline}>
+                    <HomePage onReadOnline={handleReadOnline} />
+                  </PublicLayout>
+                </RequireAuth>
               }
             />
             <Route
               path="/library"
               element={
-                <PublicLayout onReadOnline={handleReadOnline}>
-                  <LibraryPage onReadOnline={handleReadOnline} />
-                </PublicLayout>
+                <RequireAuth>
+                  <PublicLayout onReadOnline={handleReadOnline}>
+                    <LibraryPage onReadOnline={handleReadOnline} />
+                  </PublicLayout>
+                </RequireAuth>
               }
             />
             <Route
               path="/faculties"
               element={
-                <PublicLayout onReadOnline={handleReadOnline}>
-                  <FacultiesPage />
-                </PublicLayout>
+                <RequireAuth>
+                  <PublicLayout onReadOnline={handleReadOnline}>
+                    <FacultiesPage />
+                  </PublicLayout>
+                </RequireAuth>
               }
             />
             <Route
               path="/departments"
               element={
-                <PublicLayout onReadOnline={handleReadOnline}>
-                  <FacultiesPage />
-                </PublicLayout>
+                <RequireAuth>
+                  <PublicLayout onReadOnline={handleReadOnline}>
+                    <FacultiesPage />
+                  </PublicLayout>
+                </RequireAuth>
               }
             />
             <Route
               path="/courses"
               element={
-                <PublicLayout onReadOnline={handleReadOnline}>
-                  <CoursesPage />
-                </PublicLayout>
+                <RequireAuth>
+                  <PublicLayout onReadOnline={handleReadOnline}>
+                    <CoursesPage />
+                  </PublicLayout>
+                </RequireAuth>
               }
             />
             <Route
               path="/materials/:id"
               element={
-                <PublicLayout onReadOnline={handleReadOnline}>
-                  <MaterialDetailPage onReadOnline={handleReadOnline} />
-                </PublicLayout>
+                <RequireAuth>
+                  <PublicLayout onReadOnline={handleReadOnline}>
+                    <MaterialDetailPage onReadOnline={handleReadOnline} />
+                  </PublicLayout>
+                </RequireAuth>
               }
             />
             <Route
               path="/about"
               element={
-                <PublicLayout onReadOnline={handleReadOnline}>
-                  <AboutPage />
-                </PublicLayout>
+                <RequireAuth>
+                  <PublicLayout onReadOnline={handleReadOnline}>
+                    <AboutPage />
+                  </PublicLayout>
+                </RequireAuth>
               }
             />
             <Route
               path="/contact"
               element={
-                <PublicLayout onReadOnline={handleReadOnline}>
-                  <AboutPage contact />
-                </PublicLayout>
-              }
-            />
-            <Route
-              path="/login"
-              element={
-                <PublicLayout onReadOnline={handleReadOnline}>
-                  <LoginPage />
-                </PublicLayout>
-              }
-            />
-            <Route
-              path="/register"
-              element={
-                <PublicLayout onReadOnline={handleReadOnline}>
-                  <LoginPage register />
-                </PublicLayout>
-              }
-            />
-            <Route
-              path="/forgot-password"
-              element={
-                <PublicLayout onReadOnline={handleReadOnline}>
-                  <LoginPage forgot />
-                </PublicLayout>
-              }
-            />
-            <Route
-              path="/reset-password"
-              element={
-                <PublicLayout onReadOnline={handleReadOnline}>
-                  <ResetPasswordPage />
-                </PublicLayout>
+                <RequireAuth>
+                  <PublicLayout onReadOnline={handleReadOnline}>
+                    <AboutPage contact />
+                  </PublicLayout>
+                </RequireAuth>
               }
             />
             <Route

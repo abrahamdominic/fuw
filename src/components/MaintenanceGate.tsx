@@ -1,7 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
-import { Logo } from './Logo';
 import { useAuth } from '../lib/AuthContext';
 import { fetchMaintenanceStatus, MaintenanceStatus } from '../lib/maintenance';
 
@@ -14,10 +12,14 @@ const POLL_INTERVAL_MS = 60000;
  * page renders. While it is active every route except /maintenance redirects
  * there — except for super administrators, who keep full access so they can
  * manage and disable the mode.
+ *
+ * Session loading is intentionally NOT handled here: the AppSplash overlay in
+ * main.tsx already covers the cold-start window, so we never show a second
+ * splash.
  */
 export function MaintenanceGate({ children }: { children: React.ReactNode }) {
   const location = useLocation();
-  const { isLoading: authLoading, isSuperAdmin } = useAuth();
+  const { isSuperAdmin } = useAuth();
   const [status, setStatus] = useState<MaintenanceStatus | null>(null);
   const [checked, setChecked] = useState(false);
   const statusRef = useRef<MaintenanceStatus | null>(null);
@@ -52,17 +54,9 @@ export function MaintenanceGate({ children }: { children: React.ReactNode }) {
   // The maintenance page itself stays reachable for everyone.
   if (location.pathname.startsWith('/maintenance')) return <>{children}</>;
 
-  // Wait for both the session profile and the first status check so protected
-  // pages never flash before the global state is known.
-  if (!checked || authLoading) {
-    return (
-      <div className="maintenance-splash" role="status" aria-live="polite">
-        <Logo size={44} />
-        <Loader2 size={20} className="spin-icon" />
-        <span>Checking FUW E-Library system status…</span>
-      </div>
-    );
-  }
+  // Wait for the first status check so protected pages never flash before the
+  // global state is known. The AppSplash still covers this window.
+  if (!checked) return null;
 
   if (status?.enabled && !isSuperAdmin) {
     return <Navigate to="/maintenance" replace />;
