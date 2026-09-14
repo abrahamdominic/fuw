@@ -38,6 +38,7 @@ import { useToast } from '../components/Toast';
 import { SEO } from '../components/SEO';
 import { mergeDbCourses } from '../lib/liveCatalogue';
 import { analyticsTracker } from '../lib/analyticsTracker';
+import { aal2LoginChallenge, signInWithPasskey } from '../lib/security';
 
 
 interface PublicPagesProps {
@@ -964,17 +965,27 @@ export function LoginPage({
     signUpWithPassword,
     completeProfile,
     sendPasswordReset,
+    signOut,
     isAuthenticated,
     isProfileComplete,
-    profile
+    profile,
+    mfaRequired,
+    mfaVerifiedFactor,
+    clearMfaRequired
   } = useAuth();
 
   const [isRegister, setIsRegister] = useState(initialRegister);
   const [showForgot, setShowForgot] = useState(initialForgot);
-  const [step, setStep] = useState<'credentials' | 'profile'>('credentials');
+  const [step, setStep] = useState<'credentials' | 'otp' | 'profile'>('credentials');
   const [busy, setBusy] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  // Second-factor (Authenticator App code) challenge state
+  const [otp, setOtp] = useState('');
+  const [otpBusy, setOtpBusy] = useState(false);
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const [passkeyBusy, setPasskeyBusy] = useState(false);
 
   // Credential fields
   const [fullName, setFullName] = useState('');
@@ -1006,7 +1017,7 @@ export function LoginPage({
   // If already authenticated with a completed profile, redirect to the right
   // dashboard. Incomplete profiles stay here so the student finishes signup.
   useEffect(() => {
-    if (isAuthenticated && isProfileComplete && step !== 'profile') {
+    if (isAuthenticated && isProfileComplete && step !== 'profile' && !mfaRequired) {
       if (profile?.role === 'super_admin') {
         navigate('/super', { replace: true });
       } else if (profile?.role === 'admin') {
@@ -1015,7 +1026,7 @@ export function LoginPage({
         navigate('/student', { replace: true });
       }
     }
-  }, [isAuthenticated, isProfileComplete, profile, navigate, step]);
+  }, [isAuthenticated, isProfileComplete, profile, navigate, step, mfaRequired]);
 
   // Faculty change handler -> updates departments and validates level
   const handleFacultySelect = (facName: string) => {
@@ -1095,6 +1106,15 @@ export function LoginPage({
       return;
     }
 
+    // If the account has a second factor (Authenticator App) enrolled, the
+    // user must complete the code challenge before entering the portal.
+    if (res.mfaRequired) {
+      setOtp('');
+      setOtpError(null);
+      setStep('otp');
+      return;
+    }
+
     toast('Welcome back to FUW E-Library!', 'success');
     if (res.role === 'super_admin') {
       navigate('/super');
@@ -1102,6 +1122,52 @@ export function LoginPage({
       navigate('/admin');
     } else {
       navigate('/student');
+    }
+  };
+
+  // Complete the second-factor (Authenticator App) challenge for MFA-pending logins.
+  const handleVerifyOtp = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    setOtpError(null);
+    if (!mfaVerifiedFactor) {
+      setOtpError('No security factor is available. Please go back and try again.');
+      return;
+    }
+    if (otp.trim().length !== 6) {
+      setOtpError('Enter the 6-digit code from your Authenticator App.');
+      return;
+    }
+    setOtpBusy(true);
+    try {
+      await aal2LoginChallenge(mfaVerifiedFactor.id, otp.trim());
+      clearMfaRequired();
+      setOtp('');
+      toast('Identity verified. Welcome back!', 'success');
+      if (profile?.role === 'super_admin') navigate('/super');
+      else if (profile?.role === 'admin') navigate('/admin');
+      else navigate('/student');
+    } catch (err: any) {
+      setOtpError(err?.message || 'That code was not accepted. Please check your Authenticator App and try again.');
+    } finally {
+      setOtpBusy(false);
+    }
+  };
+
+  // Sign in with a registered passkey (passwordless, WebAuthn).
+  const handlePasskeySignIn = async () => {
+    setErrorMsg(null);
+    setPasskeyBusy(true);
+    try {
+      await signInWithPasskey();
+      toast('Signed in with your passkey!', 'success');
+      const role = profile?.role;
+      if (role === 'super_admin') navigate('/super');
+      else if (role === 'admin') navigate('/admin');
+      else navigate('/student');
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Passkey sign-in was cancelled or failed.');
+    } finally {
+      setPasskeyBusy(false);
     }
   };
 
@@ -1307,6 +1373,28 @@ export function LoginPage({
               </button>
             </form>
 
+            <div className="auth-divider"><span>or</span></div>
+            <button
+              type="button"
+              className="passkey-signin-btn"
+              onClick={handlePasskeySignIn}
+              disabled={busy || passkeyBusy}
+            >
+              {passkeyBusy ? (
+                <>
+                  <RefreshCw size={16} className="spin-icon" /> Waiting for passkey…
+                </>
+              ) : (
+                <>
+                  <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 2a7 7 0 0 0-4 12.7V16h8v-1.3A7 7 0 0 0 12 2Z" />
+                    <path d="M8 16v3a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-3" />
+                  </svg>
+                  Sign in with Passkey
+                </>
+              )}
+            </button>
+
             <div className="auth-toggle-row">
               <p>
                 New student to FUW E-Library?{' '}
@@ -1321,6 +1409,82 @@ export function LoginPage({
                   }}
                 >
                   Create an account
+                </button>
+              </p>
+            </div>
+          </>
+        )}
+
+        {/* STEP 1c: Two-Factor (Authenticator App) challenge */}
+        {step === 'otp' && (
+          <>
+            <p className="kicker">TWO-FACTOR VERIFICATION</p>
+            <h1>Enter your security code</h1>
+            <p>Open your Authenticator App and enter the 6-digit code to verify it's really you.</p>
+
+            {errorMsg && (
+              <div className="form-feedback-box error">
+                <AlertCircle size={17} />
+                <p>{errorMsg}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleVerifyOtp} className="auth-flow-form">
+              <label className="auth-field-label">
+                <span>Authenticator App code</span>
+                <div className="mfa-login-input-wrap">
+                  <input
+                    required
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    placeholder="••••••"
+                    className="mfa-login-input"
+                    value={otp}
+                    onChange={(e) => {
+                      setOtp(e.target.value.replace(/\D/g, '').slice(0, 6));
+                      setOtpError(null);
+                    }}
+                    disabled={otpBusy}
+                    autoFocus
+                  />
+                </div>
+              </label>
+
+              {otpError && (
+                <div className="form-feedback-box error">
+                  <AlertCircle size={17} />
+                  <p>{otpError}</p>
+                </div>
+              )}
+
+              <button type="submit" className="primary auth-submit-btn" disabled={otpBusy || otp.trim().length !== 6}>
+                {otpBusy ? (
+                  <>
+                    <RefreshCw size={16} className="spin-icon" /> Verifying…
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck size={16} /> Verify & Continue
+                  </>
+                )}
+              </button>
+            </form>
+
+            <div className="auth-toggle-row">
+              <p>
+                Not you?{' '}
+                <button
+                  type="button"
+                  className="auth-link-btn"
+                  onClick={async () => {
+                    await signOut().catch(() => {});
+                    clearMfaRequired();
+                    setOtp('');
+                    setOtpError(null);
+                    setStep('credentials');
+                  }}
+                >
+                  Use a different account
                 </button>
               </p>
             </div>
@@ -1862,12 +2026,18 @@ export function ResetPasswordPage() {
 export function AdminLoginPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { signInWithUsername } = useAuth();
+  const { signInWithUsername, signOut, profile, mfaVerifiedFactor, clearMfaRequired } = useAuth();
 
+  const [step, setStep] = useState<'credentials' | 'otp'>('credentials');
   const [adminUsername, setAdminUsername] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Second-factor (Authenticator App code) challenge state
+  const [otp, setOtp] = useState('');
+  const [otpBusy, setOtpBusy] = useState(false);
+  const [otpError, setOtpError] = useState<string | null>(null);
 
   const handleAdminSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1887,6 +2057,14 @@ export function AdminLoginPage() {
       return;
     }
 
+    // MFA (Authenticator App) challenge first when the admin has one.
+    if (res.mfaRequired) {
+      setOtp('');
+      setOtpError(null);
+      setStep('otp');
+      return;
+    }
+
     if (res.role === 'super_admin') {
       toast('Super Administrator access granted', 'success');
       navigate('/super');
@@ -1903,6 +2081,36 @@ export function AdminLoginPage() {
     }
   };
 
+  const handleAdminVerifyOtp = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    setOtpError(null);
+    if (!mfaVerifiedFactor) {
+      setOtpError('No security factor is available. Please go back and try again.');
+      return;
+    }
+    if (otp.trim().length !== 6) {
+      setOtpError('Enter the 6-digit code from your Authenticator App.');
+      return;
+    }
+    setOtpBusy(true);
+    try {
+      await aal2LoginChallenge(mfaVerifiedFactor.id, otp.trim());
+      clearMfaRequired();
+      setOtp('');
+      if (profile?.role === 'super_admin') {
+        toast('Super Administrator access granted', 'success');
+        navigate('/super');
+      } else {
+        toast('Authorized Administrator access granted', 'success');
+        navigate('/admin');
+      }
+    } catch (err: any) {
+      setOtpError(err?.message || 'That code was not accepted. Please check your Authenticator App and try again.');
+    } finally {
+      setOtpBusy(false);
+    }
+  };
+
   return (
     <main className="auth">
       <div className="auth-panel admin-auth-panel">
@@ -1910,57 +2118,132 @@ export function AdminLoginPage() {
           <Logo size={36} />
           <b>FUW</b> Administration
         </div>
-        <p className="kicker">STAFF & LIBRARIAN GATEWAY</p>
-        <h1>Admin sign in</h1>
-        <p>Sign in with your administrator username and password to review submissions and manage library catalogues.</p>
 
-        {errorMsg && (
-          <div className="form-feedback-box error">
-            <AlertCircle size={17} />
-            <p>{errorMsg}</p>
-          </div>
+        {step === 'credentials' && (
+          <>
+            <p className="kicker">STAFF & LIBRARIAN GATEWAY</p>
+            <h1>Admin sign in</h1>
+            <p>Sign in with your administrator username and password to review submissions and manage library catalogues.</p>
+
+            {errorMsg && (
+              <div className="form-feedback-box error">
+                <AlertCircle size={17} />
+                <p>{errorMsg}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleAdminSignIn} className="auth-flow-form">
+              <label className="auth-field-label">
+                <span>Admin Username</span>
+                <input
+                  required
+                  type="text"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  placeholder="e.g. library.admin"
+                  value={adminUsername}
+                  onChange={(e) => setAdminUsername(e.target.value.toLowerCase())}
+                  disabled={busy}
+                  autoFocus
+                />
+              </label>
+
+              <PasswordField
+                label="Password"
+                value={password}
+                onChange={setPassword}
+                placeholder="Admin password"
+                disabled={busy}
+              />
+
+              <button type="submit" className="primary auth-submit-btn" disabled={busy}>
+                {busy ? (
+                  <>
+                    <RefreshCw size={16} className="spin-icon" /> Authorizing…
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck size={16} /> Verify & Access Admin Dashboard
+                  </>
+                )}
+              </button>
+
+              <p className="auth-back-link">
+                <Link to="/">← Return to Public Library</Link>
+              </p>
+            </form>
+          </>
         )}
 
-        <form onSubmit={handleAdminSignIn} className="auth-flow-form">
-          <label className="auth-field-label">
-            <span>Admin Username</span>
-            <input
-              required
-              type="text"
-              autoCapitalize="none"
-              autoCorrect="off"
-              placeholder="e.g. library.admin"
-              value={adminUsername}
-              onChange={(e) => setAdminUsername(e.target.value.toLowerCase())}
-              disabled={busy}
-              autoFocus
-            />
-          </label>
+        {step === 'otp' && (
+          <>
+            <p className="kicker">TWO-FACTOR VERIFICATION</p>
+            <h1>Enter your security code</h1>
+            <p>Open your Authenticator App and enter the 6-digit code to verify it's really you.</p>
 
-          <PasswordField
-            label="Password"
-            value={password}
-            onChange={setPassword}
-            placeholder="Admin password"
-            disabled={busy}
-          />
-
-          <button type="submit" className="primary auth-submit-btn" disabled={busy}>
-            {busy ? (
-              <>
-                <RefreshCw size={16} className="spin-icon" /> Authorizing…
-              </>
-            ) : (
-              <>
-                <ShieldCheck size={16} /> Verify & Access Admin Dashboard
-              </>
+            {errorMsg && (
+              <div className="form-feedback-box error">
+                <AlertCircle size={17} />
+                <p>{errorMsg}</p>
+              </div>
             )}
-          </button>
 
-          <p className="auth-back-link">
-            <Link to="/">← Return to Public Library</Link>
-          </p>
-        </form>
+            <form onSubmit={handleAdminVerifyOtp} className="auth-flow-form">
+              <label className="auth-field-label">
+                <span>Authenticator App code</span>
+                <input
+                  required
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  placeholder="••••••"
+                  className="mfa-login-input"
+                  value={otp}
+                  onChange={(e) => {
+                    setOtp(e.target.value.replace(/\D/g, '').slice(0, 6));
+                    setOtpError(null);
+                  }}
+                  disabled={otpBusy}
+                  autoFocus
+                />
+              </label>
+
+              {otpError && (
+                <div className="form-feedback-box error">
+                  <AlertCircle size={17} />
+                  <p>{otpError}</p>
+                </div>
+              )}
+
+              <button type="submit" className="primary auth-submit-btn" disabled={otpBusy || otp.trim().length !== 6}>
+                {otpBusy ? (
+                  <>
+                    <RefreshCw size={16} className="spin-icon" /> Verifying…
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck size={16} /> Verify & Continue
+                  </>
+                )}
+              </button>
+
+              <p className="auth-back-link">
+                <button
+                  type="button"
+                  className="auth-link-btn"
+                  onClick={async () => {
+                    await signOut().catch(() => {});
+                    clearMfaRequired();
+                    setOtp('');
+                    setOtpError(null);
+                    setStep('credentials');
+                  }}
+                >
+                  ← Use a different account
+                </button>
+              </p>
+            </form>
+          </>
+        )}
       </div>
     </main>
   );

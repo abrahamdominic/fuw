@@ -231,6 +231,12 @@ export class AnalyticsQueue {
       console.warn('[Analytics] Analytics tables missing (migration not applied):', errorText);
       return 'dropped';
     }
+    if (errorText.includes('23503')) {
+      // FK violation — the referenced analytics_sessions row does not exist
+      // (e.g. an event queued by an old build whose session_id was orphaned).
+      // It can never resolve client-side, so stop retrying it quietly.
+      return 'dropped';
+    }
     return 'counted';
   }
 }

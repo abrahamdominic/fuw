@@ -70,6 +70,10 @@ import {
 import { aiAsk, AiCitation, aiConfiguredHint } from '../lib/ai';
 import { requireSupabase } from '../lib/supabase';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import ProtectedActionModal from '../components/ProtectedActionModal';
+import { AuthenticatorAppCard } from '../components/AuthenticatorAppCard';
+import { PasskeysManager } from '../components/PasskeysManager';
+import { ProfileSetupBanner } from '../components/ProfileSetupBanner';
 import { useAuth } from '../lib/AuthContext';
 import { useToast } from '../components/Toast';
 import type { StudentCourse } from '../lib/studentCourses';
@@ -140,8 +144,8 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
     role: (profile?.role === 'admin' || profile?.role === 'super_admin' ? 'ADMIN' : 'STUDENT') as 'STUDENT' | 'ADMIN',
     bio: profile?.bio || storeUser.bio || '',
     avatarUrl: profile?.avatarUrl || storeUser.avatarUrl || '',
-    isVerified: profile?.isVerified ?? true,
-    verificationStatus: 'VERIFIED' as const,
+    isVerified: profile?.isVerified === true,
+    verificationStatus: (profile?.isVerified ? 'VERIFIED' : 'PENDING') as 'PENDING' | 'VERIFIED' | 'REJECTED',
     joinedDate: profile?.joinedDate || storeUser.joinedDate || '2026'
   };
   const approvedMaterials = store.getApprovedMaterialsForDepartment(currentUser.department);
@@ -451,6 +455,9 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
             </button>
           </div>
         </div>
+
+        {/* Incomplete-profile banner (shown until profile is complete / dismissed) */}
+        <ProfileSetupBanner />
 
         {/* Dynamic Subpages based on Path */}
         {currentPath === '/student' || currentPath === '/student/' ? (
@@ -1944,7 +1951,7 @@ function StudentSettingsTab({ currentUser }: { currentUser: any }) {
   const store = useStore();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { updateProfile, changePassword, signOut, user } = useAuth();
+  const { updateProfile, changePassword, signOut, user, profile, isProfileComplete } = useAuth();
 
   const [activeSection, setActiveSection] = useState<'account' | 'security' | 'notifications' | 'reading' | 'sessions' | 'danger'>('account');
   const [settings, setSettings] = useState(store.getStudentSettings());
@@ -1970,6 +1977,19 @@ function StudentSettingsTab({ currentUser }: { currentUser: any }) {
 
   const [deactivateModalOpen, setDeactivateModalOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  // ── Identity-field lock state (new "change twice, then lock" rule) ──
+  // While the profile is INCOMPLETE each identity field may be edited up to 2
+  // times (tracked by the *_changes_used counters). Once the profile is
+  // COMPLETE every identity field locks permanently.
+  const profileLock = {
+    matric: isProfileComplete || (profile?.matricChangesUsed ?? 0) >= 2,
+    faculty: isProfileComplete || (profile?.facultyChangesUsed ?? 0) >= 2,
+    department: isProfileComplete || (profile?.departmentChangesUsed ?? 0) >= 2,
+    level: isProfileComplete || (profile?.levelChangesUsed ?? 0) >= 2,
+    viaChanges: true
+  };
+  const editsRemaining = (n?: number) => Math.max(0, 2 - (n ?? 0));
 
   const handleFacultyChange = (newFac: string) => {
     const fac = facultyByName(newFac) || catalogue[0];
@@ -2206,26 +2226,34 @@ function StudentSettingsTab({ currentUser }: { currentUser: any }) {
                   </label>
                   <label>
                     Matriculation Number
-                    {profileData.matricNumber ? (
+                    {profileLock.matric ? (
                       <div className="input-with-badge">
                         <input
                           value={profileData.matricNumber}
                           readOnly
                           className="input-readonly"
-                          title="Matriculation number is your verified institutional identifier and cannot be edited once set. Submit a profile change request to update it."
+                          title="Your matriculation number locks once your profile is complete or your allowed changes run out. Submit a profile change request to update it."
                         />
                         <span className="readonly-tag" title="Institutional Identifier">
                           <ShieldCheck size={12} /> Locked
                         </span>
                       </div>
                     ) : (
-                      <input
-                        required
-                        placeholder="e.g. CIS/CSC/20/001"
-                        value={profileData.matricNumber}
-                        onChange={(e) => setProfileData({ ...profileData, matricNumber: e.target.value.toUpperCase() })}
-                        title="Enter your matriculation number. It is locked once saved."
-                      />
+                      <div>
+                        <input
+                          placeholder="e.g. CIS/CSC/20/001"
+                          value={profileData.matricNumber}
+                          onChange={(e) => setProfileData({ ...profileData, matricNumber: e.target.value.toUpperCase() })}
+                          required={!profileData.matricNumber}
+                          disabled={busy}
+                          title="Enter your matriculation number. It locks after your allowed changes are used."
+                        />
+                        {profileData.matricNumber && (
+                          <small className="field-lock-hint">
+                            {editsRemaining(profile?.matricChangesUsed)} change(s) remaining before this locks.
+                          </small>
+                        )}
+                      </div>
                     )}
                   </label>
                 </div>
@@ -2233,60 +2261,76 @@ function StudentSettingsTab({ currentUser }: { currentUser: any }) {
                 <div className="form-grid-2">
                   <label>
                     Faculty
-                    {profileData.faculty ? (
+                    {profileLock.faculty ? (
                       <div className="input-with-badge">
                         <input
                           value={profileData.faculty}
                           readOnly
                           className="input-readonly"
-                          title="Faculty is locked after being set. Submit a profile change request to update it."
+                          title="Faculty locks once your profile is complete or your allowed changes run out. Submit a profile change request to update it."
                         />
                         <span className="readonly-tag">
                           <Lock size={12} /> Locked
                         </span>
                       </div>
                     ) : (
-                      <select
-                        value={profileData.faculty}
-                        onChange={(e) => handleFacultyChange(e.target.value)}
-                        disabled={busy}
-                        required
-                      >
-                        {catalogue.map((f) => (
-                          <option key={f.name} value={f.name}>
-                            {f.name}
-                          </option>
-                        ))}
-                      </select>
+                      <div>
+                        <select
+                          value={profileData.faculty}
+                          onChange={(e) => handleFacultyChange(e.target.value)}
+                          disabled={busy}
+                          required
+                        >
+                          <option value="" disabled>Select your faculty</option>
+                          {catalogue.map((f) => (
+                            <option key={f.name} value={f.name}>
+                              {f.name}
+                            </option>
+                          ))}
+                        </select>
+                        {profileData.faculty && (
+                          <small className="field-lock-hint">
+                            {editsRemaining(profile?.facultyChangesUsed)} change(s) remaining before this locks.
+                          </small>
+                        )}
+                      </div>
                     )}
                   </label>
                   <label>
                     Department
-                    {profileData.department ? (
+                    {profileLock.department ? (
                       <div className="input-with-badge">
                         <input
                           value={profileData.department}
                           readOnly
                           className="input-readonly"
-                          title="Department is locked after being set. Submit a profile change request to update it."
+                          title="Department locks once your profile is complete or your allowed changes run out. Submit a profile change request to update it."
                         />
                         <span className="readonly-tag">
                           <Lock size={12} /> Locked
                         </span>
                       </div>
                     ) : (
-                      <select
-                        value={profileData.department}
-                        onChange={(e) => handleDeptChange(e.target.value)}
-                        disabled={busy}
-                        required
-                      >
-                        {currentFaculty.departments.map((d) => (
-                          <option key={d.name} value={d.name}>
-                            {d.name} ({d.duration} Years)
-                          </option>
-                        ))}
-                      </select>
+                      <div>
+                        <select
+                          value={profileData.department}
+                          onChange={(e) => handleDeptChange(e.target.value)}
+                          disabled={busy}
+                          required
+                        >
+                          <option value="" disabled>Select your department</option>
+                          {currentFaculty.departments.map((d) => (
+                            <option key={d.name} value={d.name}>
+                              {d.name} ({d.duration} Years)
+                            </option>
+                          ))}
+                        </select>
+                        {profileData.department && (
+                          <small className="field-lock-hint">
+                            {editsRemaining(profile?.departmentChangesUsed)} change(s) remaining before this locks.
+                          </small>
+                        )}
+                      </div>
                     )}
                   </label>
                 </div>
@@ -2294,18 +2338,34 @@ function StudentSettingsTab({ currentUser }: { currentUser: any }) {
                 <div className="form-grid-2">
                   <label>
                     Level of Study (Restricted to {currentDepartment?.duration || 4}-Year Degree Duration)
-                    <select
-                      value={profileData.level}
-                      onChange={(e) => setProfileData({ ...profileData, level: e.target.value })}
-                      disabled={busy}
-                      required
-                    >
-                      {availableLevels.map((lvl) => (
-                        <option key={lvl} value={lvl}>
-                          {lvl}
-                        </option>
-                      ))}
-                    </select>
+                    {profileLock.level ? (
+                      <div className="input-with-badge">
+                        <input value={profileData.level} readOnly className="input-readonly" />
+                        <span className="readonly-tag">
+                          <Lock size={12} /> Locked
+                        </span>
+                      </div>
+                    ) : (
+                      <div>
+                        <select
+                          value={profileData.level}
+                          onChange={(e) => setProfileData({ ...profileData, level: e.target.value })}
+                          disabled={busy}
+                          required
+                        >
+                          {availableLevels.map((lvl) => (
+                            <option key={lvl} value={lvl}>
+                              {lvl}
+                            </option>
+                          ))}
+                        </select>
+                        {profileData.level && (
+                          <small className="field-lock-hint">
+                            {editsRemaining(profile?.levelChangesUsed)} change(s) remaining before this locks.
+                          </small>
+                        )}
+                      </div>
+                    )}
                   </label>
 
                   <label>
@@ -2338,7 +2398,7 @@ function StudentSettingsTab({ currentUser }: { currentUser: any }) {
               <div className="settings-card-header">
                 <div>
                   <h2>Security & Password</h2>
-                  <p>Protect your student portal access with a strong password.</p>
+                  <p>Protect your student portal access with a strong password and extra sign-in verification.</p>
                 </div>
               </div>
 
@@ -2391,6 +2451,17 @@ function StudentSettingsTab({ currentUser }: { currentUser: any }) {
                   </button>
                 </div>
               </form>
+
+              <div className="security-tools-section">
+                <div className="settings-card-header">
+                  <div>
+                    <h3>Two-Factor Sign-In</h3>
+                    <p>Add an Authenticator App or a passkey so your account stays protected even if your password is compromised.</p>
+                  </div>
+                </div>
+                <AuthenticatorAppCard />
+                <PasskeysManager />
+              </div>
             </div>
           )}
 
@@ -2640,6 +2711,17 @@ function StudentSettingsTab({ currentUser }: { currentUser: any }) {
                               <span className="meta-dot active-dot" />
                               Active now
                             </span>
+                            {s.device_name && (
+                              <span className="session-meta">
+                                <Monitor size={11} />
+                                {s.device_name}
+                              </span>
+                            )}
+                            {s.ip_address && (
+                              <span className="session-meta">
+                                IP: {s.ip_address}
+                              </span>
+                            )}
                             {s.connection_type && s.connection_type !== 'unknown' && (
                               <span className="session-meta">
                                 <Wifi size={11} />
@@ -2679,7 +2761,7 @@ function StudentSettingsTab({ currentUser }: { currentUser: any }) {
                           <div className="session-title-row">
                             <b>{s.browser} · {s.os}</b>
                           </div>
-                          <div className="session-subtitle">{s.device_type.charAt(0).toUpperCase() + s.device_type.slice(1)}</div>
+                          <div className="session-subtitle">{s.device_type.charAt(0).toUpperCase() + s.device_type.slice(1)}{s.device_name ? ` · ${s.device_name}` : ''}</div>
                           <div className="session-meta-row">
                             <span className={`session-meta ${isStale ? 'stale' : ''}`}>
                               <span className={`meta-dot ${isStale ? '' : 'active-dot'}`} />
@@ -2753,28 +2835,18 @@ function StudentSettingsTab({ currentUser }: { currentUser: any }) {
         </div>
       </div>
 
-      {/* Account Deactivation Confirmation Modal */}
-      {deactivateModalOpen && (
-        <div className="modal-backdrop" onClick={() => setDeactivateModalOpen(false)}>
-          <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="confirm-modal-icon warning">
-              <AlertTriangle size={28} />
-            </div>
-            <h3>Deactivate Student Account?</h3>
-            <p>
-              Are you sure you want to deactivate your student portal session? Your local reading history, saved bookmarks, and uploaded submissions will be archived.
-            </p>
-            <div className="confirm-modal-actions">
-              <button className="cancel-btn" onClick={() => setDeactivateModalOpen(false)}>
-                Cancel
-              </button>
-              <button className="danger-confirm-btn" onClick={handleConfirmDeactivate}>
-                Yes, Deactivate & Sign Out
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Account Deactivation — modern protected-action dialog */}
+      <ProtectedActionModal
+        isOpen={deactivateModalOpen}
+        onClose={() => setDeactivateModalOpen(false)}
+        title="Deactivate Student Account?"
+        tone="danger"
+        badge="Protected Action"
+        message="Are you sure you want to deactivate your student portal access? Your reading history, saved bookmarks, and uploads will be archived."
+        confirmKeyword="DEACTIVATE"
+        confirmLabel="Yes, Deactivate & Sign Out"
+        onConfirm={handleConfirmDeactivate}
+      />
     </div>
   );
 }

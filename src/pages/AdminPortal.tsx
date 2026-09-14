@@ -78,6 +78,9 @@ import { EditMaterialModal } from '../components/EditMaterialModal';
 import { AssignedDepartmentsModal } from '../components/AssignedDepartmentsModal';
 import { aiProcessMaterial } from '../lib/ai';
 import { ConfirmDialog, PromptDialog } from '../components/ConfirmDialog';
+import ProtectedActionModal from '../components/ProtectedActionModal';
+import { AuthenticatorAppCard } from '../components/AuthenticatorAppCard';
+import { PasskeysManager } from '../components/PasskeysManager';
 import { DashboardSearch } from '../components/DashboardSearch';
 import { useToast } from '../components/Toast';
 import { fetchMaintenanceStatus, MaintenanceStatus } from '../lib/maintenance';
@@ -130,6 +133,19 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
     action: () => void | Promise<void>;
   } | null>(null);
 
+  // Modern "verify protected action" dialog for the most sensitive actions.
+  const [protectedConfirm, setProtectedConfirm] = useState<{
+    open: boolean;
+    title: string;
+    message: string;
+    item?: string;
+    tone?: 'danger' | 'warning' | 'primary';
+    confirmLabel?: string;
+    confirmKeyword?: string;
+    badge?: string;
+    action: () => void | Promise<void>;
+  } | null>(null);
+
   // Pull fresh live data from Supabase whenever the admin portal opens
   useEffect(() => {
     store.syncMaterialsFromSupabase();
@@ -175,20 +191,22 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
     );
 
   const handleDelete = (m: MaterialItem) =>
-    setConfirmState({
+    setProtectedConfirm({
       open: true,
       title: 'Delete this material?',
       tone: 'danger',
-      message: `"${m.title}" will be permanently removed from the library along with its stored file. Students will no longer be able to access it.`,
+      message:
+        'This material will be permanently removed from the library along with its stored file. Students will no longer be able to access it.',
+      item: m.title,
+      confirmKeyword: 'DELETE',
       confirmLabel: 'Delete permanently',
       action: async () => {
         await runAction(
           () => deleteMaterialDb(m.id),
           'Material deleted from the library.',
           () => store.deleteMaterial(m.id, currentUser.fullName)
-  );
-}
-
+        );
+      }
     });
 
   const handleAdminLogout = async () => {
@@ -411,6 +429,20 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
           confirmLabel={confirmState?.confirmLabel}
           onConfirm={confirmState?.action ?? (() => {})}
           onClose={() => setConfirmState(null)}
+        />
+
+        {/* Modern "verify protected action" dialog */}
+        <ProtectedActionModal
+          isOpen={protectedConfirm?.open ?? false}
+          title={protectedConfirm?.title ?? ''}
+          message={protectedConfirm?.message ?? ''}
+          item={protectedConfirm?.item}
+          tone={protectedConfirm?.tone ?? 'danger'}
+          confirmLabel={protectedConfirm?.confirmLabel}
+          confirmKeyword={protectedConfirm?.confirmKeyword}
+          badge={protectedConfirm?.badge}
+          onConfirm={protectedConfirm?.action ?? (() => {})}
+          onClose={() => setProtectedConfirm(null)}
         />
       </main>
     </div>
@@ -1488,6 +1520,7 @@ interface AdminUserRow {
   department: string | null;
   level: string | null;
   role: 'student' | 'admin';
+  verified: boolean | null;
   created_at: string;
 }
 
@@ -1511,7 +1544,7 @@ function AdminUsersTab() {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, full_name, email, matric_number, faculty, department, level, role, created_at')
+        .select('id, full_name, email, matric_number, faculty, department, level, role, verified, created_at')
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -1532,15 +1565,19 @@ function AdminUsersTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Role changes are protected by RLS: only administrators may update roles,
-  // and a student can never elevate themselves through this path.
+  // Role changes go through SECURITY DEFINER RPCs so that plain administrators
+  // (who cannot UPDATE another user's profile row under RLS) can still manage
+  // roles without the update being silently rejected.
   const handleToggleRole = async (u: AdminUserRow) => {
     if (!supabase) return;
     const nextRole = u.role === 'admin' ? 'student' : 'admin';
 
     setBusyId(u.id);
     try {
-      const { error } = await supabase.from('profiles').update({ role: nextRole }).eq('id', u.id);
+      const { error } =
+        nextRole === 'admin'
+          ? await supabase.rpc('promote_to_admin', { target_user_id: u.id, admin_permissions: [] })
+          : await supabase.rpc('demote_admin', { target_user_id: u.id });
       if (error) {
         toast('Role update was blocked by database security policies.', 'error');
       } else {
@@ -1549,6 +1586,33 @@ function AdminUsersTab() {
       }
     } catch {
       toast('Network error while updating the user role.', 'error');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  // Verification is likewise RPC-guarded and notifies the affected user.
+  const handleToggleVerified = async (u: AdminUserRow) => {
+    if (!supabase) return;
+    const nextVerified = u.verified !== true;
+
+    setBusyId(u.id);
+    try {
+      const { error } = await supabase.rpc('admin_set_user_verified', {
+        p_user_id: u.id,
+        p_verified: nextVerified
+      });
+      if (error) {
+        toast('Verification update was blocked by database security policies.', 'error');
+      } else {
+        setUsers((prev) => prev.map((row) => (row.id === u.id ? { ...row, verified: nextVerified } : row)));
+        toast(
+          `${u.full_name || u.email} is now ${nextVerified ? 'verified' : 'unverified'}.`,
+          'success'
+        );
+      }
+    } catch {
+      toast('Network error while updating verification.', 'error');
     } finally {
       setBusyId(null);
     }
@@ -1624,7 +1688,7 @@ function AdminUsersTab() {
           </div>
         ) : (
           filtered.map((u) => {
-            const verified = !!u.matric_number;
+            const verified = u.verified === true;
             const joined = u.created_at
               ? new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
               : '—';
@@ -1646,10 +1710,10 @@ function AdminUsersTab() {
                 <span>
                   <span className={`status-badge ${verified ? 'approved' : 'pending'}`}>
                     {verified ? <CheckCircle2 size={12} /> : <Clock size={12} />}
-                    {verified ? 'VERIFIED' : 'PROFILE INCOMPLETE'}
+                    {verified ? 'VERIFIED' : u.matric_number ? 'UNVERIFIED' : 'PROFILE INCOMPLETE'}
                   </span>
                 </span>
-                <span>
+                <span className="table-action-stack">
                   <button
                     className="table-action-btn"
                     disabled={busyId === u.id}
@@ -1657,6 +1721,14 @@ function AdminUsersTab() {
                     title={u.role === 'admin' ? 'Demote this account to student' : 'Promote this account to administrator'}
                   >
                     {busyId === u.id ? 'Updating…' : u.role === 'admin' ? 'Set as Student' : 'Make Admin'}
+                  </button>
+                  <button
+                    className={`table-action-btn ${verified ? 'outline' : ''}`}
+                    disabled={busyId === u.id}
+                    onClick={() => void handleToggleVerified(u)}
+                    title={verified ? 'Remove verified status from this account' : 'Mark this account as verified'}
+                  >
+                    {verified ? 'Unverify' : 'Verify'}
                   </button>
                 </span>
               </div>
@@ -3855,6 +3927,20 @@ function AdminSettingsTab() {
 
               <hr className="settings-divider" />
 
+              {/* Personal two-factor sign-in tools (Authenticator App + passkeys) */}
+              <div className="security-tools-section">
+                <span className="section-label-bold">Your Two-Factor Sign-In</span>
+                <p className="settings-section-hint">
+                  Protect your own administrator account with an Authenticator App or a passkey.
+                </p>
+                <div className="mt-sm">
+                  <AuthenticatorAppCard />
+                  <PasskeysManager />
+                </div>
+              </div>
+
+              <hr className="settings-divider" />
+
               {/* Session Policies */}
               <form onSubmit={handleSaveSettings}>
                 <span className="section-label-bold">Session & Traffic Controls</span>
@@ -5761,31 +5847,25 @@ function AdminActiveSessionsTab() {
         )}
       </div>
 
-      {/* Terminate confirmation modal */}
-      {terminateTarget && (
-        <div className="modal-overlay" onClick={() => setTerminateTarget(null)}>
-          <div className="modal-card terminate-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-body text-center">
-              <ShieldAlert size={36} className="terminate-warning-icon" />
-              <h3>Terminate this session?</h3>
-              <p className="cell-secondary">This will sign {terminateTarget.profiles?.full_name || 'the student'} out of this device.</p>
-              <div className="detail-actions" style={{ justifyContent: 'center' }}>
-                <button className="secondary-btn" onClick={() => setTerminateTarget(null)}>Cancel</button>
-                <button
-                  className="danger-btn"
-                  onClick={() => {
-                    const target = terminateTarget;
-                    setTerminateTarget(null);
-                    handleTerminate(target.id);
-                  }}
-                >
-                  <Trash2 size={14} /> Terminate Session
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Terminate confirmation modal — modern protected-action dialog */}
+      <ProtectedActionModal
+        isOpen={!!terminateTarget}
+        title="Terminate this session?"
+        tone="warning"
+        badge="Protected Action"
+        message={`This will sign ${terminateTarget?.profiles?.full_name || 'the student'} out of this device and revoke their access to the library.`}
+        item={
+          terminateTarget
+            ? `${terminateTarget.browser} on ${terminateTarget.os} · ${terminateTarget.location ?? 'Unknown location'}`
+            : undefined
+        }
+        confirmKeyword="TERMINATE"
+        confirmLabel="Terminate Session"
+        onConfirm={async () => {
+          if (terminateTarget) await handleTerminate(terminateTarget.id);
+        }}
+        onClose={() => setTerminateTarget(null)}
+      />
     </div>
   );
 }

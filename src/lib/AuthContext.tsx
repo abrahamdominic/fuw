@@ -5,6 +5,7 @@ import { store, UserProfile } from './store';
 import { AppRole, can } from './rbac';
 import { createSession, touchSession, deleteCurrentSession } from './sessions';
 import { analyticsTracker } from './analyticsTracker';
+import { getAAL, type AALState, type TOTPFactor } from './security';
 
 export interface ProfileData {
   id: string;
@@ -25,11 +26,28 @@ export interface ProfileData {
   matricChangesUsed?: number;
   facultyChangesUsed?: number;
   departmentChangesUsed?: number;
+  levelChangesUsed?: number;
   facultyLocked?: boolean;
   departmentLocked?: boolean;
   gender?: string;
   phoneNumber?: string;
 }
+
+// Maximum number of identity-field edits allowed while a profile is incomplete.
+// Once the profile is complete all identity fields are permanently locked.
+const MAX_PROFILE_CHANGES = 2;
+
+/** Fields that are subject to the "change twice, then lock" rule. */
+const CHANGE_LIMITED_FIELDS: Array<{
+  key: 'matricNumber' | 'faculty' | 'department' | 'level';
+  dbCol: string;
+  counterKey: 'matricChangesUsed' | 'facultyChangesUsed' | 'departmentChangesUsed' | 'levelChangesUsed';
+}> = [
+  { key: 'matricNumber',   dbCol: 'matric_number',     counterKey: 'matricChangesUsed' },
+  { key: 'faculty',        dbCol: 'faculty',            counterKey: 'facultyChangesUsed' },
+  { key: 'department',     dbCol: 'department',         counterKey: 'departmentChangesUsed' },
+  { key: 'level',          dbCol: 'level',              counterKey: 'levelChangesUsed' },
+];
 
 export interface AuthContextType {
   user: User | null;
@@ -47,7 +65,7 @@ export interface AuthContextType {
   signInWithUsername: (
     username: string,
     password: string
-  ) => Promise<{ error: Error | null; role?: AppRole }>;
+  ) => Promise<{ error: Error | null; role?: AppRole; mfaRequired?: boolean }>;
   signUpWithPassword: (input: {
     fullName: string;
     username: string;
@@ -72,6 +90,14 @@ export interface AuthContextType {
   resetPassword: (newPassword: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<ProfileData | null>;
+  /** After a successful password sign-in, the AAL state indicating whether
+   *  a second factor (TOTP) challenge is required. `null` when no MFA prompt
+   *  is pending. Login UIs read this to show the OTP entry screen. */
+  mfaRequired: AALState | null;
+  /** Reset the MFA prompt (e.g. when the user cancels or the challenge succeeds). */
+  clearMfaRequired: () => void;
+  /** The verified TOTP factor the login UI should challenge against. */
+  mfaVerifiedFactor: TOTPFactor | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -88,6 +114,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const lastUserIdRef = useRef<string | null>(null);
 
+  // MFA (Authenticator App) prompt state — after a password login succeeds,
+  // this is set to the AAL state so the login UI can render the OTP challenge.
+  const [mfaRequired, setMfaRequired] = useState<AALState | null>(null);
+  const [mfaVerifiedFactor, setMfaVerifiedFactor] = useState<TOTPFactor | null>(null);
+  const clearMfaRequired = () => { setMfaRequired(null); };
+
   // Sync profile to store currentUser whenever profile changes
   const syncToStore = (prof: ProfileData | null, authedUser: User | null) => {
     if (prof && authedUser) {
@@ -103,8 +135,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         role: prof.role === 'admin' || prof.role === 'super_admin' ? 'ADMIN' : 'STUDENT',
         bio: prof.bio || '',
         avatarUrl: prof.avatarUrl || '',
-        isVerified: true,
-        verificationStatus: 'VERIFIED',
+        isVerified: prof.isVerified === true,
+        verificationStatus: prof.isVerified ? 'VERIFIED' : 'PENDING',
         joinedDate: prof.joinedDate || ''
       };
 
@@ -116,6 +148,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } else {
       store.clearAuthentication();
     }
+  };
+
+  // Post-login housekeeping executed after a successful password sign-in:
+  //   1. Check the AAL level — when the user has a verified TOTP factor and
+  //      the next level is `aal2`, surface the MFA prompt instead of letting
+  //      the app proceed to the dashboard.
+  //   2. Ensure the "profile not complete" reminder exists for students whose
+  //      profile is still incomplete (re-inserted until they finish setup).
+  const afterAuthenticated = async (prof: ProfileData): Promise<AALState | null> => {
+    let mfaState: AALState | null = null;
+    let verifiedFactor: TOTPFactor | null = null;
+    try {
+      const aal = await getAAL();
+      if (aal.next === 'aal2' && aal.verified.length > 0) {
+        mfaState = aal;
+        verifiedFactor = aal.verified[0];
+      }
+    } catch {
+      // MFA not enabled server-side or a transient failure — treat as aal1.
+    }
+    setMfaRequired(mfaState);
+    setMfaVerifiedFactor(verifiedFactor);
+
+    if (supabase && prof && !prof.isActive) return mfaState;
+    // Notify until the profile is complete (only meaningful for students).
+    if (supabase && prof && prof.role === 'student' && !(prof.matricNumber && prof.faculty && prof.department)) {
+      try {
+        await supabase.rpc('ensure_profile_setup_notification');
+      } catch {
+        // RPC may not exist yet if the migration hasn't been applied — ignore.
+      }
+    }
+    return mfaState;
   };
 
   // Fetch user profile from Supabase profiles table
@@ -147,11 +212,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           isActive: data.is_active !== false,
           bio: data.bio || '',
           avatarUrl: data.avatar_url || '',
-          isVerified: true,
+          isVerified: data.verified === true,
           joinedDate: data.created_at ? new Date(data.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '2026',
           matricChangesUsed: data.matric_changes_used ?? 0,
           facultyChangesUsed: data.faculty_changes_used ?? 0,
           departmentChangesUsed: data.department_changes_used ?? 0,
+          levelChangesUsed: data.level_changes_used ?? 0,
           facultyLocked: !!data.faculty,
           departmentLocked: !!data.department,
           gender: data.gender || '',
@@ -201,11 +267,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             isActive: created.is_active !== false,
             bio: created.bio || '',
             avatarUrl: created.avatar_url || '',
-            isVerified: true,
+            isVerified: created.verified === true,
             joinedDate: created.created_at ? new Date(created.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '2026',
             matricChangesUsed: created.matric_changes_used ?? 0,
             facultyChangesUsed: created.faculty_changes_used ?? 0,
             departmentChangesUsed: created.department_changes_used ?? 0,
+            levelChangesUsed: created.level_changes_used ?? 0,
             facultyLocked: !!created.faculty,
             departmentLocked: !!created.department,
             gender: created.gender || '',
@@ -245,7 +312,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 await supabase.auth.signOut();
                 setProfile(null);
                 syncToStore(null, null);
-              } else {
+              } else if (prof) {
+                await afterAuthenticated(prof);
                 syncToStore(prof, initialSession.user);
               }
             }
@@ -290,6 +358,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setProfile(null);
             syncToStore(null, null);
           } else {
+            if (prof && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
+              await afterAuthenticated(prof);
+            }
             syncToStore(prof, currentSession.user);
           }
         } else {
@@ -344,7 +415,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithUsername = async (
     usernameOrEmail: string,
     password: string
-  ): Promise<{ error: Error | null; role?: AppRole }> => {
+  ): Promise<{ error: Error | null; role?: AppRole; mfaRequired?: boolean }> => {
     if (!supabase) {
       return { error: new Error('Supabase client is not configured.') };
     }
@@ -402,8 +473,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             syncToStore(null, null);
             return { error: new Error('This account has been deactivated. Contact the library administrator.') };
           }
+          const mfaPending = (await afterAuthenticated(prof)) !== null;
           syncToStore(prof, authData.user);
-          return { error: null, role: prof.role };
+          return { error: null, role: prof.role, mfaRequired: mfaPending };
         }
 
         return { error: new Error('Sign-in failed. Please try again.') };
@@ -513,8 +585,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           syncToStore(null, null);
           return { error: new Error('This account has been deactivated. Contact the library administrator.') };
         }
+        const mfaPending = (await afterAuthenticated(prof)) !== null;
         syncToStore(prof, user);
-        return { error: null, role: prof.role };
+        return { error: null, role: prof.role, mfaRequired: mfaPending };
       }
 
       return { error: new Error('Sign-in failed. Please try again.') };
@@ -644,13 +717,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         bio: data.bio || '',
         gender: data.gender || '',
         phoneNumber: data.phoneNumber || '',
-        isVerified: true,
+        isVerified: profile?.isVerified === true,
         joinedDate: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
       };
 
       // NOTE: role is intentionally NOT written here. Invited administrators
       // receive their role from the database trigger when their account is
       // created; overwriting it would silently demote them to students.
+      //
+      // Identity fields written here count as the student's first recorded
+      // change (kept at 1), so an incomplete profile keeps exactly one more
+      // sanctioned edit before every identity field locks permanently.
+      const usedMatric = profile?.matricChangesUsed ?? 0;
+      const usedFaculty = profile?.facultyChangesUsed ?? 0;
+      const usedDept = profile?.departmentChangesUsed ?? 0;
+      const usedLevel = profile?.levelChangesUsed ?? 0;
+
       const { error } = await supabase.from('profiles').upsert({
         id: user.id,
         full_name: newProfile.fullName,
@@ -661,6 +743,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         level: newProfile.level,
         gender: newProfile.gender || null,
         phone_number: newProfile.phoneNumber || null,
+        matric_changes_used: newProfile.matricNumber ? Math.max(usedMatric, 1) : usedMatric,
+        faculty_changes_used: newProfile.faculty ? Math.max(usedFaculty, 1) : usedFaculty,
+        department_changes_used: newProfile.department ? Math.max(usedDept, 1) : usedDept,
+        level_changes_used: newProfile.level ? Math.max(usedLevel, 1) : usedLevel,
         updated_at: new Date().toISOString()
       });
 
@@ -728,40 +814,66 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (updates.gender !== undefined) dbUpdates.gender = updates.gender || null;
       if (updates.phoneNumber !== undefined) dbUpdates.phone_number = updates.phoneNumber || null;
 
-      // Faculty and department are set once and then permanently locked for
-      // the student. New students fill them in during profile completion or
-      // their first save; afterwards the only sanctioned path to change them
-      // is an admin-approved profile change request. Matriculation number is
-      // the verified institutional identifier and can never be edited
-      // directly by students either.
-      const lockedFields: Array<{ field: string; key: keyof ProfileData; dbCol: string }> = [
-        { field: 'faculty', key: 'faculty', dbCol: 'faculty' },
-        { field: 'department', key: 'department', dbCol: 'department' }
-      ];
+      // Identity fields follow the "change twice, then lock" rule:
+      //
+      //   * While the profile is INCOMPLETE, each of these fields may be
+      //     changed at most `MAX_PROFILE_CHANGES` (2) times — tracked by the
+      //     `*_changes_used` counters. Reaching the limit locks that field.
+      //   * Once the profile is COMPLETE (matric + faculty + department all
+      //     set), every identity field is permanently locked. The only
+      //     sanctioned path to a later change is an admin-approved profile
+      //     change request.
+      const isCompleteNow =
+        !!currentProfile?.matricNumber &&
+        !!currentProfile.faculty &&
+        !!currentProfile.department;
 
-      for (const { field, key, dbCol } of lockedFields) {
-        if (updates[key] !== undefined && updates[key] !== currentProfile?.[key]) {
-          const currentValue = (currentProfile as any)?.[key];
-          if (currentValue) {
-            return { error: new Error(`${field} is locked after being set. Submit a profile change request to update it.`) };
-          }
-          dbUpdates[dbCol] = updates[key];
-        }
-      }
+      const FIELD_LABEL: Record<string, string> = {
+        matricNumber: 'Matriculation Number',
+        faculty: 'Faculty',
+        department: 'Department',
+        level: 'Level'
+      };
+      const COUNTER_TO_DB: Record<string, string> = {
+        matricChangesUsed: 'matric_changes_used',
+        facultyChangesUsed: 'faculty_changes_used',
+        departmentChangesUsed: 'department_changes_used',
+        levelChangesUsed: 'level_changes_used'
+      };
 
-      // Matriculation number behaves like faculty/department: a student who
-      // has not recorded one yet may set it (this covers existing accounts
-      // created before the field existed), but once set it is the verified
-      // institutional identifier and can only be changed via an approved
-      // profile change request.
-      if (updates.matricNumber !== undefined) {
-        const normalized = updates.matricNumber.trim().toUpperCase();
-        if (normalized && normalized !== (currentProfile?.matricNumber || '').toUpperCase()) {
-          if (currentProfile?.matricNumber) {
-            return { error: new Error('Matriculation Number is locked after being set. Submit a profile change request to update it.') };
-          }
-          dbUpdates.matric_number = normalized;
+      for (const { key, dbCol, counterKey } of CHANGE_LIMITED_FIELDS) {
+        const incoming = updates[key];
+        if (incoming === undefined) continue;
+
+        const normalized =
+          key === 'matricNumber'
+            ? String(incoming).trim().toUpperCase()
+            : String(incoming);
+        const currentValue = String((currentProfile as any)?.[key] ?? '');
+        if (normalized === currentValue) continue;
+
+        const used = (currentProfile as any)?.[counterKey] ?? 0;
+
+        if (isCompleteNow) {
+          return {
+            error: new Error(
+              `${FIELD_LABEL[key]} is locked after your profile is complete. Submit a profile change request to update it.`
+            )
+          };
         }
+        if (used >= MAX_PROFILE_CHANGES) {
+          return {
+            error: new Error(
+              `You have used all your allowed changes for ${FIELD_LABEL[key]}. Contact the library administrator for further changes.`
+            )
+          };
+        }
+
+        dbUpdates[dbCol] = normalized;
+        dbUpdates[COUNTER_TO_DB[counterKey]] = used + 1;
+        // Mirror the increment locally so the next edit within the same
+        // session enforces the limit correctly.
+        (updatedProfile as any)[counterKey] = used + 1;
       }
 
       // Upsert (keyed by id) instead of update: when no profiles row exists
@@ -939,9 +1051,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       sendPasswordReset,
       resetPassword,
       signOut,
-      refreshProfile
+      refreshProfile,
+      mfaRequired,
+      clearMfaRequired,
+      mfaVerifiedFactor
     }),
-    [user, session, profile, isLoading, isAuthenticated, isAdmin, isSuperAdmin, isStudent, isProfileComplete, role, permissions]
+    [user, session, profile, isLoading, isAuthenticated, isAdmin, isSuperAdmin, isStudent, isProfileComplete, role, permissions, mfaRequired, mfaVerifiedFactor]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

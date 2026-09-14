@@ -7,8 +7,10 @@ export type NotificationType =
   | 'material_approved'
   | 'material_rejected'
   | 'material_deleted'
+  | 'new_material'
   | 'new_submission'
   | 'admin_promoted'
+  | 'admin_verified'
   | 'system'
   | 'welcome';
 
@@ -19,7 +21,18 @@ export interface NotificationItem {
   type: NotificationType;
   read: boolean;
   link?: string;
+  relatedMaterialId?: string;
+  relatedCourseCode?: string;
   createdAt: string;
+}
+
+// The database stores mobile-native deep links (e.g. /library/material/<id>).
+// The web app uses /materials/<id>, so translate on read.
+export function normalizeNotificationLink(link?: string | null): string | undefined {
+  if (!link) return undefined;
+  const materialMatch = link.match(/^\/library\/material\/([^/?#]+)/);
+  if (materialMatch) return `/materials/${materialMatch[1]}`;
+  return link;
 }
 
 function mapRow(row: any): NotificationItem {
@@ -29,7 +42,9 @@ function mapRow(row: any): NotificationItem {
     body: row.message || '',
     type: (row.type as NotificationType) || 'system',
     read: Boolean(row.is_read),
-    link: row.link || undefined,
+    link: normalizeNotificationLink(row.link),
+    relatedMaterialId: row.related_material_id || undefined,
+    relatedCourseCode: row.related_course_code || undefined,
     createdAt: row.created_at
   };
 }

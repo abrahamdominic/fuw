@@ -30,6 +30,7 @@ function newId(): string {
 let currentScreen: string | null = null;
 let currentSessionId: string | null = null;
 let currentSessionKey: string | null = null;
+let sessionRegistered = false;
 let lastScreenNameSent = '';
 let lastScreenSentAt = 0;
 let flushTimer: ReturnType<typeof setInterval> | null = null;
@@ -48,8 +49,42 @@ function anonymousId(): string {
 
 function sessionId(): string {
   if (currentSessionId) return currentSessionId;
-  currentSessionId = newId();
-  return currentSessionId;
+  ensureSessionRegistered();
+  return currentSessionId ?? '';
+}
+
+/**
+ * Registers the foreground session exactly once per active cycle. Ids are
+ * reused if any event already generated them eagerly so every event's
+ * session_id always resolves to the analytics_sessions row upserted here —
+ * otherwise the FK rejects the batch (23503) and the op is dropped after
+ * MAX_ATTEMPTS retries.
+ */
+function ensureSessionRegistered(): void {
+  if (sessionRegistered) return;
+  sessionRegistered = true;
+  if (!currentSessionId) currentSessionId = newId();
+  if (!currentSessionKey) currentSessionKey = newId();
+
+  const info = getStaticDeviceInfo();
+  const session: AnalyticsSession = {
+    id: currentSessionId,
+    userId: null,
+    anonymousId: anonymousId(),
+    sessionKey: currentSessionKey,
+    startedAt: new Date().toISOString(),
+    endedAt: null,
+    appVersion: info.appVersion,
+    buildNumber: info.buildNumber,
+    platform: info.platform,
+    deviceType: info.deviceType,
+    osVersion: info.osVersion,
+    language: info.language,
+    timezone: info.timezone,
+    networkType: info.networkType
+  };
+  analyticsQueue.enqueue({ kind: 'session_upsert', session });
+  trackEvent('session_start');
 }
 
 function buildBase(): Pick<
@@ -128,9 +163,6 @@ export const analyticsTracker = {
    * Attribution uses the installation-scoped anonymous_id only.
    */
   init(_userId: string | null): void {
-    currentSessionId = newId();
-    currentSessionKey = newId();
-
     void warmBattery();
 
     if (flushTimer) clearInterval(flushTimer);
@@ -209,6 +241,8 @@ export const analyticsTracker = {
   },
 
   onAppOpen(): void {
+    // Register the session FIRST so app_open's session_id is never orphaned.
+    ensureSessionRegistered();
     trackEvent('app_open');
   },
 
@@ -236,40 +270,21 @@ export const analyticsTracker = {
   },
 
   onSessionStart(): void {
-    currentSessionId = newId();
-    currentSessionKey = newId();
-    const info = getStaticDeviceInfo();
-    const session: AnalyticsSession = {
-      id: currentSessionId,
-      userId: null,
-      anonymousId: anonymousId(),
-      sessionKey: currentSessionKey,
-      startedAt: new Date().toISOString(),
-      endedAt: null,
-      appVersion: info.appVersion,
-      buildNumber: info.buildNumber,
-      platform: info.platform,
-      deviceType: info.deviceType,
-      osVersion: info.osVersion,
-      language: info.language,
-      timezone: info.timezone,
-      networkType: info.networkType
-    };
-    analyticsQueue.enqueue({ kind: 'session_upsert', session });
-    trackEvent('session_start');
+    ensureSessionRegistered();
     void analyticsQueue.flush();
   },
 
   onSessionEnd(): void {
-    if (!currentSessionKey) return;
+    if (!sessionRegistered) return;
     analyticsQueue.enqueue({
       kind: 'session_end',
-      sessionKey: currentSessionKey,
+      sessionKey: currentSessionKey ?? '',
       endedAt: new Date().toISOString()
     });
     trackEvent('session_end');
     currentSessionKey = null;
     currentSessionId = null;
+    sessionRegistered = false;
   },
 
   async shutdown(): Promise<void> {

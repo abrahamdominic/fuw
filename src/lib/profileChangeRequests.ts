@@ -121,47 +121,16 @@ export async function approveProfileChangeRequest(
   adminNote?: string
 ): Promise<void> {
   const client = requireSupabase();
-  const { data: { user } } = await client.auth.getUser();
 
-  const { data: req, error: fetchError } = await client
-    .from('profile_change_requests')
-    .select('*')
-    .eq('id', id)
-    .single();
-
-  if (fetchError || !req) throw new Error('Request not found');
-
-  // Apply the change to the profile
-  const updateField: Record<string, string> = {};
-  updateField[req.field_name] = req.requested_value;
-
-  const { error: updateError } = await client
-    .from('profiles')
-    .update(updateField)
-    .eq('id', req.student_id);
-
-  if (updateError) throw updateError;
-
-  // Mark request as approved
-  const { error } = await client
-    .from('profile_change_requests')
-    .update({
-      status: 'approved',
-      admin_note: adminNote || null,
-      reviewed_by: user?.id || null,
-      reviewed_at: new Date().toISOString()
-    })
-    .eq('id', id);
+  // The DB RPC applies the profile change, marks the request approved and
+  // notifies the student. Authorization (admin-only), the field allow-list and
+  // the atomic write all live server-side.
+  const { error } = await client.rpc('admin_apply_profile_change', {
+    p_request_id: id,
+    p_admin_note: adminNote || null
+  });
 
   if (error) throw error;
-
-  // Notify student
-  await client.from('notifications').insert({
-    user_id: req.student_id,
-    title: 'Profile Change Approved',
-    message: `Your request to change ${req.field_name.replace('_', ' ')} from "${req.current_value}" to "${req.requested_value}" has been approved.`,
-    type: 'success'
-  });
 }
 
 /** Admin: reject a change request. */

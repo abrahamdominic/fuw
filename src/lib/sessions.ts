@@ -2,11 +2,84 @@
 // All device/browser/OS/connection detection is real — no mock data.
 import { requireSupabase } from './supabase';
 
+export interface ClientNetworkInfo {
+  ip: string | null;
+  location: string | null;
+  device_name: string | null;
+  raw?: {
+    country: string | null;
+    region: string | null;
+    city: string | null;
+    latitude: string | null;
+    longitude: string | null;
+  };
+}
+
+/**
+ * Fetch the caller's public IP, coarse location and device name from the
+ * `client-info` edge function. Falls back to empty/unknown values when the
+ * edge function is unavailable (local dev / network error) so callers never
+ * need to handle the error themselves.
+ */
+let _cachedNetworkInfo: ClientNetworkInfo | null = null;
+
+export async function fetchClientNetworkInfo(): Promise<ClientNetworkInfo> {
+  if (_cachedNetworkInfo) return _cachedNetworkInfo;
+
+  try {
+    const url = new URL('/functions/v1/client-info', (import.meta as any).env?.VITE_SUPABASE_URL || '');
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        // The edge function reads the anon key from the Authorization header;
+        // without it the request is rejected at the gateway level.
+        Authorization: `Bearer ${(import.meta as any).env?.VITE_SUPABASE_ANON_KEY || ''}`
+      }
+    });
+    if (!res.ok) throw new Error(`client-info ${res.status}`);
+
+    const body = await res.json() as {
+      ip: string | null;
+      location: { country: string | null; region: string | null; city: string | null };
+      device_name: string | null;
+    };
+
+    const loc = body.location || {};
+    const parts = [loc.city, loc.region, loc.country].filter(Boolean) as string[];
+    const location = parts.length ? parts.join(', ') : null;
+
+    const info: ClientNetworkInfo = {
+      ip: body.ip ?? null,
+      location,
+      device_name: body.device_name ?? null,
+      raw: {
+        country: loc.country ?? null,
+        region: loc.region ?? null,
+        city: loc.city ?? null,
+        latitude: (loc as any).latitude ?? null,
+        longitude: (loc as any).longitude ?? null
+      }
+    };
+    _cachedNetworkInfo = info;
+    return info;
+  } catch {
+    const fallback: ClientNetworkInfo = {
+      ip: null,
+      location: null,
+      device_name: null
+    };
+    _cachedNetworkInfo = fallback;
+    return fallback;
+  }
+}
+
 export interface ActiveSession {
   id: string;
   user_id: string;
   session_key: string;
   device_type: 'desktop' | 'mobile' | 'tablet';
+  device_name: string | null;
   browser: string;
   os: string;
   ip_address: string | null;
@@ -147,12 +220,18 @@ export async function createSession(): Promise<ActiveSession | null> {
   const conn = detectConnection();
   const sessionKey = getOrCreateSessionKey();
 
+  // Fetch real IP/location/device_name from the client-info edge function.
+  const network = await fetchClientNetworkInfo();
+
   const row = {
     user_id: user.id,
     session_key: sessionKey,
     device_type: parsed.device_type,
     browser: parsed.browser,
     os: parsed.os,
+    device_name: network.device_name,
+    ip_address: network.ip,
+    location: network.location,
     connection_type: conn.connection_type,
     network_name: conn.network_name,
     is_current: true,

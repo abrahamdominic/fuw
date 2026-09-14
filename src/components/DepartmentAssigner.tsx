@@ -1,20 +1,40 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, X, Check, Building2, Layers, AlertCircle, Plus } from 'lucide-react';
+import {
+  Search,
+  X,
+  Check,
+  Building2,
+  Layers,
+  AlertCircle,
+  Loader2,
+  CheckCircle2
+} from 'lucide-react';
 import { fetchDepartmentCatalogue, type DepartmentOption } from '../lib/materials';
 import { catalogue } from '../data/catalogue';
 
 export interface DepartmentAssignerProps {
+  /** Current selection (controlled). */
   selectedDepartments: DepartmentOption[];
   onChange: (selected: DepartmentOption[]) => void;
   error?: string | null;
   required?: boolean;
+  /**
+   * Pre-existing assignments. When provided the widget treats the flow as an
+   * edit and visually separates "already assigned" from "newly added (pending)"
+   * and sandwiches a Save/ revert diff bar.
+   */
+  initialDepartments?: DepartmentOption[];
 }
+
+const shortFaculty = (name: string) =>
+  name.replace(/^Faculty\s+(of\s+)?/i, '').replace(/\s+College\s*$/i, '').trim();
 
 export function DepartmentAssigner({
   selectedDepartments,
   onChange,
   error,
-  required = true
+  required = true,
+  initialDepartments
 }: DepartmentAssignerProps) {
   const [allDepartments, setAllDepartments] = useState<DepartmentOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,7 +70,9 @@ export function DepartmentAssigner({
     };
   }, []);
 
-  // List of unique faculties from all available departments
+  const isEdit = initialDepartments !== undefined;
+
+  // Unique faculties from all available departments
   const availableFaculties = useMemo(() => {
     const set = new Set<string>();
     for (const d of allDepartments) {
@@ -59,365 +81,324 @@ export function DepartmentAssigner({
     return Array.from(set).sort();
   }, [allDepartments]);
 
-  // Set of selected department names or IDs for fast lookup
+  const deptKey = (d: DepartmentOption) => `${d.id || d.name}`.toLowerCase();
+
+  // Set of keys currently selected
   const selectedKeySet = useMemo(() => {
     const keys = new Set<string>();
     for (const d of selectedDepartments) {
-      keys.add(d.name.toLowerCase());
-      if (d.id) keys.add(d.id.toLowerCase());
+      keys.add(deptKey(d));
     }
     return keys;
   }, [selectedDepartments]);
 
-  const isSelected = (dept: DepartmentOption) => {
-    return (
-      selectedKeySet.has(dept.name.toLowerCase()) ||
-      (!!dept.id && selectedKeySet.has(dept.id.toLowerCase()))
-    );
-  };
+  // Set of keys that existed before the edit began
+  const initialKeySet = useMemo(() => {
+    const keys = new Set<string>();
+    for (const d of initialDepartments ?? []) {
+      keys.add(deptKey(d));
+    }
+    return keys;
+  }, [initialDepartments]);
+
+  const isSelected = (dept: DepartmentOption) => selectedKeySet.has(deptKey(dept));
+  const wasAssigned = (dept: DepartmentOption) => initialKeySet.has(deptKey(dept));
+
+  const newCount = useMemo(
+    () => selectedDepartments.filter((d) => !wasAssigned(d)).length,
+    [selectedDepartments, initialKeySet]
+  );
+  const removedCount = useMemo(
+    () => (initialDepartments ?? []).filter((d) => !isSelected(d)).length,
+    [initialDepartments, selectedKeySet]
+  );
+  const hasChanges = newCount > 0 || removedCount > 0;
 
   const handleToggle = (dept: DepartmentOption) => {
     if (isSelected(dept)) {
-      onChange(
-        selectedDepartments.filter(
-          (d) =>
-            d.name.toLowerCase() !== dept.name.toLowerCase() &&
-            (!dept.id || !d.id || d.id !== dept.id)
-        )
-      );
+      onChange(selectedDepartments.filter((d) => deptKey(d) !== deptKey(dept)));
     } else {
       onChange([...selectedDepartments, dept]);
     }
   };
 
   const handleRemove = (dept: DepartmentOption) => {
-    onChange(
-      selectedDepartments.filter(
-        (d) =>
-          d.name.toLowerCase() !== dept.name.toLowerCase() &&
-          (!dept.id || !d.id || d.id !== dept.id)
-      )
-    );
+    onChange(selectedDepartments.filter((d) => deptKey(d) !== deptKey(dept)));
   };
 
   const handleClearAll = () => {
     onChange([]);
   };
 
+  const handleRevert = () => {
+    onChange([...(initialDepartments ?? [])]);
+  };
+
   // Filter available departments based on faculty & search query
   const visibleDepartments = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return allDepartments.filter((dept) => {
-      // Faculty filter
-      if (selectedFaculty !== 'all' && dept.facultyName !== selectedFaculty) {
-        return false;
-      }
-      // Search query
+      if (selectedFaculty !== 'all' && dept.facultyName !== selectedFaculty) return false;
       if (q) {
         const matchesName = dept.name.toLowerCase().includes(q);
-        const matchesFaculty = dept.facultyName.toLowerCase().includes(q);
+        const matchesFaculty = (dept.facultyName || '').toLowerCase().includes(q);
         if (!matchesName && !matchesFaculty) return false;
       }
       return true;
     });
   }, [allDepartments, selectedFaculty, searchQuery]);
 
+  const visibleSelectedCount = useMemo(
+    () => visibleDepartments.filter((d) => isSelected(d)).length,
+    [visibleDepartments, selectedKeySet]
+  );
+  const allVisibleSelected =
+    visibleDepartments.length > 0 && visibleSelectedCount === visibleDepartments.length;
+
   const handleSelectAllVisible = () => {
     const toAdd = visibleDepartments.filter((d) => !isSelected(d));
-    if (toAdd.length > 0) {
-      onChange([...selectedDepartments, ...toAdd]);
-    }
+    if (toAdd.length > 0) onChange([...selectedDepartments, ...toAdd]);
   };
 
   const handleDeselectAllVisible = () => {
-    const visibleNames = new Set(visibleDepartments.map((d) => d.name.toLowerCase()));
-    onChange(selectedDepartments.filter((d) => !visibleNames.has(d.name.toLowerCase())));
+    const visibleKeys = new Set(visibleDepartments.map((d) => deptKey(d)));
+    onChange(selectedDepartments.filter((d) => !visibleKeys.has(deptKey(d))));
   };
 
   return (
-    <div className="dept-assigner-container" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      <div className="dept-assigner-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#1b382b', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Building2 size={18} color="#0B6B3A" />
-            <span>Assign Departments {required && <span style={{ color: '#d32f2f' }}>*</span>}</span>
-          </h4>
-          <p style={{ margin: '3px 0 0 0', fontSize: '13px', color: '#55675b' }}>
-            Select one or multiple departments across faculties that should access this material.
-          </p>
+    <div className="da-shell">
+      {/* ── Header ── */}
+      <div className="da-header">
+        <div className="da-heading">
+          <div className="da-heading-icon">
+            <Building2 size={20} />
+          </div>
+          <div>
+            <h4 className="da-heading-title">
+              Assign Departments{required && <span className="da-req">*</span>}
+              {isEdit && <span className="da-tag assigned">Edit mode</span>}
+            </h4>
+            <p className="da-heading-sub">
+              Select one or many departments across faculties that should access this material.
+            </p>
+          </div>
         </div>
-        <span
-          style={{
-            fontSize: '12px',
-            fontWeight: 700,
-            padding: '3px 10px',
-            borderRadius: '16px',
-            backgroundColor: selectedDepartments.length > 0 ? '#eaf3ec' : '#f5f5f5',
-            color: selectedDepartments.length > 0 ? '#0B6B3A' : '#777',
-            border: `1px solid ${selectedDepartments.length > 0 ? '#cbe3d1' : '#ddd'}`
-          }}
-        >
+        <span className={`da-count-pill${selectedDepartments.length > 0 ? ' has-value' : ''}`}>
+          <Layers size={13} />
           {selectedDepartments.length} assigned
         </span>
       </div>
 
-      {/* Selected Departments Chips */}
-      <div
-        style={{
-          background: '#f9fbf9',
-          border: '1px solid #e1ece3',
-          borderRadius: '8px',
-          padding: '12px',
-          minHeight: '48px'
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: selectedDepartments.length > 0 ? '8px' : '0' }}>
-          <span style={{ fontSize: '12px', fontWeight: 700, color: '#33483b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-            Selected Departments ({selectedDepartments.length})
+      {/* ── Selected chips ── */}
+      <div className="da-chips-box">
+        <div className="da-chips-head">
+          <span className="da-chips-label">
+            Selected ({selectedDepartments.length})
           </span>
-          {selectedDepartments.length > 1 && (
-            <button
-              type="button"
-              onClick={handleClearAll}
-              style={{ background: 'none', border: 'none', color: '#c62828', fontSize: '12px', fontWeight: 600, cursor: 'pointer', padding: 0 }}
-            >
-              Remove all
+          {selectedDepartments.length > 0 && (
+            <button type="button" className="da-chips-clear" onClick={handleClearAll}>
+              Clear all
             </button>
           )}
         </div>
 
         {selectedDepartments.length === 0 ? (
-          <div style={{ fontSize: '13px', color: '#888', fontStyle: 'italic', padding: '4px 0' }}>
-            No departments assigned yet. Use the selector below to assign this material to one or more departments.
+          <div className="da-chips-empty">
+            No department assigned yet — choose from the picker below.
           </div>
         ) : (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-            {selectedDepartments.map((dept) => (
-              <span
-                key={dept.id || dept.name}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  backgroundColor: '#eaf3ec',
-                  border: '1px solid #cbe3d1',
-                  color: '#12603d',
-                  padding: '5px 10px',
-                  borderRadius: '16px',
-                  fontSize: '12px',
-                  fontWeight: 600
-                }}
-              >
-                <span>{dept.name}</span>
-                {dept.facultyName && (
-                  <span style={{ fontSize: '11px', color: '#3f785b', fontWeight: 500 }}>
-                    ({dept.facultyName.replace(/^Faculty of\s+/i, '')})
-                  </span>
-                )}
-                <button
-                  type="button"
-                  onClick={() => handleRemove(dept)}
-                  title={`Remove ${dept.name}`}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: '#12603d',
-                    cursor: 'pointer',
-                    padding: 0,
-                    display: 'grid',
-                    placeItems: 'center',
-                    marginLeft: '2px'
-                  }}
-                  aria-label={`Remove ${dept.name}`}
+          <div className="da-chips">
+            {selectedDepartments.map((dept) => {
+              const isNew = !wasAssigned(dept);
+              return (
+                <span
+                  key={deptKey(dept)}
+                  className={`da-chip${isEdit && isNew ? ' is-new' : ''}`}
                 >
-                  <X size={13} />
-                </button>
-              </span>
-            ))}
+                  {dept.facultyName && (
+                    <span className="da-chip-fac">{shortFaculty(dept.facultyName)}</span>
+                  )}
+                  <span className="da-chip-name">{dept.name}</span>
+                  <button
+                    type="button"
+                    className="da-chip-remove"
+                    onClick={() => handleRemove(dept)}
+                    aria-label={`Remove ${dept.name}`}
+                  >
+                    <X size={13} />
+                  </button>
+                </span>
+              );
+            })}
+          </div>
+        )}
+
+        {isEdit && selectedDepartments.length > 0 && (
+          <div className="da-chips-change">
+            {newCount > 0 ? `${newCount} newly added` : 'No new departments added'} ·{' '}
+            {removedCount > 0
+              ? `${removedCount} previously assigned marked for removal`
+              : 'No removals'}
           </div>
         )}
       </div>
 
       {error && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#c62828', fontSize: '13px', fontWeight: 500 }}>
-          <AlertCircle size={16} />
+        <div className="da-error">
+          <AlertCircle size={15} />
           <span>{error}</span>
         </div>
       )}
 
-      {/* Filter Controls: Faculty Selection & Department Search */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
-        <div>
-          <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#444', marginBottom: '4px' }}>
-            Filter by Faculty:
-          </label>
-          <div style={{ position: 'relative' }}>
-            <select
-              value={selectedFaculty}
-              onChange={(e) => setSelectedFaculty(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '8px 12px',
-                borderRadius: '6px',
-                border: '1px solid #cddcd2',
-                backgroundColor: '#fff',
-                fontSize: '13px',
-                color: '#222'
-              }}
-            >
-              <option value="all">All Faculties ({availableFaculties.length})</option>
-              {availableFaculties.map((fac) => (
-                <option key={fac} value={fac}>
-                  {fac}
-                </option>
-              ))}
-            </select>
-          </div>
+      {/* ── Toolbar ── */}
+      <div className="da-toolbar">
+        <div className="da-toolbar-field">
+          <label htmlFor="da-faculty">Filter by faculty</label>
+          <select
+            id="da-faculty"
+            className="form-input"
+            value={selectedFaculty}
+            onChange={(e) => setSelectedFaculty(e.target.value)}
+          >
+            <option value="all">All Faculties ({availableFaculties.length})</option>
+            {availableFaculties.map((fac) => (
+              <option key={fac} value={fac}>
+                {shortFaculty(fac)}
+              </option>
+            ))}
+          </select>
         </div>
 
-        <div>
-          <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#444', marginBottom: '4px' }}>
-            Search Departments:
-          </label>
-          <div style={{ position: 'relative' }}>
-            <Search size={15} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#888' }} />
+        <div className="da-toolbar-field">
+          <label htmlFor="da-search">Search departments</label>
+          <div className="da-search-wrap">
+            <Search size={15} className="da-search-icon" />
             <input
+              id="da-search"
               type="text"
+              className="form-input da-search-input"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="e.g. Computer Science, Accounting, Biology..."
-              style={{
-                width: '100%',
-                padding: '8px 12px 8px 32px',
-                borderRadius: '6px',
-                border: '1px solid #cddcd2',
-                fontSize: '13px',
-                backgroundColor: '#fff'
-              }}
+              placeholder="e.g. Computer Science, Accounting…"
             />
             {searchQuery && (
               <button
                 type="button"
+                className="da-search-clear"
                 onClick={() => setSearchQuery('')}
-                style={{
-                  position: 'absolute',
-                  right: '8px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  color: '#888'
-                }}
+                aria-label="Clear search"
               >
                 <X size={14} />
               </button>
             )}
           </div>
         </div>
+
+        <div className="da-toolbar-actions">
+          <button
+            type="button"
+            className="da-bulk-btn"
+            onClick={handleSelectAllVisible}
+            disabled={visibleDepartments.length === 0 || allVisibleSelected}
+          >
+            <CheckCircle2 size={14} /> Select all
+          </button>
+          <button
+            type="button"
+            className="da-bulk-btn"
+            onClick={handleDeselectAllVisible}
+            disabled={visibleSelectedCount === 0}
+          >
+            <X size={14} /> Clear visible
+          </button>
+        </div>
       </div>
 
-      {/* Available Departments Selection Box */}
-      <div
-        style={{
-          border: '1px solid #e1ece3',
-          borderRadius: '8px',
-          background: '#fff',
-          overflow: 'hidden'
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            padding: '8px 12px',
-            backgroundColor: '#f6f9f7',
-            borderBottom: '1px solid #e1ece3',
-            fontSize: '12px'
-          }}
-        >
-          <span style={{ fontWeight: 600, color: '#4b6154' }}>
-            Available Departments ({visibleDepartments.length})
+      {/* ── Picklist ── */}
+      <div className="da-picklist">
+        <div className="da-picklist-head">
+          <span className="da-picklist-count">
+            Available <span>({visibleDepartments.length})</span>
           </span>
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button
-              type="button"
-              onClick={handleSelectAllVisible}
-              style={{ background: 'none', border: 'none', color: '#0B6B3A', fontSize: '12px', fontWeight: 600, cursor: 'pointer', padding: 0 }}
-            >
-              Select all visible
-            </button>
-            <span style={{ color: '#ccc' }}>|</span>
-            <button
-              type="button"
-              onClick={handleDeselectAllVisible}
-              style={{ background: 'none', border: 'none', color: '#666', fontSize: '12px', fontWeight: 600, cursor: 'pointer', padding: 0 }}
-            >
-              Deselect visible
-            </button>
-          </div>
+          <span className="da-picklist-hint">
+            {visibleSelectedCount} of {visibleDepartments.length} shown selected
+          </span>
         </div>
 
-        <div
-          style={{
-            maxHeight: '220px',
-            overflowY: 'auto',
-            padding: '8px',
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
-            gap: '6px'
-          }}
-        >
+        <div className="da-picklist-body">
           {loading ? (
-            <div style={{ padding: '20px', textAlign: 'center', color: '#777', gridColumn: '1 / -1' }}>
-              Loading departments…
+            <div className="da-loading">
+              <Loader2 size={22} />
+              <span>Loading departments…</span>
             </div>
           ) : visibleDepartments.length === 0 ? (
-            <div style={{ padding: '20px', textAlign: 'center', color: '#888', fontStyle: 'italic', gridColumn: '1 / -1' }}>
-              No departments found matching your criteria.
+            <div className="da-empty">
+              <Search size={26} />
+              <strong>No departments found</strong>
+              <span>Try a different faculty filter or search term.</span>
             </div>
           ) : (
             visibleDepartments.map((dept) => {
               const checked = isSelected(dept);
+              const assignedBefore = wasAssigned(dept);
+              const tagLabel = !checked
+                ? 'Will be removed'
+                : assignedBefore
+                  ? 'Already assigned'
+                  : 'Selected';
+              const tagClass = !checked
+                ? 'remove'
+                : assignedBefore
+                  ? 'assigned'
+                  : 'selected';
               return (
                 <label
-                  key={dept.id || dept.name}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: '8px',
-                    padding: '8px 10px',
-                    borderRadius: '6px',
-                    backgroundColor: checked ? '#edf7f0' : 'transparent',
-                    border: `1px solid ${checked ? '#b7dfc3' : '#f0f3f1'}`,
-                    cursor: 'pointer',
-                    userSelect: 'none',
-                    transition: 'all 0.15s ease'
-                  }}
+                  key={deptKey(dept)}
+                  className={`da-row${checked ? ' checked' : ''}`}
                 >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => handleToggle(dept)}
-                    style={{ marginTop: '2px', accentColor: '#0B6B3A', cursor: 'pointer' }}
-                  />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '13px', fontWeight: checked ? 600 : 500, color: checked ? '#0B6B3A' : '#222', lineHeight: '1.2' }}>
-                      {dept.name}
-                    </div>
-                    {dept.facultyName && (
-                      <div style={{ fontSize: '11px', color: '#6a7d71', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {dept.facultyName}
-                      </div>
-                    )}
-                  </div>
+                  <span className="da-check">
+                    <input
+                      type="checkbox"
+                      className="da-check-input"
+                      checked={checked}
+                      onChange={() => handleToggle(dept)}
+                      aria-label={`Assign ${dept.name}`}
+                    />
+                    <span className="da-check-box">
+                      <Check size={14} strokeWidth={3} />
+                    </span>
+                  </span>
+                  <span className="da-row-main">
+                    <span className="da-row-title">{dept.name}</span>
+                    <span className="da-row-sub">
+                      {dept.facultyName && (
+                        <span className="da-tag faculty">{shortFaculty(dept.facultyName)}</span>
+                      )}
+                      {isEdit && (checked || assignedBefore) && (
+                        <span className={`da-tag ${tagClass}`}>{tagLabel}</span>
+                      )}
+                    </span>
+                  </span>
                 </label>
               );
             })
           )}
         </div>
       </div>
+
+      {/* ── Pending-diff footer (edit flows only) ── */}
+      {isEdit && hasChanges && (
+        <div className="da-diff">
+          <Layers size={15} />
+          <span>
+            You're changing assignments from <b>{(initialDepartments ?? []).length}</b> to{' '}
+            <b>{selectedDepartments.length}</b>. Save to apply.
+          </span>
+          <button type="button" className="da-diff-revert" onClick={handleRevert}>
+            Revert changes
+          </button>
+        </div>
+      )}
     </div>
   );
 }

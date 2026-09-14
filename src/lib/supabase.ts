@@ -28,6 +28,14 @@ export const memoryStorage = {
   isServer: false
 };
 
+// Passkeys require the `experimental.passkey` flag to be enabled in the
+// Supabase project dashboard (Auth → Settings → Experimental Features → Passkeys)
+// AND here in the client options, so the GoTrue client exposes the passkey API.
+const experimentalOptions: Record<string, unknown> = {};
+if (typeof window !== 'undefined') {
+  experimentalOptions.passkey = true;
+}
+
 export const supabase =
   url && key
     ? createClient(url, key, {
@@ -35,7 +43,8 @@ export const supabase =
           persistSession: true,
           autoRefreshToken: true,
           detectSessionInUrl: true,
-          storage: memoryStorage
+          storage: memoryStorage,
+          experimental: experimentalOptions
         }
       })
     : null;

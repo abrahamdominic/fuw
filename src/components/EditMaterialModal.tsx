@@ -32,6 +32,7 @@ export function EditMaterialModal({
   const [materialType, setMaterialType] = useState('Lecture Note');
   const [academicSession, setAcademicSession] = useState('2025/2026');
   const [assignedDepartments, setAssignedDepartments] = useState<DepartmentOption[]>([]);
+  const [initialDepartments, setInitialDepartments] = useState<DepartmentOption[]>([]);
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,24 +49,27 @@ export function EditMaterialModal({
       setAcademicSession(material.session || '2025/2026');
 
       if (material.assignedDepartments && material.assignedDepartments.length > 0) {
-        setAssignedDepartments(
-          material.assignedDepartments.map((d) => ({
-            id: d.id,
-            name: d.name,
-            facultyId: d.facultyId,
-            facultyName: d.facultyName || material.faculty
-          }))
-        );
+        const depts = material.assignedDepartments.map((d) => ({
+          id: d.id,
+          name: d.name,
+          facultyId: d.facultyId,
+          facultyName: d.facultyName || material.faculty
+        }));
+        setAssignedDepartments(depts);
+        setInitialDepartments(depts);
       } else if (material.department) {
-        setAssignedDepartments([
+        const single = [
           {
             id: '',
             name: material.department,
             facultyName: material.faculty
           }
-        ]);
+        ];
+        setAssignedDepartments(single);
+        setInitialDepartments(single);
       } else {
         setAssignedDepartments([]);
+        setInitialDepartments([]);
       }
       setError(null);
     }
@@ -290,6 +294,7 @@ export function EditMaterialModal({
               selectedDepartments={assignedDepartments}
               onChange={setAssignedDepartments}
               error={assignedDepartments.length === 0 ? 'At least one department is required.' : null}
+              initialDepartments={initialDepartments}
             />
           </div>
 
