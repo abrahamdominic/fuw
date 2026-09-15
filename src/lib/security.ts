@@ -152,15 +152,49 @@ export interface PasskeyRegistration {
   last_used_at?: string;
 }
 
+/** True when the current platform and browser support WebAuthn passkeys. */
+export function isPasskeySupported(): boolean {
+  if (typeof window === 'undefined') return false;
+  return Boolean(
+    window.isSecureContext &&
+      window.PublicKeyCredential &&
+      typeof window.PublicKeyCredential === 'function'
+  );
+}
+
+/** Check if device biometric authenticator (fingerprint, Face ID, Windows Hello) is available. */
+export async function isPlatformAuthenticatorAvailable(): Promise<boolean> {
+  if (!isPasskeySupported()) return false;
+  try {
+    if (typeof window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable === 'function') {
+      return await window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+    }
+  } catch {
+    return false;
+  }
+  return false;
+}
+
 /**
  * Register a passkey for the current user — the full WebAuthn ceremony
  * (challenge → browser `navigator.credentials.create()` prompt → server verify).
  */
-export async function registerPasskey(): Promise<{ id: string }> {
+export async function registerPasskey(friendlyName?: string): Promise<{ id: string }> {
+  if (!isPasskeySupported()) {
+    throw new Error('Passkeys are not supported on this browser or connection.');
+  }
   const supabase = requireSupabase();
   const { data, error } = await supabase.auth.registerPasskey();
-  if (error) throw toUserFacingAuthError(error, 'Something went wrong. Please try again.');
-  return { id: data?.id ?? '' };
+  if (error) throw toUserFacingAuthError(error, 'Could not register a passkey on this device.');
+  const id = data?.id ?? '';
+  if (friendlyName && id) {
+    try {
+      await renamePasskey({ passkeyId: id, friendlyName });
+    } catch {
+      // Friendly name update is non-critical.
+    }
+  }
+  return { id };
 }
 
 /** List all passkeys registered for the current user. */

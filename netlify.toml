@@ -2,10 +2,30 @@
   command = "npm run build"
   publish = "dist"
 
+# Block access to any potential sensitive file extensions or patterns
+[[redirects]]
+  from = "/*.sql"
+  to = "/index.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/.env*"
+  to = "/index.html"
+  status = 404
+  force = true
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
+
+# Security headers for robots.txt
+[[headers]]
+  for = "/robots.txt"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Cache-Control = "public, max-age=86400, stale-while-revalidate=43200"
 
 # Security headers (CFG-01). Served with every response.
 # CSP: SPA assets from 'self'; Google Fonts; Supabase API/Realtime/storage.

@@ -23,6 +23,7 @@ import {
   RefreshCw,
   School,
   ShieldCheck,
+  ShieldPlus,
   Sparkles,
   UserRound,
   UserPlus,
@@ -35,7 +36,13 @@ import { Logo } from '../components/Logo';
 import { useToast } from '../components/Toast';
 import { useAuth, USERNAME_PATTERN, normalizeUsername } from '../lib/AuthContext';
 import { catalogue, facultyByName, departmentByName, levelsFor, groupedFaculties } from '../data/catalogue';
-import { aal2LoginChallenge, signInWithPasskey } from '../lib/security';
+import {
+  aal2LoginChallenge,
+  signInWithPasskey,
+  registerPasskey,
+  isPasskeySupported,
+  isPlatformAuthenticatorAvailable
+} from '../lib/security';
 
 type AuthMode = 'login' | 'register' | 'forgot';
 
@@ -524,6 +531,14 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
     needsEmailConfirmation: boolean;
   } | null>(null);
 
+  // Passkey registration flow states
+  const [passkeyPromptShown, setPasskeyPromptShown] = useState(false);
+  const [passkeyRegistering, setPasskeyRegistering] = useState(false);
+  const [passkeyError, setPasskeyError] = useState<string | null>(null);
+  const [passkeySuccess, setPasskeySuccess] = useState(false);
+  const [passkeySupported, setPasskeySupported] = useState(false);
+  const [platformAuthAvailable, setPlatformAuthAvailable] = useState(false);
+
   // Same cascade logic the mobile app uses: level choices follow the
   // selected department's programme duration (4/5/6 years).
   const currentFaculty = useMemo(() => facultyByName(profileData.faculty) || catalogue[0], [profileData.faculty]);
@@ -578,6 +593,12 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
     else if (role === 'admin') navigate('/admin', { replace: true });
     else navigate('/student', { replace: true });
   };
+
+  // Check passkey support on mount
+  useEffect(() => {
+    setPasskeySupported(isPasskeySupported());
+    isPlatformAuthenticatorAvailable().then(setPlatformAuthAvailable).catch(() => setPlatformAuthAvailable(false));
+  }, []);
 
   // If already authenticated with a completed profile, forward to the right
   // portal or requested route.
@@ -829,6 +850,41 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
       level: profileData.level,
       needsEmailConfirmation: false
     });
+  };
+
+  // Passkey registration handlers
+  const handleRegisterPasskey = async () => {
+    setPasskeyError(null);
+    setPasskeyRegistering(true);
+    try {
+      await registerPasskey('FUW E-Library Account');
+      setPasskeySuccess(true);
+      toast('Passkey registered successfully!', 'success');
+    } catch (err: any) {
+      const errorMsg = err?.message || 'Could not register your passkey. You can set it up later from your profile.';
+      setPasskeyError(errorMsg);
+    } finally {
+      setPasskeyRegistering(false);
+    }
+  };
+
+  const handleSkipPasskey = () => {
+    setPasskeyPromptShown(true); // Mark as shown so we don't prompt again
+    setPasskeySuccess(false);
+    setPasskeyError(null);
+  };
+
+  const handleFinishWelcome = () => {
+    const needsConfirm = welcome?.needsEmailConfirmation;
+    setWelcome(null);
+    setPasskeyPromptShown(false);
+    setPasskeySuccess(false);
+    setPasskeyError(null);
+    if (needsConfirm) {
+      switchMode('login');
+    } else {
+      goToPortal();
+    }
   };
 
   const title = mode === 'register' ? 'Create Student Account' : mode === 'forgot' ? 'Reset your Password' : 'Sign In';
@@ -1231,7 +1287,8 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
           </div>
 
           <button type="button" className="mac-btn mac-btn-ghost" onClick={() => switchMode('login')}>
-            Already registered at FUW? <b>Sign In to your Portal</b>
+            <span className="mac-btn-ghost-text">Already registered at FUW?</span>
+            <span className="mac-btn-ghost-action">Sign in to your portal</span>
           </button>
         </MacCard>
       )}
@@ -1331,22 +1388,88 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
               )}
             </div>
 
-            <button
-              type="button"
-              className="mac-btn mac-btn-primary mac-welcome-btn"
-              onClick={() => {
-                const needsConfirm = welcome.needsEmailConfirmation;
-                setWelcome(null);
-                if (needsConfirm) {
-                  switchMode('login');
-                } else {
-                  goToPortal();
-                }
-              }}
-            >
-              <span>{welcome.needsEmailConfirmation ? 'Continue to Sign In' : 'Start Learning'}</span>
-              <ArrowRight size={17} aria-hidden />
-            </button>
+            {/* Passkey registration prompt - only show if no email confirmation needed and passkey supported */}
+            {!welcome.needsEmailConfirmation && passkeySupported && !passkeyPromptShown && !passkeySuccess && (
+              <div className="mac-passkey-prompt">
+                <div className="mac-passkey-prompt-header">
+                  <div className="mac-passkey-icon">
+                    <ShieldPlus size={20} color="#0B6B3A" />
+                  </div>
+                  <h3 className="mac-passkey-prompt-title">Secure Your Account with a Passkey</h3>
+                </div>
+                <p className="mac-passkey-prompt-desc">
+                  {platformAuthAvailable
+                    ? 'Sign in faster using your fingerprint, Face ID, or Windows Hello. No passwords to remember.'
+                    : 'Sign in securely without typing a password. Your device will store your credentials safely.'}
+                </p>
+                
+                {passkeyError && (
+                  <div className="mac-passkey-error">
+                    <AlertCircle size={16} />
+                    <span>{passkeyError}</span>
+                  </div>
+                )}
+
+                <div className="mac-passkey-actions">
+                  <button
+                    type="button"
+                    className="mac-btn mac-btn-secondary"
+                    onClick={handleSkipPasskey}
+                    disabled={passkeyRegistering}
+                  >
+                    Skip for now
+                  </button>
+                  <button
+                    type="button"
+                    className="mac-btn mac-btn-primary"
+                    onClick={handleRegisterPasskey}
+                    disabled={passkeyRegistering}
+                  >
+                    {passkeyRegistering ? (
+                      <>
+                        <RefreshCw size={16} className="spin-icon" /> Registering…
+                      </>
+                    ) : (
+                      <>
+                        <Fingerprint size={16} /> Register Passkey
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Passkey success state */}
+            {!welcome.needsEmailConfirmation && passkeySuccess && (
+              <div className="mac-passkey-success">
+                <CheckCircle2 size={20} color="#15803D" />
+                <p>
+                  <b>Passkey registered!</b> You can now sign in using your device biometrics.
+                </p>
+              </div>
+            )}
+
+            {/* Passkey not supported message */}
+            {!welcome.needsEmailConfirmation && !passkeySupported && passkeyPromptShown && (
+              <div className="mac-passkey-info">
+                <AlertCircle size={18} color="#92400E" />
+                <p>
+                  Passkeys are not supported on this browser or connection. You can set up a passkey later from a supported device.
+                </p>
+              </div>
+            )}
+
+            {/* Final action button - only show when passkey flow is complete or skipped */}
+            {(welcome.needsEmailConfirmation || passkeyPromptShown || passkeySuccess || !passkeySupported) && (
+              <button
+                type="button"
+                className="mac-btn mac-btn-primary mac-welcome-btn"
+                onClick={handleFinishWelcome}
+              >
+                <span>{welcome.needsEmailConfirmation ? 'Continue to Sign In' : 'Start Learning'}</span>
+                <ArrowRight size={17} aria-hidden />
+              </button>
+            )}
           </div>
         </div>
       )}

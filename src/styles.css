@@ -11694,18 +11694,71 @@ button.form-submit-btn:disabled:hover {
   line-height: 1.5;
 }
 
-.mac-btn-ghost {
-  background: none;
-  color: #4B5563;
-  font-size: 13px;
-  font-weight: 600;
-  width: auto;
-  height: auto;
-  padding: 10px 4px;
-  margin: 14px auto 0;
+/* --- Already Registered / Ghost Footer Link --- */
+.mac-auth-footer-prompt {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 18px;
+  width: 100%;
 }
-.mac-btn-ghost:hover { color: #0B6B3A; }
-.mac-btn-ghost b { color: #0B6B3A; font-weight: 700; margin-left: 5px; }
+
+.mac-btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 5px 8px;
+  background: none;
+  border: none;
+  color: #4B5563;
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.5;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  min-height: 42px;
+  padding: 8px 14px;
+  margin: 0 auto;
+  border-radius: 10px;
+  text-align: center;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.mac-btn-ghost:hover {
+  color: #0B6B3A;
+  background: rgba(11, 107, 58, 0.05);
+}
+
+.mac-btn-ghost .mac-btn-ghost-text {
+  color: #4B5563;
+  display: inline;
+}
+
+.mac-btn-ghost b,
+.mac-btn-ghost .mac-btn-ghost-action {
+  color: #0B6B3A;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  margin-left: 0;
+}
+
+.mac-btn-ghost:hover b,
+.mac-btn-ghost:hover .mac-btn-ghost-action {
+  text-decoration: underline;
+}
+
+@media (max-width: 480px) {
+  .mac-btn-ghost {
+    font-size: 13px;
+    padding: 8px 10px;
+    gap: 4px 6px;
+  }
+}
 
 .mac-btn-back {
   background: #F1F5F9;
@@ -12009,6 +12062,128 @@ button.form-submit-btn:disabled:hover {
 
 .mac-welcome-btn {
   width: 100%;
+}
+
+/* Passkey registration prompt in welcome modal */
+.mac-passkey-prompt {
+  background: #FEFCE8;
+  border: 1px solid #FDE047;
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 18px;
+  text-align: left;
+}
+
+.mac-passkey-prompt-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.mac-passkey-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #FEF9C3;
+  border: 1px solid #FDE047;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.mac-passkey-prompt-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0F172A;
+  margin: 0;
+  line-height: 1.3;
+}
+
+.mac-passkey-prompt-desc {
+  font-size: 12px;
+  color: #64748B;
+  line-height: 1.5;
+  margin: 0 0 14px;
+}
+
+.mac-passkey-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mac-passkey-actions .mac-btn {
+  flex: 1;
+  min-width: 120px;
+}
+
+.mac-passkey-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: #FEF2F2;
+  border: 1px solid #FCA5A5;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: #991B1B;
+  line-height: 1.4;
+}
+
+.mac-passkey-error svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.mac-passkey-success {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: #F0FDF4;
+  border: 1px solid #86EFAC;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 18px;
+  text-align: left;
+}
+
+.mac-passkey-success svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.mac-passkey-success p {
+  font-size: 12px;
+  color: #166534;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.mac-passkey-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: #FEF9C3;
+  border: 1px solid #FDE047;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 18px;
+  text-align: left;
+}
+
+.mac-passkey-info svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.mac-passkey-info p {
+  font-size: 12px;
+  color: #92400E;
+  line-height: 1.5;
+  margin: 0;
 }
 
 /* ==========================================================================

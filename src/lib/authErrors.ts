@@ -23,15 +23,37 @@ export function toUserFacingAuthError(err: unknown, fallback: string): Error {
   if (!msg) return new Error(fallback);
 
   if (
+    lower.includes('invalidstateerror') ||
+    lower.includes('already exists') ||
+    lower.includes('already registered') ||
+    lower.includes('duplicate') ||
+    lower.includes('credential already registered')
+  ) {
+    return new Error('This passkey has already been registered on this device for your account.');
+  }
+  if (
     lower.includes('notallowederror') ||
     lower.includes('aborterror') ||
-    lower.includes('safari does not support' as never as string) ||
-    lower.includes('unsupported')
+    lower.includes('cancel') ||
+    lower.includes('user cancelled') ||
+    lower.includes('user canceled')
   ) {
-    return new Error('This browser could not complete the secure sign-in. Please try a supported browser or use your password.');
+    return new Error('Passkey setup was cancelled or dismissed. You can try again now or set it up later.');
   }
-  if (lower.includes('cancel') || lower.includes('timeout') || lower.includes('timed out')) {
-    return new Error('Sign-in was cancelled or did not complete in time. You can try again.');
+  if (
+    lower.includes('timeout') ||
+    lower.includes('timed out') ||
+    lower.includes('operation timed out')
+  ) {
+    return new Error('Passkey request timed out. Please try again when prompted.');
+  }
+  if (
+    lower.includes('safari does not support' as never as string) ||
+    lower.includes('unsupported') ||
+    lower.includes('does not support webauthn') ||
+    lower.includes('not supported on this browser')
+  ) {
+    return new Error('Passkeys are not supported on this browser or device. You can sign in using your password.');
   }
   if (lower.includes('no passkey') || lower.includes('passkey not found') || lower.includes('none found')) {
     return new Error('No passkey was found for this account on this device.');
@@ -55,7 +77,7 @@ export function toUserFacingAuthError(err: unknown, fallback: string): Error {
     return new Error('You are not authorized to perform this action.');
   }
   if (lower.includes('webauthn') || lower.includes('publickey') || lower.includes('authenticator')) {
-    return new Error('Your authenticator could not complete the secure sign-in. Please try again or use your password.');
+    return new Error('Your device authenticator could not complete the passkey request. Please try again or use your password.');
   }
   if (lower.includes('enabled') || lower.includes('experimental')) {
     return new Error('Passkeys are not enabled on this server yet. Contact the library administrator to turn on the Passkeys experimental feature in Supabase.');
