@@ -18,6 +18,7 @@ import {
   verifyTOTP,
   signInWithPasskey
 } from '../lib/security';
+import { toUserFacingAuthError } from '../lib/authErrors';
 
 export type ProtectedActionTone = 'danger' | 'warning' | 'primary';
 
@@ -149,7 +150,7 @@ export const ProtectedActionModal: React.FC<ProtectedActionModalProps> = ({
       await onConfirm();
       onClose();
     } catch (e: any) {
-      setError(e?.message || 'The action could not be completed. Please try again.');
+      setError(toUserFacingAuthError(e, 'The action could not be completed. Please try again.').message);
     } finally {
       setConfirming(false);
     }

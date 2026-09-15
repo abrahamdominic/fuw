@@ -88,7 +88,7 @@ import { fetchAllDeletionRequests, updateDeletionRequestStatus, DeletionRequest 
 import { fetchConversations, fetchMessages, sendMessage, markConversationRead, startConversation, Conversation, Message } from '../lib/messages';
 import { fetchAllChangeRequests, approveProfileChangeRequest, rejectProfileChangeRequest, ProfileChangeRequest } from '../lib/profileChangeRequests';
 import { fetchAllSessions, terminateSession as terminateSessionDb, ActiveSession } from '../lib/sessions';
-import { fetchGenderCounts, fetchMaterialsByFaculty, fetchMaterialsByDepartment, fetchAnalyticsDashboard, fetchTopMaterials, fetchRecentAnalyticsEvents, purgeAnalyticsData } from '../lib/analytics';
+import { fetchGenderCounts, fetchMaterialsByFaculty, fetchMaterialsByDepartment, fetchAnalyticsDashboard, fetchTopMaterials, fetchRecentAnalyticsEvents, purgeAnalyticsData, fetchSearchInsights, type SearchInsights } from '../lib/analytics';
 import { AnalyticsChart, AnalyticsDatum } from '../components/AnalyticsCharts';
 import type { AnalyticsDashboard, TopMaterialRow, RecentAnalyticsEventRow } from '../lib/analyticsTypes';
 
@@ -2836,20 +2836,23 @@ function AdminUsageAnalyticsTab() {
   const [dashboard, setDashboard] = useState<AnalyticsDashboard | null>(null);
   const [topMaterials, setTopMaterials] = useState<TopMaterialRow[]>([]);
   const [recentEvents, setRecentEvents] = useState<RecentAnalyticsEventRow[]>([]);
+  const [searchInsights, setSearchInsights] = useState<SearchInsights | null>(null);
   const [purgeDays, setPurgeDays] = useState(180);
   const [purgeBusy, setPurgeBusy] = useState(false);
   const [purgeConfirming, setPurgeConfirming] = useState(false);
   const { toast } = useToast();
 
   const load = useCallback(async () => {
-    const [dash, top, recent] = await Promise.all([
+    const [dash, top, recent, insights] = await Promise.all([
       fetchAnalyticsDashboard(),
       fetchTopMaterials(10, 30),
-      fetchRecentAnalyticsEvents(30)
+      fetchRecentAnalyticsEvents(30),
+      fetchSearchInsights(14)
     ]);
     setDashboard(dash);
     setTopMaterials(top);
     setRecentEvents(recent);
+    setSearchInsights(insights);
     setLoading(false);
   }, []);
 
@@ -2993,6 +2996,67 @@ function AdminUsageAnalyticsTab() {
                   </div>
                 ))}
               </div>
+            )}
+          </div>
+
+          <div className="analytics-block">
+            <div className="analytics-block-head">
+              <p className="kicker">SEARCH ANALYTICS</p>
+              <h2>Search insights</h2>
+              <p>What students search for, and which queries return nothing.</p>
+            </div>
+            {!searchInsights ? (
+              <div className="empty-state">
+                <Search size={32} />
+                <b>No search data yet.</b>
+                <span>
+                  Searches are recorded when the consolidated study/social migration is applied. Queries with zero
+                  results appear here so the library team can close content gaps.
+                </span>
+              </div>
+            ) : (
+              <>
+                <div className="stat-cards">
+                  <div className="stat-card"><span className="stat-value">{searchInsights.total_searches.toLocaleString()}</span><span className="stat-label">Searches (14d)</span></div>
+                  <div className="stat-card">{searchInsights.failed_searches > 0 ? <span className="stat-value warn">{searchInsights.failed_searches}</span> : <span className="stat-value">{searchInsights.failed_searches}</span>}<span className="stat-label">No results</span></div>
+                  <div className="stat-card"><span className="stat-value">{searchInsights.searches_with_click.toLocaleString()}</span><span className="stat-label">With results</span></div>
+                  <div className="stat-card"><span className="stat-value">{searchInsights.no_result_queries.length}</span><span className="stat-label">Missing topics</span></div>
+                </div>
+                <div className="analytics-grid">
+                  <div>
+                    <h3 className="analytics-subhead">No-results queries (learning gaps)</h3>
+                    {searchInsights.no_result_queries.length === 0 ? (
+                      <p className="analytics-muted">No zero-result searches recorded in the last 14 days.</p>
+                    ) : (
+                      <ul className="search-insight-list">
+                        {searchInsights.no_result_queries.map((q) => (
+                          <li key={q.query}>
+                            <span className="search-insight-badge failed" title="No matching materials">0</span>
+                            <b>{q.query}</b>
+                            <small>{q.count.toLocaleString()}× · last {q.last_at ? new Date(q.last_at).toLocaleDateString() : '—'}</small>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="analytics-subhead">Top successful queries</h3>
+                    {searchInsights.top_queries.length === 0 ? (
+                      <p className="analytics-muted">No successful searches recorded yet.</p>
+                    ) : (
+                      <ul className="search-insight-list">
+                        {searchInsights.top_queries.map((q) => (
+                          <li key={q.query}>
+                            <span className="search-insight-badge ok">✓</span>
+                            <b>{q.query}</b>
+                            <small>{q.count.toLocaleString()}×</small>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              </>
             )}
           </div>
 

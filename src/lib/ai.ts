@@ -93,6 +93,10 @@ export function aiAsk(input: {
   message: string;
   conversationId?: string | null;
   materialId?: string | null;
+  /** Explicitly detach the current conversation from its material scope. */
+  clearScope?: boolean;
+  /** Learning mode hint ('explainer' | 'exam' | 'summary' | 'quiz'). */
+  mode?: 'explainer' | 'exam' | 'summary' | 'quiz';
   filters?: AiSearchFilters;
 }): Promise<AiChatResponse> {
   return invoke<AiChatResponse>('ai-chat', input);

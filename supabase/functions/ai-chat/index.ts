@@ -1,11 +1,32 @@
 // FUW E-Library — AI Assistant endpoint (RAG).
-// POST { message, conversationId?, materialId?, filters? { department, level, courseCode } }
+// POST { message, conversationId?, materialId?, clearScope?, mode?, filters? { department, level, courseCode } }
 // Requires an authenticated student/admin JWT. Secrets stay server-side.
+//
+// Correctness rules enforced here:
+//   * The exact question the student asked is what gets answered — never a
+//     keyword-matched reinterpretation.
+//   * Follow-up questions ("who discovered it?") carry the recent conversation
+//     context into retrieval so they resolve against the current topic.
+//   * Topic/scope switches work: a conversation can be re-scoped to another
+//     material or cleared back to the whole library.
+//   * If the answer is not in the sources, the assistant says so instead of
+//     inventing content.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { aiConfig, chatComplete, embedTexts, corsFor, json, ChatMessage } from '../_shared/ai.ts';
 
 const MAX_MESSAGE_LENGTH = 2000;
 const HOURLY_MESSAGE_LIMIT = 40;
+
+const MODE_HINTS: Record<string, string> = {
+  explainer:
+    'The student chose the EXPLAINER mode — break concepts down simply, use analogies, and check understanding.',
+  exam:
+    'The student chose EXAM PREP mode — focus on likely examinable points, definitions, formulas, and practice questions.',
+  summary:
+    'The student chose SUMMARY mode — produce concise, structured summaries with clear headings.',
+  quiz:
+    'The student chose QUIZ mode — generate questions with answers and mark them clearly as practice questions.'
+};
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsFor(req) });
@@ -75,7 +96,14 @@ Deno.serve(async (req) => {
 
     // ---- Conversation resolution ----
     let conversationId: string | null = body.conversationId ? String(body.conversationId) : null;
-    let materialId: string | null = body.materialId ? String(body.materialId) : null;
+    const hasExplicitMaterial = body.materialId !== undefined && body.materialId !== null && body.materialId !== '';
+    const explicitMaterialId = hasExplicitMaterial ? String(body.materialId) : null;
+    const clearScope = body.clearScope === true;
+    const mode =
+      typeof body.mode === 'string' && MODE_HINTS[body.mode] ? body.mode : null;
+
+    let materialId: string | null = explicitMaterialId;
+    let existingScopeMaterialId: string | null | undefined;
 
     if (conversationId) {
       const { data: convo } = await serviceClient
@@ -85,14 +113,47 @@ Deno.serve(async (req) => {
         .eq('user_id', user.id)
         .maybeSingle();
       if (!convo) {
+        // Stale/foreign conversation id — start fresh.
         conversationId = null;
+        materialId = explicitMaterialId;
       } else {
-        materialId = materialId ?? convo.material_id;
+        existingScopeMaterialId = convo.material_id;
+        if (clearScope) materialId = null;
+        else if (!hasExplicitMaterial) materialId = convo.material_id;
       }
     }
 
-    // ---- Retrieval (embed query -> similarity search) ----
-    const [queryEmbedding] = await embedTexts(cfg, [message]);
+    // ---- Recent history (used for both the LLM context and, for short
+    //      follow-ups, to anchor retrieval to the current topic) ----
+    let history: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+    if (conversationId) {
+      const { data: rows } = await serviceClient
+        .from('ai_messages')
+        .select('role, content')
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: false })
+        .limit(10);
+      history = (rows ?? []).reverse().map((m: { role: string; content: string }) => ({
+        role: m.role === 'user' ? ('user' as const) : ('assistant' as const),
+        content: String(m.content ?? '').slice(0, 1500)
+      }));
+    }
+
+    // ---- Retrieval keeps the CONVERSATION TOPIC, not just the current turn.
+    //      A short follow-up ("Who discovered it?") is anchored to the previous
+    //      user question so the query still describes the topic. ----
+    const priorUserQuestions = history
+      .filter((m) => m.role === 'user')
+      .map((m) => m.content)
+      .slice(-2)
+      .join(' ');
+    const isLikelyFollowUp = conversationId !== null && message.length < 80;
+    const retrievalQuery =
+      isLikelyFollowUp && priorUserQuestions
+        ? `${priorUserQuestions.slice(0, 400)}\n${message}`
+        : message;
+
+    const [queryEmbedding] = await embedTexts(cfg, [retrievalQuery]);
     const filters = body.filters ?? {};
     const { data: chunks, error: matchError } = await serviceClient.rpc('match_material_chunks', {
       query_embedding: queryEmbedding,
@@ -132,20 +193,33 @@ Deno.serve(async (req) => {
     const systemPrompt: string = [
       'You are the FUW E-Library Study Assistant for Federal University Wukari students.',
       'Answer clearly and educationally, like a patient university tutor.',
+      'Answer the EXACT question the student asked. Do not substitute a different topic or question even if a keyword overlaps.',
+      'If asked about something you cannot determine, say plainly that you do not know rather than guessing.',
       'PRIORITY: base answers on the retrieved e-library excerpts below when they are relevant.',
       'Cite them like: "According to <material title>, page N ...".',
       'If the retrieved materials do not contain the answer, say so explicitly, then optionally add clearly-labelled general knowledge.',
       'Never invent content that is not in the sources while claiming it comes from a source document.',
+      'Use the conversation history to answer follow-up questions about the same topic, and switch topics cleanly when the student clearly asks about something new.',
       'Use markdown formatting. Keep answers concise but complete.'
     ].join('\n');
 
     const messagesForModel: ChatMessage[] = [{ role: 'system', content: systemPrompt }];
+    if (mode) messagesForModel.push({ role: 'system', content: MODE_HINTS[mode] });
+
     if (contextBlock) {
       messagesForModel.push({
         role: 'system',
         content: `Retrieved e-library excerpts:\n\n${contextBlock}`
       });
-    } else if (!matched.length && !contextBlock) {
+    } else if (history.length > 0) {
+      // A follow-up with no fresh matches: rely on the conversation already in
+      // context, but stay honest about what the library covers.
+      messagesForModel.push({
+        role: 'system',
+        content:
+          'No new e-library excerpts matched this follow-up. Answer using the conversation history above; label general knowledge clearly as such. If neither the conversation nor the library clearly covers the question, say you could not find it in the library materials yet.'
+      });
+    } else {
       messagesForModel.push({
         role: 'system',
         content:
@@ -153,18 +227,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Recent history for context (last 10 messages).
-    if (conversationId) {
-      const { data: history } = await serviceClient
-        .from('ai_messages')
-        .select('role, content')
-        .eq('conversation_id', conversationId)
-        .order('created_at', { ascending: false })
-        .limit(10);
-      for (const m of (history ?? []).reverse()) {
-        messagesForModel.push({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content.slice(0, 1500) });
-      }
-    }
+    // Conversation history for the model (already sliced/truncated above).
+    for (const m of history) messagesForModel.push(m);
     messagesForModel.push({ role: 'user', content: message });
 
     // ---- Generate answer ----
@@ -183,6 +247,16 @@ Deno.serve(async (req) => {
         .single();
       if (createErr) throw new Error(`CONVERSATION_FAILED:${createErr.message}`);
       conversationId = created.id;
+    } else if (
+      (clearScope || hasExplicitMaterial) &&
+      existingScopeMaterialId !== (materialId ?? null)
+    ) {
+      // The student re-scoped (or unscoped) this conversation — persist it so
+      // it survives refreshes and future turns use the new scope.
+      await serviceClient
+        .from('ai_conversations')
+        .update({ material_id: materialId })
+        .eq('id', conversationId);
     }
 
     const citations = matched.slice(0, 5).map((c) => ({

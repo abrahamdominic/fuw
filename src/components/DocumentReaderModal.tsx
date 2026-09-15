@@ -15,6 +15,7 @@ import {
   Share2
 } from 'lucide-react';
 import { MaterialItem, store } from '../lib/store';
+import { getSecureFileUrl } from '../lib/materials';
 import { useToast } from './Toast';
 import { analyticsTracker } from '../lib/analyticsTracker';
 
@@ -33,13 +34,29 @@ export function DocumentReaderModal({ material, onClose }: DocumentReaderModalPr
 
   // Render the REAL uploaded document whenever the browser can display it
   // inline (PDF files). Other formats fall back to the metadata sheet view.
-  const source = material?.fileUrl || '';
-  const looksLikePdf =
-    /\.pdf(\?|#|$)/i.test(source) || /\.pdf(\?|#|$)/i.test(material?.fileName || '');
+  // The source is resolved through secure storage so private buckets work too.
+  const [source, setSource] = useState('');
   const [canEmbedFile, setCanEmbedFile] = useState(true);
   useEffect(() => {
-    setCanEmbedFile(Boolean(source) && looksLikePdf);
-  }, [source, looksLikePdf]);
+    let cancelled = false;
+    if (material) {
+      void getSecureFileUrl(material).then((url) => {
+        if (!cancelled) {
+          setSource(url);
+          setCanEmbedFile(Boolean(url) && (/\.pdf(\?|#|$)/i.test(url) || /\.pdf(\?|#|$)/i.test(material.fileName || '')));
+        }
+      });
+    } else {
+      setSource('');
+      setCanEmbedFile(true);
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [material]);
+
+  const looksLikePdf =
+    /\.pdf(\?|#|$)/i.test(source) || /\.pdf(\?|#|$)/i.test(material?.fileName || '');
 
   useEffect(() => {
     if (material) {
@@ -66,13 +83,14 @@ export function DocumentReaderModal({ material, onClose }: DocumentReaderModalPr
 
   const isSaved = store.isBookmarked(material.id);
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
+    const url = await getSecureFileUrl(material);
     store.recordDownload(material.id);
     analyticsTracker.trackMaterialDownload(material.id, material.title);
     toast(`Download initiated: ${material.fileName}`);
     // Trigger download of demo or actual document
     const link = document.createElement('a');
-    link.href = material.fileUrl;
+    link.href = url;
     link.download = material.fileName;
     document.body.appendChild(link);
     link.click();

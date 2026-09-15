@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useLocation, Navigate } from 'react-router-dom';
 import {
   AlertCircle,
   ArrowLeft,
@@ -17,13 +17,18 @@ import {
   Layers,
   Lock,
   Mail,
+  Pause,
+  Play,
   Phone,
   RefreshCw,
   School,
   ShieldCheck,
   Sparkles,
   UserRound,
-  UserPlus
+  UserPlus,
+  Volume2,
+  VolumeX,
+  X
 } from 'lucide-react';
 import { SEO } from '../components/SEO';
 import { Logo } from '../components/Logo';
@@ -35,9 +40,147 @@ import { aal2LoginChallenge, signInWithPasskey } from '../lib/security';
 type AuthMode = 'login' | 'register' | 'forgot';
 
 /* ---------------------------------------------------------------------------
- * Shared shell — mobile-style full-page auth layout.
+ * Desktop Institutional Animation Showcase Side Panel
  * ------------------------------------------------------------------------- */
+export function AuthShowcase() {
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [isMuted, setIsMuted] = useState(true);
+  const [videoLoaded, setVideoLoaded] = useState(false);
+  const [videoError, setVideoError] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
+  const toggleSound = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (isMuted) {
+      video.muted = false;
+      video.volume = 0.7;
+      setIsMuted(false);
+      if (video.paused) {
+        video.play().catch(() => {});
+        setIsPlaying(true);
+      }
+    } else {
+      video.muted = true;
+      setIsMuted(true);
+    }
+  };
+
+  const togglePlayback = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.paused) {
+      video.play().then(() => setIsPlaying(true)).catch(() => {});
+    } else {
+      video.pause();
+      setIsPlaying(false);
+    }
+  };
+
+  return (
+    <aside className="mac-showcase" aria-label="FUW E-Library Institutional Showcase">
+      <div className={`mac-showcase-video-box ${videoLoaded ? 'loaded' : ''}`}>
+        {!videoError && (
+          <video
+            ref={videoRef}
+            className="mac-showcase-video"
+            autoPlay
+            loop
+            muted={isMuted}
+            playsInline
+            preload="auto"
+            onLoadedData={() => setVideoLoaded(true)}
+            onError={() => {
+              setVideoError(true);
+              setVideoLoaded(false);
+            }}
+          >
+            <source src="/images/animation.mp4" type="video/mp4" />
+            <source src="/animation.mp4" type="video/mp4" />
+          </video>
+        )}
+        <div className="mac-showcase-gradient" />
+      </div>
+
+      <div className="mac-showcase-content">
+        <div className="mac-showcase-badge">
+          <GraduationCap size={15} />
+          <span>FEDERAL UNIVERSITY WUKARI</span>
+        </div>
+
+        <h2 className="mac-showcase-title">
+          Institutional Academic <br />
+          <em>Digital Repository</em>
+        </h2>
+
+        <p className="mac-showcase-desc">
+          Official study portal providing 24/7 verified access to departmental lecture notes,
+          curriculum textbooks, and past examination papers for students and faculty.
+        </p>
+
+        <div className="mac-showcase-stats">
+          <div className="mac-showcase-stat">
+            <b>14+</b>
+            <span>Faculties</span>
+          </div>
+          <div className="mac-showcase-stat-divider" />
+          <div className="mac-showcase-stat">
+            <b>40+</b>
+            <span>Departments</span>
+          </div>
+          <div className="mac-showcase-stat-divider" />
+          <div className="mac-showcase-stat">
+            <b>100%</b>
+            <span>Curriculum-Aligned</span>
+          </div>
+        </div>
+
+        <div className="mac-showcase-features">
+          <div className="mac-showcase-feat">
+            <CheckCircle2 size={16} />
+            <span>24/7 Access on Mobile, Tablet &amp; Desktop</span>
+          </div>
+          <div className="mac-showcase-feat">
+            <CheckCircle2 size={16} />
+            <span>Faculty-Approved Syllabus &amp; Handouts</span>
+          </div>
+          <div className="mac-showcase-feat">
+            <CheckCircle2 size={16} />
+            <span>Fast Offline-Ready Study Downloads</span>
+          </div>
+        </div>
+
+        {/* Media Controls for Background Animation */}
+        {!videoError && (
+          <div className="mac-showcase-media-bar">
+            <button
+              type="button"
+              className={`mac-media-pill ${!isMuted ? 'active' : ''}`}
+              onClick={toggleSound}
+              title={isMuted ? 'Unmute video audio' : 'Mute video audio'}
+            >
+              {!isMuted ? <Volume2 size={13} /> : <VolumeX size={13} />}
+              <span>{!isMuted ? 'Audio On' : 'Audio Muted'}</span>
+            </button>
+            <button
+              type="button"
+              className="mac-media-pill"
+              onClick={togglePlayback}
+              title={isPlaying ? 'Pause animation' : 'Play animation'}
+            >
+              {isPlaying ? <Pause size={13} /> : <Play size={13} />}
+              <span>{isPlaying ? 'Pause Motion' : 'Play Motion'}</span>
+            </button>
+          </div>
+        )}
+      </div>
+    </aside>
+  );
+}
+
+/* ---------------------------------------------------------------------------
+ * Shared shell — mobile-style layout with responsive desktop showcase
+ * ------------------------------------------------------------------------- */
 export function MacPage({
   pill,
   subtitle,
@@ -51,32 +194,39 @@ export function MacPage({
     <main className="mac-page">
       <div className="mac-orb mac-orb-a" aria-hidden />
       <div className="mac-orb mac-orb-b" aria-hidden />
-      <div className="mac-shell">
-        <header className="mac-header">
-          <div className="mac-logo-circle">
-            <Logo size={54} />
-          </div>
-          <span className="mac-pill">
-            <School size={12} />
-            <span>{pill}</span>
-          </span>
-          <h1 className="mac-title">FUW E-Library</h1>
-          <p className="mac-subtitle">
-            {subtitle ?? 'Institutional Academic Repository & Study Portal'}
-          </p>
-        </header>
+      
+      <div className="mac-container">
+        {/* Left Side Showcase (Desktop / Laptop) */}
+        <AuthShowcase />
 
-        {children}
+        {/* Right Side / Centered Mobile Card Shell */}
+        <div className="mac-shell">
+          <header className="mac-header">
+            <div className="mac-logo-circle">
+              <Logo size={54} />
+            </div>
+            <span className="mac-pill">
+              <School size={12} />
+              <span>{pill}</span>
+            </span>
+            <h1 className="mac-title">FUW E-Library</h1>
+            <p className="mac-subtitle">
+              {subtitle ?? 'Institutional Academic Repository & Study Portal'}
+            </p>
+          </header>
 
-        <footer className="mac-footer">
-          <span className="mac-badge">
-            <ShieldCheck size={13} />
-            Protected by FUW ICT
-          </span>
-          <p>
-            By continuing, you agree to Federal University Wukari’s Academic Fair Use Policy.
-          </p>
-        </footer>
+          {children}
+
+          <footer className="mac-footer">
+            <span className="mac-badge">
+              <ShieldCheck size={13} />
+              Protected by FUW ICT
+            </span>
+            <p>
+              By continuing, you agree to Federal University Wukari’s Academic Fair Use Policy.
+            </p>
+          </footer>
+        </div>
       </div>
     </main>
   );
@@ -166,6 +316,7 @@ export function TextControl({
   label,
   value,
   onChange,
+  onClear,
   placeholder,
   type = 'text',
   autoComplete,
@@ -178,6 +329,7 @@ export function TextControl({
   label: string;
   value: string;
   onChange: (v: string) => void;
+  onClear?: () => void;
   placeholder?: string;
   type?: string;
   autoComplete?: string;
@@ -205,6 +357,18 @@ export function TextControl({
           autoCorrect="off"
           required
         />
+        {onClear && value.length > 0 && (
+          <button
+            type="button"
+            className="mac-trailing mac-clear-btn"
+            onClick={onClear}
+            aria-label="Clear field"
+            title="Clear"
+            tabIndex={-1}
+          >
+            <X size={16} />
+          </button>
+        )}
       </div>
       {hint && <p className="mac-hint">{hint}</p>}
     </div>
@@ -247,9 +411,8 @@ export function SelectControl({
 }
 
 /* ---------------------------------------------------------------------------
- * Two-step registration stepper.
+ * Two-step registration stepper
  * ------------------------------------------------------------------------- */
-
 function RegisterStepper({
   currentStep,
   onStepOne
@@ -295,11 +458,11 @@ function RegisterStepper({
 }
 
 /* ---------------------------------------------------------------------------
- * Main Auth Page (login / register / forgot) — mobile-style experience.
+ * Main Auth Page (login / register / forgot)
  * ------------------------------------------------------------------------- */
-
 export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const {
     signInWithUsername,
@@ -309,6 +472,7 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
     signOut,
     isAuthenticated,
     isProfileComplete,
+    isLoading,
     profile,
     mfaRequired,
     mfaVerifiedFactor,
@@ -350,7 +514,17 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
   const [otpError, setOtpError] = useState<string | null>(null);
   const [passkeyBusy, setPasskeyBusy] = useState(false);
 
-  // Same cascade logic the old register page used: level choices follow the
+  // Registration welcome dialog modal
+  const [welcome, setWelcome] = useState<{
+    fullName: string;
+    username: string;
+    email: string;
+    department: string;
+    level: string;
+    needsEmailConfirmation: boolean;
+  } | null>(null);
+
+  // Same cascade logic the mobile app uses: level choices follow the
   // selected department's programme duration (4/5/6 years).
   const currentFaculty = useMemo(() => facultyByName(profileData.faculty) || catalogue[0], [profileData.faculty]);
   const currentDepartment = useMemo(
@@ -392,23 +566,46 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
     setOtp('');
   };
 
-  // If already authenticated with a completed profile, forward to the right
-  // portal. Incomplete profiles stay here so the student finishes signup.
-  useEffect(() => {
-    if (isAuthenticated && isProfileComplete && step !== 'otp' && !mfaRequired) {
-      if (profile?.role === 'super_admin') navigate('/super', { replace: true });
-      else if (profile?.role === 'admin') navigate('/admin', { replace: true });
-      else navigate('/student', { replace: true });
-    }
-  }, [isAuthenticated, isProfileComplete, profile, navigate, step, mfaRequired]);
+  const fromPath = (location.state as any)?.from?.pathname;
 
-  const goToPortal = () => {
-    if (profile?.role === 'super_admin') navigate('/super');
-    else if (profile?.role === 'admin') navigate('/admin');
-    else navigate('/student');
+  const goToPortal = (roleOverride?: string) => {
+    if (fromPath && fromPath !== '/login' && fromPath !== '/register' && fromPath !== '/') {
+      navigate(fromPath, { replace: true });
+      return;
+    }
+    const role = roleOverride || profile?.role;
+    if (role === 'super_admin') navigate('/super', { replace: true });
+    else if (role === 'admin') navigate('/admin', { replace: true });
+    else navigate('/student', { replace: true });
   };
 
-  // Login
+  // If already authenticated with a completed profile, forward to the right
+  // portal or requested route.
+  useEffect(() => {
+    if (isAuthenticated && isProfileComplete && step !== 'otp' && !mfaRequired) {
+      if (fromPath && fromPath !== '/login' && fromPath !== '/register' && fromPath !== '/') {
+        navigate(fromPath, { replace: true });
+      } else if (profile?.role === 'super_admin') {
+        navigate('/super', { replace: true });
+      } else if (profile?.role === 'admin') {
+        navigate('/admin', { replace: true });
+      } else {
+        navigate('/student', { replace: true });
+      }
+    }
+  }, [isAuthenticated, isProfileComplete, profile, navigate, step, mfaRequired, fromPath]);
+
+  // Prevent flash of login screen if already authenticated or while loading
+  if (isLoading) {
+    return null;
+  }
+  if (isAuthenticated && isProfileComplete && step !== 'otp' && !mfaRequired) {
+    const defaultTarget = profile?.role === 'super_admin' ? '/super' : profile?.role === 'admin' ? '/admin' : '/student';
+    const dest = fromPath && fromPath !== '/login' && fromPath !== '/register' && fromPath !== '/' ? fromPath : defaultTarget;
+    return <Navigate to={dest} replace />;
+  }
+
+  // Login handler
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
@@ -436,7 +633,7 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
     }
 
     toast('Welcome back to FUW E-Library!', 'success');
-    goToPortal();
+    goToPortal(res.role);
   };
 
   // MFA code verification
@@ -476,7 +673,7 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
       toast('Signed in with your passkey!', 'success');
       goToPortal();
     } catch (err: any) {
-      setErrorMsg(err?.message || 'Passkey sign-in was cancelled or failed.');
+      setErrorMsg(err?.message || 'The secure login could not be completed. Please use your password instead.');
     } finally {
       setPasskeyBusy(false);
     }
@@ -595,11 +792,14 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
       setBusy(false);
       setPassword('');
       setConfirmPassword('');
-      switchMode('login');
-      setSuccessMsg(
-        'Account created! Check your email inbox for the confirmation link, then log in with your username and password.'
-      );
-      toast('Account created — confirm your email to log in.', 'success');
+      setWelcome({
+        fullName: fullName.trim(),
+        username: username.trim().toLowerCase(),
+        email: email.trim().toLowerCase(),
+        department: profileData.department,
+        level: profileData.level,
+        needsEmailConfirmation: true
+      });
       return;
     }
 
@@ -621,8 +821,14 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
       return;
     }
 
-    toast('Student profile created successfully! Welcome to FUW E-Library.', 'success');
-    navigate('/student');
+    setWelcome({
+      fullName: fullName.trim(),
+      username: username.trim().toLowerCase(),
+      email: email.trim().toLowerCase(),
+      department: profileData.department,
+      level: profileData.level,
+      needsEmailConfirmation: false
+    });
   };
 
   const title = mode === 'register' ? 'Create Student Account' : mode === 'forgot' ? 'Reset your Password' : 'Sign In';
@@ -680,6 +886,7 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
                     setUsername(v);
                     if (errorMsg) setErrorMsg(null);
                   }}
+                  onClear={() => setUsername('')}
                   placeholder="e.g. cis.student or user@fuwukari.edu.ng"
                   autoComplete="username"
                   disabled={busy}
@@ -736,6 +943,12 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
                   </>
                 )}
               </button>
+
+              {errorMsg && (
+                <p className="mac-passkey-hint">
+                  Prefer to use your password? Use the password fields above to sign in instead.
+                </p>
+              )}
             </div>
           ) : (
             <div className="mac-view" key="otp">
@@ -828,7 +1041,7 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
                   label="Full Name *"
                   value={fullName}
                   onChange={(v) => { setFullName(v); if (errorMsg) setErrorMsg(null); }}
-                  placeholder="e.g. Aisha Bello"
+                  placeholder="e.g. Dominic Abraham"
                   autoComplete="name"
                   disabled={busy}
                 />
@@ -838,7 +1051,8 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
                   label="Choose Username *"
                   value={username}
                   onChange={(v) => { setUsername(v.toLowerCase()); if (errorMsg) setErrorMsg(null); }}
-                  placeholder="e.g. aisha.bello"
+                  onClear={() => setUsername('')}
+                  placeholder="e.g. abraham.d"
                   autoComplete="username"
                   disabled={busy}
                   maxLength={20}
@@ -1045,6 +1259,7 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
                   setForgotEmail(v);
                   if (errorMsg) setErrorMsg(null);
                 }}
+                onClear={() => setForgotEmail('')}
                 placeholder="your.name@fuwukari.edu.ng or your.username"
                 autoComplete="email"
                 disabled={busy}
@@ -1068,6 +1283,72 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
             </button>
           </div>
         </MacCard>
+      )}
+
+      {/* ============================ REGISTRATION WELCOME MODAL ============================ */}
+      {welcome && (
+        <div className="mac-welcome-overlay" role="dialog" aria-modal="true">
+          <div className="mac-welcome-card">
+            <div className="mac-welcome-icon-circle">
+              <Sparkles size={34} color="#0B6B3A" />
+            </div>
+            <span className="mac-welcome-eyebrow">WELCOME TO FUW E-LIBRARY</span>
+            <h2 className="mac-welcome-title">
+              You&apos;re all set, {welcome.fullName.split(/\s+/)[0] || 'student'}!
+            </h2>
+            <p className="mac-welcome-desc">
+              Your student account is ready for a focused, smarter study experience.
+            </p>
+
+            <div className="mac-welcome-summary">
+              <div className="mac-welcome-summary-row">
+                <AtSign size={16} color="#0B6B3A" />
+                <span>@{welcome.username}</span>
+              </div>
+              <div className="mac-welcome-summary-row">
+                <School size={16} color="#0B6B3A" />
+                <span>
+                  {welcome.department} · {welcome.level}
+                </span>
+              </div>
+            </div>
+
+            <div className="mac-welcome-notice">
+              {welcome.needsEmailConfirmation ? (
+                <>
+                  <Mail size={18} color="#15803D" />
+                  <p>
+                    We sent a confirmation link to <b>{welcome.email}</b>. Please confirm your email before signing in.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 size={18} color="#15803D" />
+                  <p>
+                    Your student profile is active. You can now explore verified lecture notes, past questions, and research materials.
+                  </p>
+                </>
+              )}
+            </div>
+
+            <button
+              type="button"
+              className="mac-btn mac-btn-primary mac-welcome-btn"
+              onClick={() => {
+                const needsConfirm = welcome.needsEmailConfirmation;
+                setWelcome(null);
+                if (needsConfirm) {
+                  switchMode('login');
+                } else {
+                  goToPortal();
+                }
+              }}
+            >
+              <span>{welcome.needsEmailConfirmation ? 'Continue to Sign In' : 'Start Learning'}</span>
+              <ArrowRight size={17} aria-hidden />
+            </button>
+          </div>
+        </div>
       )}
     </MacPage>
   );

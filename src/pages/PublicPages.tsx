@@ -28,6 +28,8 @@ import {
 } from 'lucide-react';
 import { useStore } from '../lib/useStore';
 import { MaterialItem } from '../lib/store';
+import { logSearch } from '../lib/searchLog';
+import { friendlyError } from '../lib/friendlyError';
 import { catalogue, facultyByName, departmentByName, levelsFor, allDepartments, normalizeLevel, groupedFaculties } from '../data/catalogue';
 import { useAuth, USERNAME_PATTERN, normalizeUsername } from '../lib/AuthContext';
 import { aiSearch, AiSearchResult } from '../lib/ai';
@@ -157,6 +159,12 @@ export function LibraryPage({ onReadOnline }: PublicPagesProps) {
   const queryType = searchParams.get('type') || '';
   const queryCourse = searchParams.get('course') || '';
 
+  // Pull server-side bookmarks in for signed-in users browsing the catalogue.
+  useEffect(() => {
+    if (isAuthenticated) void store.pullBookmarksFromDb();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
+
   const [searchInput, setSearchInput] = useState(queryQ);
 
   // When a deep-link carries only a department, infer its faculty so the
@@ -207,6 +215,13 @@ export function LibraryPage({ onReadOnline }: PublicPagesProps) {
       department: queryDepartment || null,
       level: queryLevel || null,
       course: queryCourse || null
+    });
+    logSearch(searchInput.trim(), undefined, {
+      faculty: queryFaculty || undefined,
+      department: queryDepartment || undefined,
+      level: queryLevel || undefined,
+      semester: querySemester || undefined,
+      type: queryType || undefined
     });
   };
 
@@ -1104,7 +1119,7 @@ export function LoginPage({
     setBusy(false);
 
     if (res.error) {
-      setErrorMsg(res.error.message);
+      setErrorMsg(friendlyError(res.error, 'Unable to complete the request. Please try again.'));
       return;
     }
 
@@ -1167,7 +1182,7 @@ export function LoginPage({
       else if (role === 'admin') navigate('/admin');
       else navigate('/student');
     } catch (err: any) {
-      setErrorMsg(err?.message || 'Passkey sign-in was cancelled or failed.');
+      setErrorMsg(err?.message || 'The secure login could not be completed. Please use your password instead.');
     } finally {
       setPasskeyBusy(false);
     }
@@ -1189,7 +1204,7 @@ export function LoginPage({
     setBusy(false);
 
     if (res.error) {
-      setErrorMsg(res.error.message);
+      setErrorMsg(friendlyError(res.error, 'Unable to complete the request. Please try again.'));
       return;
     }
 
@@ -1217,7 +1232,7 @@ export function LoginPage({
     setBusy(false);
 
     if (res.error) {
-      setErrorMsg(res.error.message);
+      setErrorMsg(friendlyError(res.error, 'Unable to complete the request. Please try again.'));
       return;
     }
 
@@ -1282,7 +1297,7 @@ export function LoginPage({
     setBusy(false);
 
     if (res.error) {
-      setErrorMsg(res.error.message);
+      setErrorMsg(friendlyError(res.error, 'Unable to complete the request. Please try again.'));
     } else {
       toast('Student profile created successfully! Welcome to FUW E-Library.', 'success');
       navigate('/student');
@@ -1904,7 +1919,7 @@ export function ResetPasswordPage() {
     const res = await resetPassword(password);
     if (res.error) {
       setBusy(false);
-      setErrorMsg(res.error.message);
+      setErrorMsg(friendlyError(res.error, 'Unable to complete the request. Please try again.'));
       return;
     }
 
@@ -2048,7 +2063,7 @@ export function AdminLoginPage() {
     setBusy(false);
 
     if (res.error) {
-      setErrorMsg(res.error.message);
+      setErrorMsg(friendlyError(res.error, 'Unable to complete the request. Please try again.'));
       return;
     }
 

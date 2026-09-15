@@ -11,6 +11,7 @@
 //     (Auth → Settings → Experimental Features → Passkeys) AND in the client
 //     createClient options (`experimental.passkey = true` — see supabase.ts).
 import { requireSupabase } from './supabase';
+import { toUserFacingAuthError } from './authErrors';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -39,13 +40,13 @@ export interface AALState {
 export async function getAAL(): Promise<AALState> {
   const supabase = requireSupabase();
   const { data, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-  if (error) throw error;
+  if (error) throw toUserFacingAuthError(error, 'Something went wrong. Please try again.');
 
   const { currentLevel, nextLevel } = data;
 
   // List all enrolled factors.
   const { data: factors, error: listErr } = await supabase.auth.mfa.listFactors();
-  if (listErr) throw listErr;
+  if (listErr) throw toUserFacingAuthError(listErr, 'Could not load your security settings.');
 
   const totpFactors: TOTPFactor[] = (factors?.totp ?? []) as TOTPFactor[];
   const verified = totpFactors.filter((f) => f.status === 'verified');
@@ -73,7 +74,7 @@ export async function enrollTOTP(friendlyName = 'FUW E-Library'): Promise<{
     factorType: 'totp',
     friendlyName
   });
-  if (error) throw error;
+  if (error) throw toUserFacingAuthError(error, 'Something went wrong. Please try again.');
 
   return {
     factor_id: data.id,
@@ -91,7 +92,7 @@ export async function challengeTOTP(
 ): Promise<{ challenge_id: string }> {
   const supabase = requireSupabase();
   const { data, error } = await supabase.auth.mfa.challenge({ factorId });
-  if (error) throw error;
+  if (error) throw toUserFacingAuthError(error, 'Something went wrong. Please try again.');
   return { challenge_id: data.id };
 }
 
@@ -110,7 +111,7 @@ export async function verifyTOTP(opts: {
     challengeId: opts.challenge_id,
     code: opts.code
   });
-  if (error) throw error;
+  if (error) throw toUserFacingAuthError(error, 'Something went wrong. Please try again.');
 }
 
 /** Full enrollment flow: enroll → prompt → verify → done. */
@@ -126,7 +127,7 @@ export async function completeEnrollment(
 export async function unenrollFactor(factorId: string): Promise<void> {
   const supabase = requireSupabase();
   const { error } = await supabase.auth.mfa.unenroll({ factorId });
-  if (error) throw error;
+  if (error) throw toUserFacingAuthError(error, 'Something went wrong. Please try again.');
 }
 
 /**
@@ -158,7 +159,7 @@ export interface PasskeyRegistration {
 export async function registerPasskey(): Promise<{ id: string }> {
   const supabase = requireSupabase();
   const { data, error } = await supabase.auth.registerPasskey();
-  if (error) throw error;
+  if (error) throw toUserFacingAuthError(error, 'Something went wrong. Please try again.');
   return { id: data?.id ?? '' };
 }
 
@@ -166,7 +167,7 @@ export async function registerPasskey(): Promise<{ id: string }> {
 export async function listPasskeys(): Promise<PasskeyRegistration[]> {
   const supabase = requireSupabase();
   const { data, error } = await supabase.auth.passkey.list();
-  if (error) throw error;
+  if (error) throw toUserFacingAuthError(error, 'Something went wrong. Please try again.');
   return (data as PasskeyRegistration[]) ?? [];
 }
 
@@ -174,7 +175,7 @@ export async function listPasskeys(): Promise<PasskeyRegistration[]> {
 export async function deletePasskey(passkeyId: string): Promise<void> {
   const supabase = requireSupabase();
   const { error } = await supabase.auth.passkey.delete({ passkeyId });
-  if (error) throw error;
+  if (error) throw toUserFacingAuthError(error, 'Something went wrong. Please try again.');
 }
 
 /**
@@ -185,7 +186,7 @@ export async function deletePasskey(passkeyId: string): Promise<void> {
 export async function signInWithPasskey(): Promise<void> {
   const supabase = requireSupabase();
   const { error } = await supabase.auth.signInWithPasskey();
-  if (error) throw error;
+  if (error) throw toUserFacingAuthError(error, 'Something went wrong. Please try again.');
 }
 
 /** Rename a passkey's friendly name after registration. */
@@ -198,5 +199,5 @@ export async function renamePasskey(opts: {
     passkeyId: opts.passkeyId,
     friendlyName: opts.friendlyName
   });
-  if (error) throw error;
+  if (error) throw toUserFacingAuthError(error, 'Something went wrong. Please try again.');
 }

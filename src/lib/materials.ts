@@ -3,7 +3,8 @@
 // attached afterwards, and rows are mapped into the UI's MaterialItem shape.
 import { supabase, requireSupabase } from './supabase';
 import type { MaterialItem, AssignedDepartment } from './store';
-import { normalizeMaterialType, courseTitleByCode, normalizeLevel } from '../data/catalogue';
+import { store } from './store';
+import { normalizeMaterialType, courseTitleByCode, normalizeLevel, allDepartments } from '../data/catalogue';
 
 export type { AssignedDepartment };
 
@@ -189,6 +190,7 @@ export function mapMaterialRow(row: any, index = 0): MaterialItem {
       role: uploaderRole
     },
     fileUrl: row.file_url || '',
+    filePath: row.file_path || undefined,
     fileName: row.file_name || `${row.title}.pdf`,
     fileSize: formatFileSize(row.file_size),
     description: row.description || ''
@@ -566,7 +568,6 @@ export async function submitMaterial(input: {
     .single();
 
   // Refresh the reactive store cache so every screen reflects the new item.
-  const { store } = await import('./store');
   void store.syncMaterialsFromSupabase();
 
   if (updateError || !finalRow) {
@@ -663,7 +664,6 @@ export async function fetchDepartmentCatalogue(): Promise<DepartmentOption[]> {
   }
 
   // Fallback to static catalogue
-  const { allDepartments } = await import('../data/catalogue');
   return allDepartments().map((d) => ({
     id: d.name,
     name: d.name,
@@ -727,6 +727,37 @@ export async function deleteMaterial(materialId: string): Promise<void> {
 }
 
 async function refreshAfterMutation(): Promise<void> {
-  const { store } = await import('./store');
   await store.syncMaterialsFromSupabase();
+}
+
+// Secure file access. When the storage bucket is private, `file_url` stored at
+// upload time may be stale/unreachable, so we mint a short-lived signed URL
+// from `file_path` and cache it until just before it expires. Falls back to the
+// public URL when no path is available or the signed URL fails.
+const signedUrlCache = new Map<string, { url: string; expiresAt: number }>();
+
+export async function getSecureFileUrl(material: {
+  fileUrl?: string;
+  filePath?: string;
+  fileName?: string;
+}): Promise<string> {
+  const { fileUrl, filePath } = material;
+  if (!filePath) return fileUrl || '';
+  const cached = signedUrlCache.get(filePath);
+  if (cached && Date.now() < cached.expiresAt) return cached.url;
+  try {
+    const client = requireSupabase();
+    const { data, error } = await client.storage
+      .from(BUCKET)
+      .createSignedUrl(filePath, 3600);
+    if (error || !data?.signedUrl) return fileUrl || '';
+    signedUrlCache.set(filePath, { url: data.signedUrl, expiresAt: Date.now() + (3600 - 120) * 1000 });
+    return data.signedUrl;
+  } catch {
+    return fileUrl || '';
+  }
+}
+
+export function clearSignedUrlCache(): void {
+  signedUrlCache.clear();
 }

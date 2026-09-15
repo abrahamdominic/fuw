@@ -1,0 +1,72 @@
+/**
+ * Sanitize low-level auth / passkey / TOTP errors into safe, user-facing
+ * messages. Raw error text (server URLs, SDK internals, exception frames)
+ * is never shown to end users here — it is only logged for debugging.
+ */
+
+function extractMessage(err: unknown): string {
+  if (err instanceof Error) return err.message || '';
+  if (typeof err === 'string') return err;
+  if (err && typeof err === 'object') {
+    const obj = err as Record<string, unknown>;
+    const msg = (obj.message as string) || (obj.error_description as string) || '';
+    return typeof msg === 'string' ? msg : String(err);
+  }
+  return '';
+}
+
+export function toUserFacingAuthError(err: unknown, fallback: string): Error {
+  const msg = extractMessage(err);
+  const lower = msg.toLowerCase();
+  console.error('[auth] raw error:', err);
+
+  if (!msg) return new Error(fallback);
+
+  if (
+    lower.includes('notallowederror') ||
+    lower.includes('aborterror') ||
+    lower.includes('safari does not support' as never as string) ||
+    lower.includes('unsupported')
+  ) {
+    return new Error('This browser could not complete the secure sign-in. Please try a supported browser or use your password.');
+  }
+  if (lower.includes('cancel') || lower.includes('timeout') || lower.includes('timed out')) {
+    return new Error('Sign-in was cancelled or did not complete in time. You can try again.');
+  }
+  if (lower.includes('no passkey') || lower.includes('passkey not found') || lower.includes('none found')) {
+    return new Error('No passkey was found for this account on this device.');
+  }
+  if (lower.includes('network') || lower.includes('unknownhost') || lower.includes('resolve host') || lower.includes('failed to fetch')) {
+    return new Error('Network connection error. Please check your internet connection and try again.');
+  }
+  if (lower.includes('weak password') || lower.includes('at least') || lower.includes('must contain') || lower.includes('stronger password')) {
+    return new Error('Your password is too weak. Please choose a stronger password (at least 6 characters with a mix of letters and numbers).');
+  }
+  if (lower.includes('invalid login credentials') || lower.includes('invalid credentials') || lower.includes('password')) {
+    return new Error('Invalid email or password. Please verify your credentials and try again.');
+  }
+  if (lower.includes('not confirmed') || lower.includes('email_not_confirmed')) {
+    return new Error('Your email address has not been confirmed yet. Please check your inbox for the confirmation link.');
+  }
+  if (lower.includes('rate') || lower.includes('too many')) {
+    return new Error('Too many attempts. Please wait a few minutes and try again.');
+  }
+  if (lower.includes('unauthorized') || lower.includes('forbidden')) {
+    return new Error('You are not authorized to perform this action.');
+  }
+  if (lower.includes('webauthn') || lower.includes('publickey') || lower.includes('authenticator')) {
+    return new Error('Your authenticator could not complete the secure sign-in. Please try again or use your password.');
+  }
+  if (lower.includes('enabled') || lower.includes('experimental')) {
+    return new Error('Passkeys are not enabled on this server yet. Contact the library administrator to turn on the Passkeys experimental feature in Supabase.');
+  }
+
+  return new Error(fallback);
+}
+
+export function passkeyErrorMessage(err: unknown): string {
+  return toUserFacingAuthError(
+    err,
+    'The secure login could not be completed. Please try again or use your password instead.'
+  ).message;
+}

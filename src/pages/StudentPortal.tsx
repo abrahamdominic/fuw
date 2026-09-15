@@ -50,13 +50,22 @@ import {
   Bot,
   Copy,
   CornerDownLeft,
+  CalendarRange,
+  StickyNote,
+  HelpCircle,
   Smartphone as SmartphoneIcon
 } from 'lucide-react';
 import { useStore } from '../lib/useStore';
 import { MaterialItem, getTimeGreeting, getUserTimeZone, formatUserTime } from '../lib/store';
 import { Logo } from '../components/Logo';
 import { MaterialCard } from '../components/MaterialCard';
+import { SuggestedMaterialsSection } from '../components/SuggestedMaterialsSection';
+import { TrendingMaterialsSection } from '../components/TrendingMaterialsSection';
+import { StudyInsightsPanel } from '../components/StudyInsightsPanel';
+import { StudyPlannerTab } from '../components/StudyPlannerTab';
+import { StudentNotesTab } from '../components/StudentNotesTab';
 import { CatalogueFilters, FilterState } from '../components/CatalogueFilters';
+import { MultiDepartmentPicker, MultiDepartmentState, EMPTY_MULTI_DEPARTMENT } from '../components/MultiDepartmentPicker';
 import { catalogue, facultyByName, departmentByName, levelsFor, materialTypes, courseTitleByCode } from '../data/catalogue';
 import { submitMaterial as submitMaterialDb, fetchMyMaterials, deleteMaterial as deleteMaterialDb } from '../lib/materials';
 import {
@@ -68,6 +77,7 @@ import {
   NotificationItem
 } from '../lib/notifications';
 import { aiAsk, AiCitation, aiConfiguredHint } from '../lib/ai';
+import { friendlyError } from '../lib/friendlyError';
 import { requireSupabase } from '../lib/supabase';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import ProtectedActionModal from '../components/ProtectedActionModal';
@@ -96,6 +106,8 @@ const studentNavItems = [
   { label: 'My uploads', path: '/student/uploads', icon: FileText },
   { label: 'Upload Course Code & Title', path: '/student/course-upload', icon: GraduationCap },
   { label: 'My courses', path: '/student/courses', icon: List },
+  { label: 'Study planner', path: '/student/planner', icon: CalendarRange },
+  { label: 'My notes', path: '/student/notes', icon: StickyNote },
   { label: 'AI study assistant', path: '/student/assistant', icon: Sparkles },
   { label: 'Saved materials', path: '/student/saved', icon: Heart },
   { label: 'Recently viewed', path: '/student/recent', icon: Clock },
@@ -187,6 +199,13 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
       unsubscribe();
     };
   }, [user?.id]);
+
+  // Pull server-side bookmarks into local state so saves made on other devices
+  // (web or mobile) are visible here. Best-effort and idempotent.
+  useEffect(() => {
+    if (!user?.id) return;
+    void store.pullBookmarksFromDb();
+  }, [user?.id, store]);
 
   // Server-paginated + searched uploads listing (keeps performance stable as
   // history grows). The search term is debounced before hitting Supabase.
@@ -538,6 +557,10 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
           <StudentCourseUploadTab onSubmitted={() => navigate('/student/courses')} />
         ) : currentPath.startsWith('/student/courses') ? (
           <StudentCourseHistoryTab />
+        ) : currentPath.startsWith('/student/planner') ? (
+          <StudyPlannerTab />
+        ) : currentPath.startsWith('/student/notes') ? (
+          <StudentNotesTab />
         ) : currentPath.startsWith('/student/messages') ? (
           <StudentMessagesTab />
         ) : currentPath.startsWith('/student/request-deletion') ? (
@@ -679,6 +702,24 @@ function StudentOverviewTab({
         </div>
       )}
 
+      {/* Personalized Study Insights */}
+      <StudyInsightsPanel />
+
+      {/* Personalized Suggested Materials Section */}
+      <SuggestedMaterialsSection
+        currentUser={{
+          id: currentUser.id,
+          department: currentUser.department,
+          faculty: currentUser.faculty,
+          level: currentUser.level
+        }}
+        onReadOnline={onReadOnline}
+        onAskAi={onAskAi}
+      />
+
+      {/* Trending now — most-downloaded approved materials */}
+      <TrendingMaterialsSection onReadOnline={onReadOnline} onAskAi={onAskAi} />
+
       {/* Recently Accessed Section */}
       <div className="section-head">
         <div>
@@ -719,6 +760,9 @@ function StudentUploadTab({ onUploaded }: { onUploaded: () => void }) {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [academicSessions, setAcademicSessions] = useState<AcademicSession[]>([]);
   const [academicSession, setAcademicSession] = useState('');
+
+  // Multi-department course availability (see MultiDepartmentPicker).
+  const [multiDept, setMultiDept] = useState<MultiDepartmentState>(EMPTY_MULTI_DEPARTMENT);
 
   const [filters, setFilters] = useState<FilterState>({
     faculty: 'Faculty of Computing & Information System',
@@ -762,8 +806,38 @@ function StudentUploadTab({ onUploaded }: { onUploaded: () => void }) {
       return;
     }
 
+    // Multi-department availability must be fully answered when the student
+    // opted in: every "additional department" slot needs a valid selection.
+    if (multiDept.enabled) {
+      const chosen = multiDept.departments.filter(Boolean);
+      if (chosen.length < multiDept.count) {
+        setMessage({
+          type: 'error',
+          text: `You selected ${multiDept.count} additional department${multiDept.count > 1 ? 's' : ''}. Please select ${multiDept.count} department${multiDept.count > 1 ? 's' : ''} below.`
+        });
+        return;
+      }
+      const invalid = chosen.some((d) => !d.id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(d.id));
+      if (invalid) {
+        setMessage({ type: 'error', text: 'One of the selected departments is not valid. Please re-select it from the list.' });
+        return;
+      }
+    }
+
     setBusy(true);
     setMessage(null);
+
+    // Primary department = the student's own; additional departments = the
+    // ones chosen in the multi-department wizard. submitMaterialDb stores the
+    // whole set atomically in material_departments (no duplicated material).
+    // The own department MUST occupy index 0, so sharing is skipped entirely
+    // (safe fallback: own department only) when its UUID is not yet resolved.
+    const departmentIds: string[] | undefined = (() => {
+      if (!multiDept.enabled || !multiDept.primaryDepartmentId) return undefined;
+      const ids: string[] = [multiDept.primaryDepartmentId];
+      for (const d of multiDept.departments) if (d?.id && !ids.includes(d.id)) ids.push(d.id);
+      return ids;
+    })();
 
     try {
       // Database-first submission: the row is created immediately and the file
@@ -774,6 +848,7 @@ function StudentUploadTab({ onUploaded }: { onUploaded: () => void }) {
         description,
         faculty: filters.faculty || 'Faculty of Computing & Information System',
         department: filters.department || 'Computer Science',
+        department_ids: departmentIds,
         course_code: filters.course || '',
         course_title: filters.course ? courseTitleByCode(filters.course) : undefined,
         level: filters.level || '100 Level',
@@ -852,6 +927,17 @@ function StudentUploadTab({ onUploaded }: { onUploaded: () => void }) {
                 ))}
               </select>
             </label>
+          </div>
+
+          <div className="form-section">
+            <h3>Optional — Share with Other Departments</h3>
+            <MultiDepartmentPicker
+              ownDepartment={filters.department}
+              value={multiDept}
+              onChange={setMultiDept}
+              disabled={busy}
+              ready={!!filters.department}
+            />
           </div>
 
           <div className="form-section">
@@ -1174,10 +1260,15 @@ function StudentAiChatTab({
   const [busy, setBusy] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [materialId, setMaterialId] = useState<string | null>(focusMaterial?.id ?? null);
+  const [scopeCleared, setScopeCleared] = useState(false);
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notConfigured, setNotConfigured] = useState(false);
+  const [mode, setMode] = useState<'explainer' | 'exam' | 'summary' | 'quiz'>('explainer');
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  // Monotonic generation counter: stale in-flight responses (e.g. after a
+  // "New conversation" reset) are dropped instead of resurrecting old state.
+  const genRef = useRef(0);
   const listRef = React.useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -1222,6 +1313,9 @@ function StudentAiChatTab({
         if (cancelled) return;
         if (msgs && msgs.length > 0) {
           setConversationId(conv.id);
+          // Restore the conversation's scope so follow-ups keep using (and the
+          // UI keeps showing) the material this conversation is about.
+          if (conv.material_id) setMaterialId(conv.material_id);
           setMessages(
             msgs.map((row) => ({
               role: row.role === 'assistant' ? ('assistant' as const) : ('user' as const),
@@ -1274,25 +1368,31 @@ function StudentAiChatTab({
 
   const send = async (text: string) => {
     const question = text.trim();
-    if (!question || busy) return;
+    if (!question || busy || !historyLoaded) return;
+    const gen = ++genRef.current;
+    const clear = scopeCleared;
+    setScopeCleared(false);
     setError(null);
     setInput('');
     setMessages((prev) => [...prev, { role: 'user', content: question }, { role: 'assistant', content: '…' }]);
     setBusy(true);
     try {
-      const res = await aiAsk({ message: question, conversationId, materialId });
+      const res = await aiAsk({ message: question, conversationId, materialId, clearScope: clear, mode });
+      if (genRef.current !== gen) return; // conversation was reset mid-flight
       setNotConfigured(false);
       setConversationId(res.conversationId);
       setMessages((prev) => {
         const copy = [...prev];
+        if (copy.length === 0) return copy;
         copy[copy.length - 1] = { role: 'assistant', content: res.answer, citations: res.citations };
         return copy;
       });
     } catch (err: any) {
+      if (genRef.current !== gen) return;
       // Drop the placeholder bubble and surface a friendly error.
       setMessages((prev) => prev.slice(0, -1));
       if (aiConfiguredHint(err)) setNotConfigured(true);
-      setError(err.message || 'The AI assistant is unavailable right now.');
+      setError(friendlyError(err, 'The AI assistant is unavailable right now.'));
     } finally {
       setBusy(false);
       scrollToBottom();
@@ -1300,8 +1400,11 @@ function StudentAiChatTab({
   };
 
   const clearConversation = () => {
+    genRef.current++; // invalidate any in-flight response
     setMessages([]);
     setConversationId(null);
+    setMaterialId(null);
+    setScopeCleared(false);
     setError(null);
     setNotConfigured(false);
     onClearFocus?.();
@@ -1318,7 +1421,7 @@ function StudentAiChatTab({
           </p>
         </div>
         {(conversationId || messages.length > 0) && (
-          <button type="button" className="secondary-btn" onClick={clearConversation}>
+          <button type="button" className="secondary-btn" onClick={clearConversation} disabled={busy}>
             <RefreshCw size={15} />
             <span>New conversation</span>
           </button>
@@ -1335,9 +1438,12 @@ function StudentAiChatTab({
           <button
             type="button"
             onClick={() => {
+              // Ask the whole library instead — explicit scope clear.
               setMaterialId(null);
+              setScopeCleared(true);
               onClearFocus?.();
             }}
+            disabled={busy}
             aria-label="Stop focusing on this material"
             title="Ask about the whole library instead"
           >
@@ -1436,10 +1542,32 @@ function StudentAiChatTab({
           </div>
         )}
 
+        {/* Study mode selector — shapes how the assistant responds */}
+        <div className="ai-mode-row" role="group" aria-label="Study mode">
+          {(
+            [
+              { key: 'explainer', label: 'Explain', icon: BookOpen },
+              { key: 'summary', label: 'Summarise', icon: List },
+              { key: 'exam', label: 'Exam prep', icon: GraduationCap },
+              { key: 'quiz', label: 'Quiz me', icon: HelpCircle }
+            ] as const
+          ).map((m) => (
+            <button
+              key={m.key}
+              type="button"
+              className={`ai-mode-chip ${mode === m.key ? 'active' : ''}`}
+              onClick={() => setMode(m.key)}
+              disabled={busy}
+            >
+              <m.icon size={13} /> {m.label}
+            </button>
+          ))}
+        </div>
+
         {/* One-tap study actions for the focused material / whole library */}
         <div className="ai-quick-actions">
           {quickActions.map((qa) => (
-            <button key={qa.label} type="button" onClick={() => send(qa.prompt)} disabled={busy}>
+            <button key={qa.label} type="button" onClick={() => send(qa.prompt)} disabled={busy || !historyLoaded}>
               <qa.icon size={13} /> {qa.label}
             </button>
           ))}
@@ -1466,10 +1594,10 @@ function StudentAiChatTab({
             onChange={(e) => setInput(e.target.value)}
             placeholder="Ask anything about your course materials…"
             maxLength={2000}
-            disabled={busy}
+            disabled={busy || !historyLoaded}
             aria-label="Message the AI assistant"
           />
-          <button type="submit" className="ai-composer-send" disabled={busy || !input.trim()}>
+          <button type="submit" className="ai-composer-send" disabled={busy || !historyLoaded || !input.trim()}>
             {busy ? <Loader2 size={16} className="spin-icon" /> : <Send size={16} />}
             <span className="ai-send-label">Send</span>
           </button>

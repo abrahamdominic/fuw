@@ -188,6 +188,7 @@ export interface MaterialItem {
   };
   fileUrl: string;
   fileName: string;
+  filePath?: string;
   fileSize: string;
   description: string;
   contentSnippet?: string;
@@ -836,7 +837,66 @@ class MaterialsStore {
     }
     this.saveBookmarks();
     this.notify();
+    // Mirrors the change to the server-backed bookmarks table (cross-device sync).
+    // Best-effort: anonymous/local users simply keep their device bookmarks.
+    void this.mirrorBookmarkToDb(materialId, !exists);
     return !exists;
+  }
+
+  /** Merge server bookmarks in (union with local); used after sign-in/sync. */
+  public mergeBookmarks(ids: string[]): void {
+    const existing = new Set(this.bookmarks);
+    let changed = false;
+    for (const id of ids) {
+      if (id && !existing.has(id)) {
+        this.bookmarks.push(id);
+        changed = true;
+      }
+    }
+    if (changed) {
+      this.saveBookmarks();
+      this.notify();
+    }
+  }
+
+  /** Pull this user's server bookmarks and merge them into local state. */
+  public async pullBookmarksFromDb(): Promise<void> {
+    if (!supabase) return;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || !user.id) return;
+      const ids: string[] = [];
+      const { data: rpcIds, error: rpcErr } = await supabase.rpc('get_my_bookmark_ids');
+      if (!rpcErr && Array.isArray(rpcIds)) {
+        ids.push(...rpcIds.filter((x): x is string => typeof x === 'string'));
+      } else {
+        const { data: rows, error } = await supabase
+          .from('material_bookmarks')
+          .select('material_id')
+          .eq('user_id', user.id);
+        if (!error && rows) {
+          ids.push(...rows.map((r: any) => r.material_id).filter((x: unknown): x is string => typeof x === 'string'));
+        }
+      }
+      if (ids.length > 0) this.mergeBookmarks(ids);
+    } catch {
+      // Best-effort only.
+    }
+  }
+
+  private async mirrorBookmarkToDb(materialId: string, added: boolean): Promise<void> {
+    if (!supabase) return;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || !user.id) return;
+      if (added) {
+        await supabase.from('material_bookmarks').insert({ user_id: user.id, material_id: materialId }).select().maybeSingle();
+      } else {
+        await supabase.from('material_bookmarks').delete().eq('user_id', user.id).eq('material_id', materialId);
+      }
+    } catch {
+      // Best-effort only.
+    }
   }
 
   public getSavedMaterials(): MaterialItem[] {

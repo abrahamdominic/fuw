@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { FileText, Bookmark, Download, ArrowRight, Eye, Sparkles } from 'lucide-react';
 import { MaterialItem, store } from '../lib/store';
-import { incrementDownload } from '../lib/materials';
+import { incrementDownload, getSecureFileUrl } from '../lib/materials';
 import { analyticsTracker } from '../lib/analyticsTracker';
 import { useToast } from './Toast';
 
@@ -25,10 +25,11 @@ export function MaterialCard({ material, onReadOnline, onAskAi }: MaterialCardPr
     toast(saved ? `"${material.title}" saved to bookmarks` : `"${material.title}" removed from bookmarks`, 'info');
   };
 
-  const handleDownload = (e: React.MouseEvent) => {
+  const handleDownload = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!material.fileUrl) {
+    const url = await getSecureFileUrl(material);
+    if (!url) {
       toast('This file has not been uploaded yet.', 'error');
       return;
     }
@@ -39,7 +40,7 @@ export function MaterialCard({ material, onReadOnline, onAskAi }: MaterialCardPr
     toast(`Downloading ${material.fileName} (${material.fileSize})`, 'success');
 
     const link = document.createElement('a');
-    link.href = material.fileUrl;
+    link.href = url;
     link.download = material.fileName;
     link.target = '_blank';
     link.rel = 'noopener noreferrer';

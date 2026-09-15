@@ -70,3 +70,25 @@ export async function purgeAnalyticsData(olderThanDays = 180): Promise<number> {
   if (error || typeof data !== 'number') return 0;
   return data;
 }
+
+export interface SearchInsight {
+  query: string;
+  count: number;
+  last_at?: string | null;
+}
+
+export interface SearchInsights {
+  total_searches: number;
+  failed_searches: number;
+  searches_with_click: number;
+  no_result_queries: SearchInsight[];
+  top_queries: SearchInsight[];
+}
+
+export async function fetchSearchInsights(days = 14): Promise<SearchInsights | null> {
+  const { data, error } = await requireSupabase().rpc('admin_search_insights', {
+    p_days: days
+  });
+  if (error) return null;
+  return (data as unknown as SearchInsights) || null;
+}

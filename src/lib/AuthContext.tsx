@@ -6,6 +6,7 @@ import { AppRole, can } from './rbac';
 import { createSession, touchSession, deleteCurrentSession } from './sessions';
 import { analyticsTracker } from './analyticsTracker';
 import { getAAL, type AALState, type TOTPFactor } from './security';
+import { toUserFacingAuthError } from './authErrors';
 
 export interface ProfileData {
   id: string;
@@ -449,7 +450,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (msg.includes('rate')) {
             return { error: new Error('Too many sign-in attempts. Please wait a few moments and try again.') };
           }
-          return { error: new Error(authError.message) };
+          return { error: toUserFacingAuthError(authError, 'Sign-in failed. Please try again.') };
         }
 
         if (authData.user && authData.session) {
@@ -592,7 +593,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       return { error: new Error('Sign-in failed. Please try again.') };
     } catch (err: any) {
-      return { error: new Error(err.message || 'Sign-in failed. Please check your connection and try again.') };
+      return { error: toUserFacingAuthError(err, 'Sign-in failed. Please check your connection and try again.') };
     }
   };
 
@@ -658,12 +659,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return { error: new Error('An account with this email already exists. Please log in instead.') };
         }
         if (msg.includes('password')) {
-          return { error: new Error(error.message.replace(/^Password /, '')) };
+          return { error: toUserFacingAuthError(error, 'Registration could not be completed.') };
         }
         if (msg.includes('rate limit') || msg.includes('signup requires')) {
-          return { error: new Error(error.message) };
+          return { error: toUserFacingAuthError(error, 'The request could not be completed. Please try again.') };
         }
-        return { error: new Error(error.message) };
+        return { error: toUserFacingAuthError(error, 'The request could not be completed. Please try again.') };
       }
 
       if (data.user) {
@@ -681,7 +682,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // When "Confirm email" is enabled server-side no session is returned.
       return { error: null, needsEmailConfirmation: !data.session };
     } catch (err: any) {
-      return { error: new Error(err.message || 'Registration failed. Please check your connection and try again.') };
+      return { error: toUserFacingAuthError(err, 'Registration failed. Please check your connection and try again.') };
     }
   };
 
@@ -751,7 +752,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (error) {
-        return { error: new Error(error.message) };
+        return { error: toUserFacingAuthError(error, 'The request could not be completed. Please try again.') };
       }
 
       // Re-fetch so trigger-assigned fields (e.g. an admin invite role applied
@@ -762,7 +763,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       syncToStore(finalProfile, user);
       return { error: null };
     } catch (err: any) {
-      return { error: new Error(err.message || 'Failed to save student profile.') };
+      return { error: toUserFacingAuthError(err, 'Failed to save student profile.') };
     }
   };
 
@@ -886,14 +887,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (error) {
-        return { error: new Error(error.message) };
+        return { error: toUserFacingAuthError(error, 'The request could not be completed. Please try again.') };
       }
 
       setProfile(updatedProfile);
       syncToStore(updatedProfile, user);
       return { error: null };
     } catch (err: any) {
-      return { error: new Error(err.message || 'Failed to update profile.') };
+      return { error: toUserFacingAuthError(err, 'Failed to update profile.') };
     }
   };
 
@@ -905,11 +906,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) {
-        return { error: new Error(error.message) };
+        return { error: toUserFacingAuthError(error, 'The request could not be completed. Please try again.') };
       }
       return { error: null };
     } catch (err: any) {
-      return { error: new Error(err.message || 'Failed to change password.') };
+      return { error: toUserFacingAuthError(err, 'Failed to change password.') };
     }
   };
 
@@ -960,11 +961,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         redirectTo: `${window.location.origin}/reset-password`
       });
       if (error) {
-        return { error: new Error(error.message) };
+        return { error: toUserFacingAuthError(error, 'The request could not be completed. Please try again.') };
       }
       return { error: null };
     } catch (err: any) {
-      return { error: new Error(err.message || 'Failed to send the password reset email.') };
+      return { error: toUserFacingAuthError(err, 'Failed to send the password reset email.') };
     }
   };
 
@@ -978,11 +979,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) {
-        return { error: new Error(error.message) };
+        return { error: toUserFacingAuthError(error, 'The request could not be completed. Please try again.') };
       }
       return { error: null };
     } catch (err: any) {
-      return { error: new Error(err.message || 'Failed to reset your password.') };
+      return { error: toUserFacingAuthError(err, 'Failed to reset your password.') };
     }
   };
 

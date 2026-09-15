@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Route, Routes, Navigate, useLocation } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
@@ -9,28 +9,35 @@ import { Header } from './components/Header';
 import { Footer } from './components/Footer';
 import { ToastProvider } from './components/Toast';
 import { DocumentReaderModal } from './components/DocumentReaderModal';
-
-import {
-  HomePage,
-  LibraryPage,
-  FacultiesPage,
-  CoursesPage,
-  MaterialDetailPage,
-  AboutPage,
-  ResetPasswordPage,
-  AdminLoginPage
-} from './pages/PublicPages';
-import { AuthPage } from './pages/AuthScreens';
-
-import { StudentPortal } from './pages/StudentPortal';
-import { AdminPortal } from './pages/AdminPortal';
-import { SuperAdminPortal } from './pages/SuperAdminPortal';
-import { MaintenancePage } from './pages/MaintenancePage';
+import { AppSplash } from './components/AppSplash';
 
 import { AuthProvider, useAuth } from './lib/AuthContext';
+
+// Route-level code splitting. Each portal/page bundle loads on demand so the
+// initial shell stays small and the vendor cache stays warm across deploys.
+const HomePage = lazy(() => import('./pages/PublicPages').then((m) => ({ default: m.HomePage })));
+const LibraryPage = lazy(() => import('./pages/PublicPages').then((m) => ({ default: m.LibraryPage })));
+const FacultiesPage = lazy(() => import('./pages/PublicPages').then((m) => ({ default: m.FacultiesPage })));
+const CoursesPage = lazy(() => import('./pages/PublicPages').then((m) => ({ default: m.CoursesPage })));
+const MaterialDetailPage = lazy(() =>
+  import('./pages/PublicPages').then((m) => ({ default: m.MaterialDetailPage }))
+);
+const AboutPage = lazy(() => import('./pages/PublicPages').then((m) => ({ default: m.AboutPage })));
+const ResetPasswordPage = lazy(() =>
+  import('./pages/PublicPages').then((m) => ({ default: m.ResetPasswordPage }))
+);
+const AdminLoginPage = lazy(() => import('./pages/PublicPages').then((m) => ({ default: m.AdminLoginPage })));
+const AuthPage = lazy(() => import('./pages/AuthScreens').then((m) => ({ default: m.AuthPage })));
+const StudentPortal = lazy(() => import('./pages/StudentPortal').then((m) => ({ default: m.StudentPortal })));
+const AdminPortal = lazy(() => import('./pages/AdminPortal').then((m) => ({ default: m.AdminPortal })));
+const SuperAdminPortal = lazy(() =>
+  import('./pages/SuperAdminPortal').then((m) => ({ default: m.SuperAdminPortal }))
+);
+const MaintenancePage = lazy(() =>
+  import('./pages/MaintenancePage').then((m) => ({ default: m.MaintenancePage }))
+);
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { MaintenanceGate } from './components/MaintenanceGate';
-import { AppSplash } from './components/AppSplash';
 import { analyticsTracker } from './lib/analyticsTracker';
 
 // Captured when the JS bundle begins evaluating — the startup metric measures
@@ -129,8 +136,9 @@ function PublicLayout({
  */
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { isLoading, isAuthenticated } = useAuth();
+  const location = useLocation();
   if (isLoading) return null;
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (!isAuthenticated) return <Navigate to="/login" state={{ from: location }} replace />;
   return <>{children}</>;
 }
 
@@ -152,7 +160,14 @@ function App() {
       <AppSplashBoundary />
       <ToastProvider>
         <MaintenanceGate>
-          <Routes>
+          <Suspense
+            fallback={
+              <div className="route-fallback" role="status" aria-label="Loading">
+                <span className="route-fallback-spinner" />
+              </div>
+            }
+          >
+            <Routes>
             {/* Global maintenance screen — reachable for everyone */}
             <Route path="/maintenance" element={<MaintenancePage />} />
 
@@ -335,9 +350,14 @@ function App() {
             />
             <Route
               path="*"
-              element={<Navigate to="/library" replace />}
+              element={
+                <RequireAuth>
+                  <Navigate to="/student" replace />
+                </RequireAuth>
+              }
             />
           </Routes>
+          </Suspense>
 
           {/* Global Interactive Document Reader Modal */}
           {readingMaterial && (
