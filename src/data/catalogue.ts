@@ -39,19 +39,36 @@ export interface Faculty {
 // Material types ("Test Questions" renamed to "Test Past Questions";
 // "Textbook" removed entirely per university policy).
 // ---------------------------------------------------------------------
-export const materialTypes = ['Test Past Questions', 'Exam Past Questions', 'Projects', 'Handouts'];
+/** Canonical labels — must match the `public.material_type` DB enum exactly. */
+export const materialTypes = ['Test Past Questions', 'Exam Past Questions', 'Projects', 'Handouts', 'Lecture Note'];
 
-/** Maps legacy material-type labels to their current canonical labels. */
+const VALID_MATERIAL_TYPES = new Set(materialTypes);
+
+/** Maps legacy/typo material-type labels to their current canonical labels. */
 const LEGACY_TYPE_MAP: Record<string, string> = {
   'Test Questions': 'Test Past Questions',
   Textbook: 'Lecture Note',
-  'E-Book / Text': 'Lecture Note'
+  'E-Book / Text': 'Lecture Note',
+  'Lecture Notes': 'Lecture Note',
+  'past_question': 'Test Past Questions',
+  'past questions': 'Test Past Questions',
+  'exam_past_questions': 'Exam Past Questions',
+  'exam past questions': 'Exam Past Questions',
+  'handout': 'Handouts',
+  'handouts': 'Handouts',
+  project: 'Projects',
+  projects: 'Projects'
 };
 
-/** Normalize any stored/legacy material type to its current label. */
+/** Normalize any stored/legacy material type to a canonical DB-enum label. */
 export function normalizeMaterialType(type?: string | null): string {
   if (!type) return 'Lecture Note';
-  return LEGACY_TYPE_MAP[type] || type;
+  const trimmed = type.trim();
+  if (VALID_MATERIAL_TYPES.has(trimmed)) return trimmed;
+  const mapped = LEGACY_TYPE_MAP[trimmed];
+  if (mapped) return mapped;
+  // Never send an arbitrary value that the `material_type` enum will reject.
+  return 'Lecture Note';
 }
 
 // ---------------------------------------------------------------------

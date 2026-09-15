@@ -241,7 +241,11 @@ DECLARE
   ct text;
 BEGIN
   IF TG_OP = 'INSERT' AND NEW.bucket_id = 'library-materials' THEN
-    ct := lower(NEW.content_type);
+    ct := lower(COALESCE(
+      NULLIF(NEW.metadata->>'mimetype', ''),
+      NULLIF(NEW.metadata->>'contentType', ''),
+      NULLIF(NEW.metadata->>'content_type', '')
+    ));
     IF ct IS NULL OR ct = '' OR ct = 'application/octet-stream' THEN
       RAISE EXCEPTION 'library upload: missing or generic content type is not allowed'
         USING ERRCODE = 'P0001';
