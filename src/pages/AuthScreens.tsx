@@ -854,6 +854,12 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
 
   // Passkey registration handlers
   const handleRegisterPasskey = async () => {
+    // Safety check: don't attempt registration if not supported
+    if (!passkeySupported) {
+      setPasskeyError('Passkeys are not supported on this browser or connection.');
+      return;
+    }
+
     setPasskeyError(null);
     setPasskeyRegistering(true);
     try {
