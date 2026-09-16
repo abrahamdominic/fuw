@@ -15,6 +15,13 @@ function extractMessage(err: unknown): string {
   return '';
 }
 
+const isPasskeyContext = (lower: string) =>
+  lower.includes('webauthn') ||
+  lower.includes('passkey') ||
+  lower.includes('authenticator') ||
+  lower.includes('publickey') ||
+  lower.includes('credential');
+
 export function toUserFacingAuthError(err: unknown, fallback: string): Error {
   const msg = extractMessage(err);
   const lower = msg.toLowerCase();
@@ -22,15 +29,12 @@ export function toUserFacingAuthError(err: unknown, fallback: string): Error {
 
   if (!msg) return new Error(fallback);
 
-  if (
-    lower.includes('invalidstateerror') ||
-    lower.includes('already exists') ||
-    lower.includes('already registered') ||
-    lower.includes('duplicate') ||
-    lower.includes('credential already registered')
-  ) {
-    return new Error('This passkey has already been registered on this device for your account.');
+  // ── Connection / transport level ────────────────────────────────────────
+  if (lower.includes('network') || lower.includes('unknownhost') || lower.includes('resolve host') || lower.includes('failed to fetch')) {
+    return new Error('Network connection error. Please check your internet connection and try again.');
   }
+
+  // ── Passkey-specific flows ──────────────────────────────────────────────
   if (
     lower.includes('notallowederror') ||
     lower.includes('aborterror') ||
@@ -39,6 +43,13 @@ export function toUserFacingAuthError(err: unknown, fallback: string): Error {
     lower.includes('user canceled')
   ) {
     return new Error('Passkey setup was cancelled or dismissed. You can try again now or set it up later.');
+  }
+  if (
+    isPasskeyContext(lower) &&
+    (lower.includes('already exists') || lower.includes('already registered') ||
+     lower.includes('duplicate') || lower.includes('not registered'))
+  ) {
+    return new Error('This passkey has already been registered on this device for your account.');
   }
   if (
     lower.includes('timeout') ||
@@ -58,13 +69,32 @@ export function toUserFacingAuthError(err: unknown, fallback: string): Error {
   if (lower.includes('no passkey') || lower.includes('passkey not found') || lower.includes('none found')) {
     return new Error('No passkey was found for this account on this device.');
   }
-  if (lower.includes('network') || lower.includes('unknownhost') || lower.includes('resolve host') || lower.includes('failed to fetch')) {
-    return new Error('Network connection error. Please check your internet connection and try again.');
+
+  // ── Account-level flows ─────────────────────────────────────────────────
+  if (lower.includes('already registered') || lower.includes('already exists')) {
+    return new Error('An account with this email already exists. Please log in instead.');
   }
-  if (lower.includes('weak password') || lower.includes('at least') || lower.includes('must contain') || lower.includes('stronger password')) {
-    return new Error('Your password is too weak. Please choose a stronger password (at least 6 characters with a mix of letters and numbers).');
+  if (
+    lower.includes('database error') ||
+    lower.includes('new row violates') ||
+    lower.includes('unique constraint') ||
+    lower.includes('duplicate key') ||
+    lower.includes('could not extract result')
+  ) {
+    return new Error('Your registration could not be completed. The username or email may already be in use.');
   }
-  if (lower.includes('invalid login credentials') || lower.includes('invalid credentials') || lower.includes('password')) {
+  if (lower.includes('weak password') || lower.includes('stronger password')) {
+    return new Error(
+      'Your password does not meet the requirements. It must be at least 8 characters long and include a lowercase letter, an uppercase letter, a number, and a special character.'
+    );
+  }
+  if (lower.includes('at least') || lower.includes('must contain')) {
+    return new Error('Your password does not meet the required strength rules. Please choose a stronger password.');
+  }
+  if (lower.includes('invalid login credentials') || lower.includes('invalid credentials')) {
+    return new Error('Invalid email or password. Please verify your credentials and try again.');
+  }
+  if (lower.includes('password')) {
     return new Error('Invalid email or password. Please verify your credentials and try again.');
   }
   if (lower.includes('not confirmed') || lower.includes('email_not_confirmed')) {

@@ -34,7 +34,7 @@ import {
 import { SEO } from '../components/SEO';
 import { Logo } from '../components/Logo';
 import { useToast } from '../components/Toast';
-import { useAuth, USERNAME_PATTERN, normalizeUsername } from '../lib/AuthContext';
+import { useAuth, USERNAME_PATTERN, normalizeUsername, validatePasswordPolicy, PASSWORD_REQUIREMENTS_TEXT } from '../lib/AuthContext';
 import { catalogue, facultyByName, departmentByName, levelsFor, groupedFaculties } from '../data/catalogue';
 import {
   aal2LoginChallenge,
@@ -43,6 +43,7 @@ import {
   isPasskeySupported,
   isPlatformAuthenticatorAvailable
 } from '../lib/security';
+import { passkeyErrorMessage } from '../lib/authErrors';
 
 type AuthMode = 'login' | 'register' | 'forgot';
 
@@ -535,6 +536,7 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
   const [passkeyPromptShown, setPasskeyPromptShown] = useState(false);
   const [passkeyRegistering, setPasskeyRegistering] = useState(false);
   const [passkeyError, setPasskeyError] = useState<string | null>(null);
+  const [passkeyFailMsg, setPasskeyFailMsg] = useState<string | null>(null);
   const [passkeySuccess, setPasskeySuccess] = useState(false);
   const [passkeySupported, setPasskeySupported] = useState(false);
   const [platformAuthAvailable, setPlatformAuthAvailable] = useState(false);
@@ -753,12 +755,9 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
       setErrorMsg('Please enter a valid email address.');
       return false;
     }
-    if (password.length < 8) {
-      setErrorMsg('Password must be at least 8 characters long.');
-      return false;
-    }
-    if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
-      setErrorMsg('Password must contain at least one letter and one number.');
+    const passwordError = validatePasswordPolicy(password);
+    if (passwordError) {
+      setErrorMsg(passwordError);
       return false;
     }
     if (password !== confirmPassword) {
@@ -861,23 +860,34 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
     }
 
     setPasskeyError(null);
+    setPasskeyFailMsg(null);
     setPasskeyRegistering(true);
     try {
       await registerPasskey('FUW E-Library Account');
       setPasskeySuccess(true);
+      setPasskeyPromptShown(true);
       toast('Passkey registered successfully!', 'success');
     } catch (err: any) {
-      const errorMsg = err?.message || 'Could not register your passkey. You can set it up later from your profile.';
-      setPasskeyError(errorMsg);
+      setPasskeyFailMsg(passkeyErrorMessage(err));
+      setPasskeyPromptShown(true);
     } finally {
       setPasskeyRegistering(false);
     }
+  };
+
+  const handleRetryPasskey = () => {
+    setPasskeyFailMsg(null);
+    setPasskeySuccess(false);
+    setPasskeyPromptShown(false);
+    // Give the retry a tick so the prompt re-renders before the native prompt.
+    window.setTimeout(() => handleRegisterPasskey(), 50);
   };
 
   const handleSkipPasskey = () => {
     setPasskeyPromptShown(true); // Mark as shown so we don't prompt again
     setPasskeySuccess(false);
     setPasskeyError(null);
+    setPasskeyFailMsg(null);
   };
 
   const handleFinishWelcome = () => {
@@ -886,6 +896,7 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
     setPasskeyPromptShown(false);
     setPasskeySuccess(false);
     setPasskeyError(null);
+    setPasskeyFailMsg(null);
     if (needsConfirm) {
       switchMode('login');
     } else {
@@ -1136,10 +1147,11 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
                   label="Password *"
                   value={password}
                   onChange={(v) => { setPassword(v); if (errorMsg) setErrorMsg(null); }}
-                  placeholder="At least 8 characters (letter + number)"
+                  placeholder="At least 8 characters (upper + lower + number + special)"
                   autoComplete="new-password"
                   disabled={busy}
                 />
+                <p className="mac-hint">{PASSWORD_REQUIREMENTS_TEXT}</p>
 
                 <PasswordControl
                   label="Confirm Password *"
@@ -1394,8 +1406,8 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
               )}
             </div>
 
-            {/* Passkey registration prompt - only show if no email confirmation needed and passkey supported */}
-            {!welcome.needsEmailConfirmation && passkeySupported && !passkeyPromptShown && !passkeySuccess && (
+            {/* STEP 1 — Passkey registration prompt (no email confirmation, supported) */}
+            {!welcome.needsEmailConfirmation && passkeySupported && !passkeyPromptShown && !passkeySuccess && !passkeyRegistering && !passkeyFailMsg && (
               <div className="mac-passkey-prompt">
                 <div className="mac-passkey-prompt-header">
                   <div className="mac-passkey-icon">
@@ -1408,7 +1420,7 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
                     ? 'Sign in faster using your fingerprint, Face ID, or Windows Hello. No passwords to remember.'
                     : 'Sign in securely without typing a password. Your device will store your credentials safely.'}
                 </p>
-                
+
                 {passkeyError && (
                   <div className="mac-passkey-error">
                     <AlertCircle size={16} />
@@ -1431,27 +1443,92 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
                     onClick={handleRegisterPasskey}
                     disabled={passkeyRegistering}
                   >
-                    {passkeyRegistering ? (
-                      <>
-                        <RefreshCw size={16} className="spin-icon" /> Registering…
-                      </>
-                    ) : (
-                      <>
-                        <Fingerprint size={16} /> Register Passkey
-                      </>
-                    )}
+                    <>
+                      <Fingerprint size={16} /> Create Passkey
+                    </>
                   </button>
                 </div>
               </div>
             )}
 
-            {/* Passkey success state */}
-            {!welcome.needsEmailConfirmation && passkeySuccess && (
-              <div className="mac-passkey-success">
-                <CheckCircle2 size={20} color="#15803D" />
-                <p>
-                  <b>Passkey registered!</b> You can now sign in using your device biometrics.
+            {/* STEP 2 — Waiting for the device authenticator */}
+            {!welcome.needsEmailConfirmation && passkeySupported && passkeyRegistering && (
+              <div className="mac-passkey-prompt mac-passkey-waiting">
+                <div className="mac-passkey-prompt-header">
+                  <div className="mac-passkey-icon">
+                    <RefreshCw size={20} color="#0B6B3A" className="spin-icon" />
+                  </div>
+                  <h3 className="mac-passkey-prompt-title">Waiting for device authentication…</h3>
+                </div>
+                <p className="mac-passkey-prompt-desc">
+                  {platformAuthAvailable
+                    ? 'Use your fingerprint, Face ID, or Windows Hello when your device prompts you.'
+                    : 'Follow the prompts on your screen to create your passkey. This usually takes a few seconds.'}
                 </p>
+                <button
+                  type="button"
+                  className="mac-btn mac-btn-ghost"
+                  onClick={handleSkipPasskey}
+                  disabled={passkeyRegistering}
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+
+            {/* Passkey success screen */}
+            {!welcome.needsEmailConfirmation && passkeySuccess && !passkeyRegistering && (
+              <div className="mac-passkey-result mac-passkey-result-success">
+                <div className="mac-passkey-result-icon">
+                  <CheckCircle2 size={28} color="#15803D" />
+                </div>
+                <h3 className="mac-passkey-result-title">Passkey successfully created</h3>
+                <p className="mac-passkey-result-desc">
+                  Your account is now protected with secure biometric sign-in. You can sign in on this device using your
+                  fingerprint, Face ID, or Windows Hello — no password needed.
+                </p>
+                <div className="mac-passkey-success">
+                  <CheckCircle2 size={18} color="#15803D" />
+                  <p>
+                    <b>Secure sign-in enabled.</b> You can also add more passkeys or an Authenticator App anytime in
+                    Settings {`>`} Security.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Passkey failure screen */}
+            {!welcome.needsEmailConfirmation && passkeyFailMsg && !passkeySuccess && !passkeyRegistering && (
+              <div className="mac-passkey-result mac-passkey-result-fail">
+                <div className="mac-passkey-result-icon">
+                  <AlertCircle size={28} color="#B91C1C" />
+                </div>
+                <h3 className="mac-passkey-result-title">
+                  {passkeyFailMsg.includes('cancelled') || passkeyFailMsg.includes('dismissed')
+                    ? 'Passkey setup cancelled'
+                    : 'Passkey setup could not be completed'}
+                </h3>
+                <p className="mac-passkey-result-desc">{passkeyFailMsg}</p>
+                <p className="mac-passkey-result-note">
+                  Your account has already been created. You can try again now, or set up a passkey later from
+                  Settings {`>`} Security.
+                </p>
+                <div className="mac-passkey-result-actions">
+                  <button
+                    type="button"
+                    className="mac-btn mac-btn-secondary"
+                    onClick={handleRetryPasskey}
+                  >
+                    <RefreshCw size={15} /> Try Again
+                  </button>
+                  <button
+                    type="button"
+                    className="mac-btn mac-btn-primary"
+                    onClick={handleFinishWelcome}
+                  >
+                    Continue without Passkey <ArrowRight size={16} aria-hidden />
+                  </button>
+                </div>
               </div>
             )}
 
@@ -1465,14 +1542,24 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
               </div>
             )}
 
-            {/* Final action button - only show when passkey flow is complete or skipped */}
-            {(welcome.needsEmailConfirmation || passkeyPromptShown || passkeySuccess || !passkeySupported) && (
+            {/* Final action button - only show when passkey flow is complete or skipped,
+                or passkeys are unsupported (never leave the user stuck) */}
+            {(welcome.needsEmailConfirmation ||
+              !passkeySupported ||
+              (passkeyPromptShown && !passkeyFailMsg && passkeySuccess) ||
+              (passkeyPromptShown && !passkeyFailMsg && !passkeySuccess && !passkeyRegistering)) && (
               <button
                 type="button"
                 className="mac-btn mac-btn-primary mac-welcome-btn"
                 onClick={handleFinishWelcome}
               >
-                <span>{welcome.needsEmailConfirmation ? 'Continue to Sign In' : 'Start Learning'}</span>
+                <span>
+                  {welcome.needsEmailConfirmation
+                    ? 'Continue to Sign In'
+                    : passkeySuccess
+                      ? 'Continue to E-Library'
+                      : 'Start Learning'}
+                </span>
                 <ArrowRight size={17} aria-hidden />
               </button>
             )}

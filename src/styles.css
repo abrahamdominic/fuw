@@ -12186,6 +12186,91 @@ button.form-submit-btn:disabled:hover {
   margin: 0;
 }
 
+/* Passkey result screens (success / failure) in the welcome modal */
+.mac-passkey-result {
+  border-radius: 14px;
+  padding: 18px 16px;
+  margin-bottom: 18px;
+  text-align: center;
+}
+
+.mac-passkey-result-success {
+  background: #F0FDF4;
+  border: 1px solid #86EFAC;
+}
+
+.mac-passkey-result-fail {
+  background: #FEF2F2;
+  border: 1px solid #FCA5A5;
+}
+
+.mac-passkey-result-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 12px;
+}
+
+.mac-passkey-result-success .mac-passkey-result-icon {
+  background: #DCFCE7;
+}
+
+.mac-passkey-result-fail .mac-passkey-result-icon {
+  background: #FEE2E2;
+}
+
+.mac-passkey-result-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0F172A;
+  margin: 0 0 6px;
+  line-height: 1.3;
+}
+
+.mac-passkey-result-desc {
+  font-size: 12px;
+  color: #334155;
+  line-height: 1.55;
+  margin: 0 0 10px;
+}
+
+.mac-passkey-result-note {
+  font-size: 12px;
+  color: #475569;
+  line-height: 1.5;
+  margin: 0 0 14px;
+}
+
+.mac-passkey-result-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mac-passkey-result-actions .mac-btn {
+  flex: 1;
+  min-width: 120px;
+}
+
+/* Waiting-for-authenticator panel in the welcome modal */
+.mac-passkey-waiting {
+  background: #EFF6FF;
+  border-color: #93C5FD;
+}
+
+.mac-passkey-waiting .mac-passkey-icon {
+  background: #DBEAFE;
+  border-color: #93C5FD;
+}
+
+.mac-passkey-result-success .mac-passkey-success {
+  margin-bottom: 0;
+  background: #FFFFFF;
+}
+
 /* ==========================================================================
    GLOBAL APP SPLASH (auth cold-start overlay)
    ========================================================================== */

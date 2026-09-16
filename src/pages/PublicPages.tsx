@@ -31,7 +31,7 @@ import { MaterialItem } from '../lib/store';
 import { logSearch } from '../lib/searchLog';
 import { friendlyError } from '../lib/friendlyError';
 import { catalogue, facultyByName, departmentByName, levelsFor, allDepartments, normalizeLevel, groupedFaculties } from '../data/catalogue';
-import { useAuth, USERNAME_PATTERN, normalizeUsername } from '../lib/AuthContext';
+import { useAuth, USERNAME_PATTERN, normalizeUsername, validatePasswordPolicy, PASSWORD_REQUIREMENTS_TEXT } from '../lib/AuthContext';
 import { aiSearch, AiSearchResult } from '../lib/ai';
 import { HeroSection } from '../components/HeroSection';
 import { MaterialCard } from '../components/MaterialCard';
@@ -1100,10 +1100,8 @@ export function LoginPage({
     if (!validPhone) {
       return 'Please enter a valid phone number (8–15 digits).';
     }
-    if (password.length < 8) return 'Password must be at least 8 characters long.';
-    if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
-      return 'Password must contain at least one letter and one number.';
-    }
+    const passwordError = validatePasswordPolicy(password);
+    if (passwordError) return passwordError;
     if (password !== confirmPassword) return 'Passwords do not match.';
     return null;
   };
@@ -1692,10 +1690,11 @@ export function LoginPage({
                 label="Password"
                 value={password}
                 onChange={setPassword}
-                placeholder="At least 8 characters with a letter and a number"
+                placeholder="At least 8 characters (upper + lower + number + special)"
                 autoComplete="new-password"
                 disabled={busy}
               />
+              {isRegister && <p className="mac-hint">{PASSWORD_REQUIREMENTS_TEXT}</p>}
 
               <PasswordField
                 label="Confirm Password"
@@ -1906,8 +1905,9 @@ export function ResetPasswordPage() {
     setErrorMsg(null);
     setSuccessMsg(null);
 
-    if (password.length < 8 || !/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
-      setErrorMsg('Password must be at least 8 characters with at least one letter and one number.');
+    const passwordError = validatePasswordPolicy(password);
+    if (passwordError) {
+      setErrorMsg(passwordError);
       return;
     }
     if (password !== confirmPassword) {
@@ -1995,7 +1995,7 @@ export function ResetPasswordPage() {
                 label="New Password"
                 value={password}
                 onChange={setPassword}
-                placeholder="At least 8 characters with a letter and a number"
+                placeholder="At least 8 characters (upper + lower + number + special)"
                 autoComplete="new-password"
                 disabled={busy}
               />

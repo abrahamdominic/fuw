@@ -108,6 +108,42 @@ export const USERNAME_PATTERN = /^[a-z0-9._-]{3,20}$/;
 
 export const normalizeUsername = (username: string): string => username.trim().toLowerCase();
 
+/** Server-enforced password policy (Supabase Auth): 8+ chars with a lowercase
+ * letter, an uppercase letter, a digit and a special character. The client-side
+ * checks must stay in sync with these rules so users see one consistent error. */
+export const PASSWORD_MIN_LENGTH = 8;
+export const PASSWORD_RULES = {
+  minLength: PASSWORD_MIN_LENGTH,
+  lowercase: /[a-z]/,
+  uppercase: /[A-Z]/,
+  number: /\d/,
+  special: /[^A-Za-z0-9]/
+} as const;
+
+export const PASSWORD_REQUIREMENTS_TEXT =
+  'At least 8 characters, with an uppercase letter, a lowercase letter, a number, and a special character.';
+
+/** Return a user-facing message describing the first violated password rule,
+ * or null when the password satisfies the server policy. */
+export function validatePasswordPolicy(password: string): string | null {
+  if (password.length < PASSWORD_RULES.minLength) {
+    return 'Password must be at least 8 characters long.';
+  }
+  if (!PASSWORD_RULES.lowercase.test(password)) {
+    return 'Password must contain at least one lowercase letter.';
+  }
+  if (!PASSWORD_RULES.uppercase.test(password)) {
+    return 'Password must contain at least one uppercase letter.';
+  }
+  if (!PASSWORD_RULES.number.test(password)) {
+    return 'Password must contain at least one number.';
+  }
+  if (!PASSWORD_RULES.special.test(password)) {
+    return 'Password must contain at least one special character (e.g. !@#$%).';
+  }
+  return null;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -664,7 +700,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (msg.includes('rate limit') || msg.includes('signup requires')) {
           return { error: toUserFacingAuthError(error, 'The request could not be completed. Please try again.') };
         }
-        return { error: toUserFacingAuthError(error, 'The request could not be completed. Please try again.') };
+        // Defensive identity re-check: a parallel registration may have claimed
+        // this username/email between our pre-check and signUp (TOCTOU), in
+        // which case the transaction trigger aborts signup with a database-level
+        // error instead of a friendly auth error. Re-run the availability check
+        // so the user sees WHY registration failed instead of a generic message.
+        const { data: recheck, error: recheckError } = await supabase.rpc('register_identity_check', {
+          p_username: uname,
+          p_email: cleanEmail
+        });
+        if (!recheckError && recheck && typeof recheck === 'object') {
+          if ((recheck as any).username_taken) {
+            return { error: new Error('That username is already taken. Please choose another one.') };
+          }
+          if ((recheck as any).email_taken) {
+            return { error: new Error('An account with this email already exists. Please log in instead.') };
+          }
+        }
+        return { error: toUserFacingAuthError(error, 'Registration could not be completed. Please try again.') };
       }
 
       if (data.user) {
