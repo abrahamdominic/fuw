@@ -77,7 +77,7 @@ async function invoke<T>(fnName: string, body: unknown): Promise<T> {
 function friendlyMessage(code: string): string {
   switch (code) {
     case 'AI_NOT_CONFIGURED':
-      return 'The AI service is not configured yet. Please contact the library administrator.';
+      return 'Sorry, the AI Assistant is temporarily unavailable. Please try again later.';
     case 'RATE_LIMITED':
       return 'You have reached your hourly AI limit. Please try again later.';
     case 'Authentication required':

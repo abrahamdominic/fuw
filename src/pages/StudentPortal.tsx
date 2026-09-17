@@ -87,6 +87,9 @@ import { AuthenticatorAppCard } from '../components/AuthenticatorAppCard';
 import { PasskeysManager } from '../components/PasskeysManager';
 import { ProfileSetupBanner } from '../components/ProfileSetupBanner';
 import { useAuth } from '../lib/AuthContext';
+import { MessageComposer } from '../components/MessageComposer';
+import { MessageText } from '../components/MessageText';
+import { messagePreview, richPasteText, capLength } from '../lib/messageFormat';
 import { useToast } from '../components/Toast';
 import type { StudentCourse } from '../lib/studentCourses';
 import { submitDeletionRequest, fetchMyDeletionRequests, DeletionRequest } from '../lib/deletionRequests';
@@ -429,8 +432,12 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
                         }}
                       >
                         <b>{n.title}</b>
-                        <span>{n.body}</span>
-                        <small>{new Date(n.createdAt).toLocaleString()}</small>
+                        <NotificationTag type={n.type} />
+                        <MessageText body={n.body} inline />
+                        <small>
+                          {n.senderName ? `By ${n.senderName} · ` : ''}
+                          {new Date(n.createdAt).toLocaleString()}
+                        </small>
                       </button>
                       <button
                         type="button"
@@ -1278,6 +1285,8 @@ function StudentAiChatTab({
   const genRef = useRef(0);
   const listRef = React.useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Tracks the most recent question so the "Try Again" action can resend it.
+  const lastQuestionRef = useRef('');
 
   const copyAnswer = async (index: number, text: string) => {
     try {
@@ -1376,6 +1385,7 @@ function StudentAiChatTab({
   const send = async (text: string) => {
     const question = text.trim();
     if (!question || busy || !historyLoaded) return;
+    lastQuestionRef.current = question;
     const gen = ++genRef.current;
     const clear = scopeCleared;
     setScopeCleared(false);
@@ -1543,9 +1553,21 @@ function StudentAiChatTab({
         </div>
 
         {(error || notConfigured) && (
-          <div className={`form-feedback-box error`}>
+          <div className="form-feedback-box error ai-error-box">
             <AlertCircle size={18} />
-            <p>{notConfigured ? `${error} Administrators can enable it by adding the AI_API_KEY function secret.` : error}</p>
+            <p>{error || 'Sorry, the AI Assistant is temporarily unavailable. Please try again later.'}</p>
+            {lastQuestionRef.current && (
+              <button
+                type="button"
+                className="ai-error-retry"
+                onClick={() => {
+                  setNotConfigured(false);
+                  void send(lastQuestionRef.current);
+                }}
+              >
+                Try Again
+              </button>
+            )}
           </div>
         )}
 
@@ -1620,6 +1642,19 @@ function StudentAiChatTab({
       </div>
     </div>
   );
+}
+
+/** Small visual tag for announcement-type notifications. */
+function NotificationTag({ type }: { type: NotificationItem['type'] }) {
+  const meta: Record<string, { label: string; cls: string }> = {
+    announcement: { label: 'ANNOUNCEMENT', cls: 'announcement' },
+    maintenance: { label: 'MAINTENANCE', cls: 'maintenance' },
+    important: { label: 'IMPORTANT', cls: 'important' },
+    system_update: { label: 'SYSTEM UPDATE', cls: 'system-update' }
+  };
+  const tag = meta[type];
+  if (!tag) return null;
+  return <span className={`notif-tag ${tag.cls}`}>{tag.label}</span>;
 }
 
 // 4. Saved Materials Tab
@@ -3723,7 +3758,17 @@ function StudentMessagesTab() {
                 </div>
                 <div className="form-field">
                   <label className="form-label">Message *</label>
-                  <textarea className="form-input" rows={5} value={adminBody} onChange={(e) => setAdminBody(e.target.value)} placeholder="Write your message to the admin…" maxLength={2000} />
+                  <textarea className="form-input" rows={5} value={adminBody} onChange={(e) => setAdminBody(e.target.value)} placeholder="Write your message to the admin…" maxLength={2000} onPaste={(e) => {
+                    const inserted = richPasteText(e.clipboardData.getData('text/html'), e.clipboardData.getData('text/plain'));
+                    if (inserted == null) return;
+                    e.preventDefault();
+                    const el = e.currentTarget;
+                    const start = el.selectionStart ?? 0;
+                    const end = el.selectionEnd ?? 0;
+                    setAdminBody(capLength(adminBody.slice(0, start) + inserted + adminBody.slice(end), 2000));
+                    const pos = start + inserted.length;
+                    requestAnimationFrame(() => { el.focus(); el.setSelectionRange(pos, pos); });
+                  }} />
                 </div>
                 <button className="primary w-full" type="submit" disabled={adminSending || !adminSubject.trim() || !adminBody.trim()}>
                   {adminSending ? <><Loader2 size={15} className="animate-spin" /> Sending…</> : <><Send size={14} /> Send Message</>}
@@ -3819,7 +3864,7 @@ function StudentMessagesTab() {
                   <div className="conv-meta">{timeSince(conv.last_message_at)}</div>
                 </div>
                 <div className={`conv-peer-name${conv.is_direct ? ' direct' : ''}`}>{peerOf(conv)}</div>
-                {conv.last_message_body && <div className="conv-preview">{conv.last_message_body.length > 60 ? conv.last_message_body.slice(0, 60) + '…' : conv.last_message_body}</div>}
+                {conv.last_message_body && <div className="conv-preview">{messagePreview(conv.last_message_body, 60)}</div>}
                 {(conv.unread_count ?? 0) > 0 && <span className="unread-badge">{conv.unread_count} unread</span>}
               </div>
             ))
@@ -3859,7 +3904,7 @@ function StudentMessagesTab() {
                         <div className="msg-sender-name">{msg.sender.display_name || msg.sender.full_name || 'User'}</div>
                       )}
                       <div className={`msg-bubble ${isOwn ? 'sent' : 'received'}`}>
-                        <div>{msg.body}</div>
+                        <MessageText body={msg.body} />
                         <div className="msg-bubble-time">{new Date(msg.created_at).toLocaleTimeString()}</div>
                       </div>
                     </div>
@@ -3868,12 +3913,7 @@ function StudentMessagesTab() {
               )}
             </div>
 
-            <div className="chat-input-row">
-              <input className="form-input" value={newMsg} onChange={(e) => setNewMsg(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()} placeholder="Type a message…" disabled={sending} />
-              <button className="primary" onClick={handleSend} disabled={sending || !newMsg.trim()}>
-                {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} {sending ? 'Sending…' : 'Send'}
-              </button>
-            </div>
+            <MessageComposer value={newMsg} onChange={setNewMsg} onSend={handleSend} sending={sending} />
           </div>
         )}
       </div>

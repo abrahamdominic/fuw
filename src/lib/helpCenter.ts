@@ -1,5 +1,6 @@
 // Help center & library services: help topics, FAQs, and announcements.
 import { requireSupabase } from './supabase';
+import { normalizeMessageBody } from './messageFormat';
 
 export interface HelpTopic {
   id: string;
@@ -18,6 +19,8 @@ export interface FaqItem {
   sort_order: number;
 }
 
+export type AnnouncementType = 'general' | 'maintenance' | 'important' | 'system_update';
+
 export interface LibraryAnnouncement {
   id: string;
   title: string;
@@ -26,6 +29,8 @@ export interface LibraryAnnouncement {
   published_at: string;
   is_published?: boolean;
   published_by?: string | null;
+  announcement_type?: AnnouncementType | string;
+  sender_name?: string | null;
 }
 
 export interface HelpCatalog {
@@ -171,13 +176,15 @@ export async function saveAnnouncement(input: {
   audience?: string;
   isPublished?: boolean;
   publishedBy?: string | null;
+  announcementType?: AnnouncementType;
 }): Promise<void> {
   const client = requireSupabase();
   const payload: Record<string, unknown> = {
     title: input.title.trim(),
-    body: input.body.trim(),
+    body: normalizeMessageBody(input.body),
     audience: (input.audience || 'everyone').trim(),
     is_published: input.isPublished ?? true,
+    announcement_type: input.announcementType || 'general',
     published_at: new Date().toISOString()
   };
   if (input.publishedBy !== undefined) payload.published_by = input.publishedBy;
@@ -198,4 +205,62 @@ export async function deleteAnnouncement(id: string): Promise<void> {
   const client = requireSupabase();
   const { error } = await client.from('library_announcements').delete().eq('id', id);
   if (error) throw error;
+}
+
+/** Admin: sent-announcement metadata (audience + type) display labels. */
+export const ANNOUNCEMENT_TYPES: { value: AnnouncementType; label: string }[] = [
+  { value: 'general', label: 'General' },
+  { value: 'maintenance', label: 'Maintenance' },
+  { value: 'important', label: 'Important' },
+  { value: 'system_update', label: 'System Update' }
+];
+
+export const AUDIENCE_OPTIONS = [
+  { value: 'everyone', label: 'Everyone (students & staff)' },
+  { value: 'students', label: 'Students only' },
+  { value: 'staff', label: 'Staff only' }
+];
+
+/**
+ * Send an announcement to every eligible user in one server-side step.
+ * The RPC inserts the announcement row and fans out per-user notifications
+ * (deduplicated). Only admin / super_admin can invoke it — the database
+ * enforces this on top of the UI hiding the controls.
+ */
+export async function sendAnnouncement(input: {
+  title: string;
+  body: string;
+  type: AnnouncementType;
+  audience?: string;
+}): Promise<string> {
+  const client = requireSupabase();
+  const { data, error } = await client.rpc('send_announcement', {
+    p_title: input.title.trim(),
+    p_body: normalizeMessageBody(input.body),
+    p_announcement_type: input.type,
+    p_audience: input.audience || 'everyone'
+  });
+  if (error) throw friendlyAnnouncementError(error);
+  return data as string;
+}
+
+/** Admin: toggle published/deactivated without deleting history. */
+export async function setAnnouncementPublished(id: string, published: boolean): Promise<void> {
+  const client = requireSupabase();
+  const { error } = await client
+    .from('library_announcements')
+    .update({ is_published: published, updated_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) throw friendlyAnnouncementError(error);
+}
+
+function friendlyAnnouncementError(error: unknown): Error {
+  const msg =
+    error && typeof error === 'object' && 'message' in error && typeof (error as any).message === 'string'
+      ? (error as any).message
+      : '';
+  if (/Only authorized administrators|permission denied|row-level security|rlspolicy/i.test(msg)) {
+    return new Error('You do not have permission to send announcements.');
+  }
+  return error instanceof Error ? error : new Error('Could not send the announcement. Please try again.');
 }

@@ -67,6 +67,9 @@ import { Logo } from '../components/Logo';
 import { CatalogueFilters, FilterState } from '../components/CatalogueFilters';
 import { catalogue, materialTypes, courseTitleByCode } from '../data/catalogue';
 import { useAuth } from '../lib/AuthContext';
+import { MessageComposer } from '../components/MessageComposer';
+import { MessageText } from '../components/MessageText';
+import { messagePreview, richPasteText, capLength, MESSAGE_MAX_LENGTH } from '../lib/messageFormat';
 import { roleLabel, can } from '../lib/rbac';
 import {
   submitMaterial as submitMaterialDb,
@@ -5573,8 +5576,18 @@ function AdminMessagesTab() {
                 </div>
                 <div className="form-field">
                   <label className="form-label">Message *</label>
-                  <textarea className="form-input conv-body-input" value={newConvBody} onChange={(e) => setNewConvBody(e.target.value)} required rows={5} placeholder="Type your message…" maxLength={1000} />
-                  <div className="field-hint count-hint text-right">{newConvBody.length}/1000</div>
+                  <textarea className="form-input conv-body-input" value={newConvBody} onChange={(e) => setNewConvBody(e.target.value)} required rows={5} placeholder="Type your message…" maxLength={2000} onPaste={(e) => {
+                    const inserted = richPasteText(e.clipboardData.getData('text/html'), e.clipboardData.getData('text/plain'));
+                    if (inserted == null) return;
+                    e.preventDefault();
+                    const el = e.currentTarget;
+                    const start = el.selectionStart ?? 0;
+                    const end = el.selectionEnd ?? 0;
+                    setNewConvBody(capLength(newConvBody.slice(0, start) + inserted + newConvBody.slice(end), 2000));
+                    const pos = start + inserted.length;
+                    requestAnimationFrame(() => { el.focus(); el.setSelectionRange(pos, pos); });
+                  }} />
+                  <div className="field-hint count-hint text-right">{newConvBody.length}/2000</div>
                 </div>
                 <div className="detail-actions">
                   <button type="button" className="secondary-btn" onClick={() => setShowNewConv(false)}>Cancel</button>
@@ -5625,7 +5638,7 @@ function AdminMessagesTab() {
                     <span className="conv-meta-sm nowrap-cell">{formatConvTime(conv.last_message_at)}</span>
                   </div>
                   <div className="conv-admin-name">{conv.peer?.full_name || 'Student'}{conv.peer?.matric_number ? ` · ${conv.peer.matric_number}` : ''}</div>
-                  {conv.last_message_body && <div className="conv-preview">{conv.last_message_body.length > 60 ? conv.last_message_body.slice(0, 60) + '…' : conv.last_message_body}</div>}
+                  {conv.last_message_body && <div className="conv-preview">{messagePreview(conv.last_message_body, 60)}</div>}
                   {(conv.unread_count ?? 0) > 0 && <span className="unread-badge">{conv.unread_count}</span>}
                 </div>
               </div>
@@ -5671,7 +5684,7 @@ function AdminMessagesTab() {
                       <div className={`msg-row ${isOwn ? 'sent' : 'received'}`}>
                         {!isOwn && <span className="avatar-mini xs" style={{ background: adminAvatarColor(activeConv?.peer?.full_name) }}>{adminInitials(activeConv?.peer?.full_name)}</span>}
                         <div className="msg-bubble">
-                          <div>{msg.body}</div>
+                          <MessageText body={msg.body} />
                           <div className="msg-bubble-time">{timeStr}</div>
                         </div>
                       </div>
@@ -5681,12 +5694,7 @@ function AdminMessagesTab() {
               )}
             </div>
 
-            <div className="chat-input-row">
-              <input className="form-input" value={newMsg} onChange={(e) => setNewMsg(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()} placeholder="Type a message…" disabled={sending} />
-              <button className="primary" onClick={handleSend} disabled={sending || !newMsg.trim()}>
-                {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Send
-              </button>
-            </div>
+            <MessageComposer value={newMsg} onChange={setNewMsg} onSend={handleSend} sending={sending} />
           </div>
         ) : (
           <div className="thread-panel thread-panel-empty">

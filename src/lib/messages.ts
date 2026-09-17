@@ -13,6 +13,7 @@
 //   * Cross-user display info comes from the `safe_profiles` view, which never
 //     exposes email, phone, permissions, or auth data.
 import { requireSupabase } from './supabase';
+import { normalizeMessageBody } from './messageFormat';
 
 export interface ProfilePreview {
   id: string;
@@ -181,7 +182,7 @@ export async function startConversation(
 
   const { error: msgError } = await client
     .from('messages')
-    .insert({ conversation_id: conv.id, sender_id: user.id, body: body.trim() });
+    .insert({ conversation_id: conv.id, sender_id: user.id, body: normalizeMessageBody(body) });
 
   if (msgError) throw msgError;
 
@@ -219,7 +220,7 @@ export async function sendMessage(conversationId: string, body: string): Promise
   const { data: { user } } = await client.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
-  const trimmed = body.trim();
+  const trimmed = normalizeMessageBody(body);
   if (!trimmed) throw new Error('Message cannot be empty.');
 
   const { data, error } = await client

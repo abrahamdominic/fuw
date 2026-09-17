@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Landmark, Loader2, Check, X, Archive, ShieldCheck, Eye, Trash2, FileWarning,
-  Layers, Plus, ExternalLink, RefreshCw, Bell
+  Layers, Plus, ExternalLink, RefreshCw, Bell, Send, Megaphone
 } from 'lucide-react';
 import {
   fetchResearchReviewQueue,
@@ -38,11 +38,18 @@ import {
   fetchAllAnnouncements,
   saveAnnouncement,
   deleteAnnouncement,
+  sendAnnouncement,
+  setAnnouncementPublished,
+  ANNOUNCEMENT_TYPES,
+  AUDIENCE_OPTIONS,
+  AnnouncementType,
   HelpTopic,
   FaqItem,
   LibraryAnnouncement
 } from '../lib/helpCenter';
 import { useToast } from '../components/Toast';
+import { MessageText } from '../components/MessageText';
+import { richPasteText, capLength, MESSAGE_MAX_LENGTH } from '../lib/messageFormat';
 
 export function AdminRepositoryTab() {
   const { toast } = useToast();
@@ -648,7 +655,8 @@ export function AdminAnnouncementsTab() {
   const [announcements, setAnnouncements] = useState<LibraryAnnouncement[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<{ id: string | null; title: string; body: string; audience: string; isPublished: boolean }>({ id: null, title: '', body: '', audience: 'everyone', isPublished: true });
+  const [sending, setSending] = useState(false);
+  const [form, setForm] = useState<{ id: string | null; title: string; body: string; audience: string; type: AnnouncementType; isPublished: boolean }>({ id: null, title: '', body: '', audience: 'everyone', type: 'general', isPublished: true });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -663,17 +671,53 @@ export function AdminAnnouncementsTab() {
 
   useEffect(() => { void load(); }, [load]);
 
+  const resetForm = () => setForm({ id: null, title: '', body: '', audience: 'everyone', type: 'general', isPublished: true });
+
+  /** Save or update a draft without broadcasting. */
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.title.trim() || !form.body.trim()) return;
     try {
-      await saveAnnouncement(form);
-      toast(form.id ? 'Announcement updated.' : 'Announcement published.', 'success');
-      setForm({ id: null, title: '', body: '', audience: 'everyone', isPublished: true });
+      await saveAnnouncement({ ...form, announcementType: form.type });
+      toast(form.id ? 'Announcement updated.' : 'Announcement saved as draft.', 'success');
+      resetForm();
       setShowForm(false);
       await load();
     } catch (err: any) {
       toast(err.message || 'Could not save announcement.', 'error');
+    }
+  };
+
+  /** Broadcast to every eligible user via the server-side send_announcement RPC. */
+  const handleSend = async () => {
+    if (!form.title.trim() || !form.body.trim()) {
+      toast('Add a title and message before sending.', 'error');
+      return;
+    }
+    if (!window.confirm('You are about to send this announcement to all registered users. Continue?')) return;
+    if (!window.confirm('Announcements are delivered to every student and staff member. This cannot be undone. Send anyway?')) return;
+    setSending(true);
+    try {
+      await sendAnnouncement({ title: form.title, body: form.body, type: form.type, audience: form.audience });
+      toast('Announcement sent successfully.', 'success');
+      resetForm();
+      setShowForm(false);
+      await load();
+    } catch (err: any) {
+      toast(err.message || 'Could not send the announcement.', 'error');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleToggleStatus = async (a: LibraryAnnouncement) => {
+    const published = a.is_published === false;
+    try {
+      await setAnnouncementPublished(a.id, published);
+      toast(published ? 'Announcement activated.' : 'Announcement deactivated.', 'success');
+      await load();
+    } catch (err: any) {
+      toast(err.message || 'Could not update announcement.', 'error');
     }
   };
 
@@ -688,69 +732,119 @@ export function AdminAnnouncementsTab() {
     }
   };
 
+  const typeLabel = (t?: string) => ANNOUNCEMENT_TYPES.find((x) => x.value === t)?.label ?? 'General';
+
   return (
     <div className="admin-announcements-tab">
       <div className="request-page-header">
         <div>
           <h2 className="page-title"><Bell size={22} />Library Announcements</h2>
-          <p className="page-subtitle">Post notices that appear on the student Help Center and dashboard.</p>
+          <p className="page-subtitle">Compose, preview, and send announcements to every user’s notification feed.</p>
         </div>
-        <button className={showForm ? 'secondary-btn' : 'primary'} onClick={() => { setShowForm(!showForm); setForm({ id: null, title: '', body: '', audience: 'everyone', isPublished: true }); }}>
+        <button className={showForm ? 'secondary-btn' : 'primary'} onClick={() => { setShowForm(!showForm); resetForm(); }}>
           {showForm ? <><X size={14} /> Cancel</> : <><Plus size={14} /> New Announcement</>}
         </button>
       </div>
 
       {showForm && (
-        <form onSubmit={handleSave} className="card" style={{ margin: '0 1rem 1rem', padding: '1.2rem' }}>
-          <div className="form-field">
-            <label className="form-label">Title *</label>
-            <input className="form-input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
-          </div>
-          <div className="form-field">
-            <label className="form-label">Message *</label>
-            <textarea className="form-input form-textarea" rows={4} value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} required />
-          </div>
-          <div className="form-row">
+        <div className="card announcement-composer">
+          <form onSubmit={handleSave}>
             <div className="form-field">
-              <label className="form-label">Audience</label>
-              <select className="form-input" value={form.audience} onChange={(e) => setForm({ ...form, audience: e.target.value })}>
-                <option value="everyone">Everyone</option>
-                <option value="students">Students</option>
-                <option value="staff">Staff</option>
-              </select>
+              <label className="form-label">Title *</label>
+              <input className="form-input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. Library maintenance on Friday" maxLength={120} required />
             </div>
-            <div className="form-field">
-              <label className="form-label">Status</label>
-              <select className="form-input" value={form.isPublished ? 'published' : 'draft'} onChange={(e) => setForm({ ...form, isPublished: e.target.value === 'published' })}>
-                <option value="published">Published</option>
-                <option value="draft">Draft</option>
-              </select>
+            <div className="form-field announcement-message-field">
+              <label className="form-label">Message *</label>
+              <textarea
+                className="form-input announcement-message"
+                rows={8}
+                value={form.body}
+                onChange={(e) => setForm({ ...form, body: e.target.value })}
+                placeholder="Write a clear, concise announcement for students and staff…
+Write short paragraphs separated by blank lines.
+Use **bold**, *italics*, `code`, lists (start a line with “- ” or “1. ”), and [links](https://…) where helpful."
+                maxLength={MESSAGE_MAX_LENGTH}
+                onPaste={(e) => {
+                  const inserted = richPasteText(e.clipboardData.getData('text/html'), e.clipboardData.getData('text/plain'));
+                  if (inserted == null) return;
+                  e.preventDefault();
+                  const el = e.currentTarget;
+                  const start = el.selectionStart ?? 0;
+                  const end = el.selectionEnd ?? 0;
+                  setForm({ ...form, body: capLength(form.body.slice(0, start) + inserted + form.body.slice(end), MESSAGE_MAX_LENGTH) });
+                  const pos = start + inserted.length;
+                  requestAnimationFrame(() => { el.focus(); el.setSelectionRange(pos, pos); });
+                }}
+                required
+              />
+              <div className="field-hint char-count">{form.body.length}/{MESSAGE_MAX_LENGTH}</div>
             </div>
-          </div>
-          <button type="submit" className="primary submit-btn form-submit-btn">{form.id ? 'Save Changes' : 'Publish Announcement'}</button>
-        </form>
+            <div className="form-row">
+              <div className="form-field">
+                <label className="form-label">Type</label>
+                <select className="form-input" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as AnnouncementType })}>
+                  {ANNOUNCEMENT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                </select>
+              </div>
+              <div className="form-field">
+                <label className="form-label">Audience</label>
+                <select className="form-input" value={form.audience} onChange={(e) => setForm({ ...form, audience: e.target.value })}>
+                  {AUDIENCE_OPTIONS.map((a) => <option key={a.value} value={a.value}>{a.label}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {form.title.trim() || form.body.trim() ? (
+              <div className="announcement-preview">
+                <div className="preview-label"><Eye size={14} /> Live preview</div>
+                <div className={`preview-card type-${form.type}`}>
+                  <span className="preview-type">{typeLabel(form.type).toUpperCase()}</span>
+                  <h3 className="preview-title">{form.title.trim() || 'Announcement title'}</h3>
+                  {form.body.trim() ? (
+                    <MessageText body={form.body} />
+                  ) : (
+                    <p className="preview-placeholder">Your announcement message will appear here. Students will receive this in their Alerts feed.</p>
+                  )}
+                  <div className="preview-meta">
+                    <span>Sent to {AUDIENCE_OPTIONS.find((a) => a.value === form.audience)?.label}</span>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="form-row announcement-actions">
+              <button type="submit" className="secondary-btn" disabled={sending}>
+                <Archive size={14} /> {form.id ? 'Save changes' : 'Save as draft'}
+              </button>
+              <button type="button" className="primary submit-btn" disabled={sending} onClick={handleSend}>
+                <Send size={14} /> {sending ? 'Sending…' : 'Send to Everyone'}
+              </button>
+            </div>
+          </form>
+        </div>
       )}
 
       {loading ? (
         <div className="loading-spinner-row"><Loader2 size={18} className="animate-spin" /> Loading…</div>
       ) : announcements.length === 0 ? (
         <div className="empty-state-card" style={{ margin: '0 1rem' }}>
-          <Bell size={36} /><b>No announcements</b><span>Post an announcement to keep students informed.</span>
+          <Bell size={36} /><b>No announcements</b><span>Send an announcement to keep students informed.</span>
         </div>
       ) : (
-        <div className="table-scroll-wrapper" style={{ margin: '0 1rem' }}>
-          <table className="admin-table">
-            <thead><tr><th>Title</th><th>Audience</th><th>Status</th><th>Published</th><th>Actions</th></tr></thead>
+        <div className="table-scroll-wrapper announcement-table-wrap" style={{ margin: '0 1rem' }}>
+          <table className="admin-table announcements-table">
+            <thead><tr><th>Title</th><th>Type</th><th>Audience</th><th>Status</th><th>Sent</th><th>Actions</th></tr></thead>
             <tbody>
               {announcements.map((a) => (
                 <tr key={a.id}>
-                  <td>{a.title}</td>
-                  <td><span className="field-tag">{a.audience}</span></td>
-                  <td>{a.is_published === false ? 'Draft' : 'Published'}</td>
-                  <td className="cell-secondary">{new Date(a.published_at).toLocaleDateString()}</td>
-                  <td>
-                    <button className="link-btn" onClick={() => { setForm({ id: a.id, title: a.title, body: a.body, audience: a.audience, isPublished: a.is_published !== false }); setShowForm(true); }}>Edit</button>
-                    <button className="link-btn" style={{ color: '#dc2626' }} onClick={() => handleDelete(a.id)}><Trash2 size={13} /></button>
+                  <td data-label="Title">{a.title}</td>
+                  <td data-label="Type"><span className={`ann-type-tag type-${a.announcement_type || 'general'}`}>{typeLabel(a.announcement_type)}</span></td>
+                  <td data-label="Audience"><span className="field-tag">{a.audience}</span></td>
+                  <td data-label="Status">{a.is_published === false ? 'Deactivated' : 'Active'}</td>
+                  <td data-label="Sent" className="cell-secondary">{new Date(a.published_at).toLocaleString()}</td>
+                  <td data-label="Actions" className="cell-actions">
+                    <button className="link-btn" onClick={() => handleToggleStatus(a)}>{a.is_published === false ? 'Activate' : 'Deactivate'}</button>
+                    <button className="link-btn" onClick={() => handleDelete(a.id)}><Trash2 size={13} /></button>
                   </td>
                 </tr>
               ))}

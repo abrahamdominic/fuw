@@ -12,7 +12,11 @@ export type NotificationType =
   | 'admin_promoted'
   | 'admin_verified'
   | 'system'
-  | 'welcome';
+  | 'welcome'
+  | 'announcement'
+  | 'maintenance'
+  | 'important'
+  | 'system_update';
 
 export interface NotificationItem {
   id: string;
@@ -23,6 +27,7 @@ export interface NotificationItem {
   link?: string;
   relatedMaterialId?: string;
   relatedCourseCode?: string;
+  senderName?: string;
   createdAt: string;
 }
 
@@ -45,6 +50,7 @@ function mapRow(row: any): NotificationItem {
     link: normalizeNotificationLink(row.link),
     relatedMaterialId: row.related_material_id || undefined,
     relatedCourseCode: row.related_course_code || undefined,
+    senderName: row.sender_name || undefined,
     createdAt: row.created_at
   };
 }

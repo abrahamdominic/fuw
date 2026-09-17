@@ -5,9 +5,10 @@ import {
   MessageSquare, Building2, Quote, FileWarning, BookmarkCheck, HelpCircle,
   Mail, Phone
 } from 'lucide-react';
-import { fetchHelpCatalog, HelpCatalog, HelpTopic, FaqItem, LibraryAnnouncement } from '../lib/helpCenter';
+import { fetchHelpCatalog, HelpCatalog, HelpTopic, FaqItem, LibraryAnnouncement, ANNOUNCEMENT_TYPES } from '../lib/helpCenter';
 import { useToast } from '../components/Toast';
 import { SEO } from '../components/SEO';
+import { MessageText } from '../components/MessageText';
 
 export function HelpPage() {
   const { toast } = useToast();
@@ -65,6 +66,45 @@ export function HelpPage() {
           ))}
         </div>
       )}
+
+      <div className="section-head" style={{ padding: '0 1rem' }}>
+        <div>
+          <p className="kicker">GETTING STARTED</p>
+          <h2>How the library works</h2>
+        </div>
+      </div>
+      <ol className="help-steps">
+        {[
+          {
+            title: 'Create your account',
+            desc: 'Register with your university details to access the library.'
+          },
+          {
+            title: 'Sign in',
+            desc: 'Use your registered credentials to access your account.'
+          },
+          {
+            title: 'Browse materials',
+            desc: 'Search and explore the available academic resources.'
+          },
+          {
+            title: 'Read or download materials',
+            desc: 'Open materials and use the actions available within the reader.'
+          },
+          {
+            title: 'Get help',
+            desc: 'Contact the appropriate support channel if you encounter a problem.'
+          }
+        ].map((step) => (
+          <li className="help-step" key={step.title}>
+            <span className="help-step-num" aria-hidden="true" />
+            <div className="help-step-text">
+              <b>{step.title}</b>
+              <p>{step.desc}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
 
       <div className="section-head" style={{ padding: '0 1rem' }}>
         <div>
@@ -138,14 +178,23 @@ export function HelpPage() {
 }
 
 function AnnouncementItem({ announcement }: { announcement: LibraryAnnouncement }) {
+  const typeLabel = ANNOUNCEMENT_TYPES.find((t) => t.value === announcement.announcement_type)?.label ?? 'General';
+  const sender = announcement.sender_name?.trim();
+  const date = new Date(announcement.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   return (
-    <div className="help-announcement-card">
-      <b>{announcement.title}</b>
-      <span>{announcement.body}</span>
-      <span style={{ display: 'block', marginTop: 4, fontSize: '0.72rem', opacity: 0.7 }}>
-        {new Date(announcement.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-      </span>
-    </div>
+    <article className={`help-announcement-card type-${announcement.announcement_type || 'general'}`}>
+      <div className="announcement-card-head">
+        <span className="announcement-type-tag">{typeLabel}</span>
+      </div>
+      <h3 className="announcement-title">{announcement.title}</h3>
+      <div className="announcement-card-body">
+        <MessageText body={announcement.body} />
+      </div>
+      <div className="announcement-meta">
+        {sender && <span>By {sender}</span>}
+        <span>{date}</span>
+      </div>
+    </article>
   );
 }
 
@@ -156,13 +205,55 @@ function HelpTopicCard({ topic }: { topic: HelpTopic }) {
       <h3>
         <BookOpen size={16} /> {topic.title}
       </h3>
-      <p style={{ display: open ? 'block' : '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-        {topic.body}
-      </p>
+      <div className={open ? 'help-topic-body open' : 'help-topic-body'} style={!open ? { WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', display: '-webkit-box' } : undefined}>
+        <HelpBody content={topic.body} />
+      </div>
       <button className="link-btn" onClick={() => setOpen(!open)}>
         {open ? <>Show less <ChevronUp size={13} /></> : <>Read more <ChevronDown size={13} /></>}
       </button>
     </div>
+  );
+}
+
+/** Inline emphasis for help copy: **bold** and *italic* become real text. */
+function helpInline(text: string): React.ReactNode {
+  const parts: React.ReactNode[] = [];
+  const regex = /\*\*([^*]+)\*\*|\*([^*]+)\*/g;
+  let last = 0;
+  let match: RegExpExecArray | null;
+  let key = 0;
+  while ((match = regex.exec(text))) {
+    if (match.index > last) parts.push(text.slice(last, match.index));
+    parts.push(
+      match[1] !== undefined ? <strong key={key++}>{match[1]}</strong> : <em key={key++}>{match[2]}</em>
+    );
+    last = match.index + match[0].length;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return parts.length ? <>{parts}</> : text;
+}
+
+/** Render help-topic bodies (paragraphs, bullet/numbered lists). */
+function HelpBody({ content }: { content: string }) {
+  const paragraphs = content.split(/\n{2,}/).map((raw) => raw.trim()).filter(Boolean);
+  return (
+    <>
+      {paragraphs.map((para, pi) => {
+        const lines = para.split('\n');
+        const isBulletList = lines.every((l) => /^\s*[-*•]\s+/.test(l));
+        const isNumberedList = lines.every((l) => /^\s*\d+[.)]\s+/.test(l));
+        if (isBulletList || isNumberedList) {
+          return (
+            <ul className="chat-list" key={pi}>
+              {lines.map((l, li) => (
+                <li key={li}>{helpInline(l.replace(/^\s*([-*•]|\d+[.)])\s+/, ''))}</li>
+              ))}
+            </ul>
+          );
+        }
+        return <p key={pi}>{helpInline(para)}</p>;
+      })}
+    </>
   );
 }
 
