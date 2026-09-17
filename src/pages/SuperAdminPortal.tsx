@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
+  Home,
   ShieldCheck,
   MailPlus,
   LogOut,
@@ -59,6 +60,7 @@ interface InviteRow {
 }
 
 const superNavItems = [
+  { label: 'Home', path: '/', icon: Home, exact: true },
   { label: 'Overview', path: '/super', icon: LayoutDashboard, exact: true },
   { label: 'Administrators', path: '/super/admins', icon: ShieldCheck },
   { label: 'Admin invites', path: '/super/invites', icon: MailPlus },

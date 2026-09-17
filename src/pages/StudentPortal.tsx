@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, NavLink, useLocation, useNavigate, Routes, Route } from 'react-router-dom';
 import {
   LayoutDashboard,
+  Home,
   Upload,
   FileText,
   Heart,
@@ -106,6 +107,7 @@ interface StudentPortalProps {
 }
 
 const studentNavItems = [
+  { label: 'Home', path: '/', icon: Home, exact: true },
   { label: 'Dashboard', path: '/student', icon: LayoutDashboard, exact: true },
   { label: 'Upload material', path: '/student/upload', icon: Upload },
   { label: 'My uploads', path: '/student/uploads', icon: FileText },

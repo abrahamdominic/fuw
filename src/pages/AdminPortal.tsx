@@ -3,6 +3,7 @@ import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { supabase, requireSupabase } from '../lib/supabase';
 import {
   LayoutDashboard,
+  Home,
   FileText,
   Upload,
   Users,
@@ -110,6 +111,7 @@ interface AdminPortalProps {
 }
 
 const adminNavItems = [
+  { label: 'Home', path: '/', icon: Home, exact: true, permission: null },
   { label: 'Overview', path: '/admin', icon: LayoutDashboard, exact: true, permission: null },
   { label: 'Materials & Approvals', path: '/admin/materials', icon: FileText, permission: null },
   { label: 'Upload material', path: '/admin/upload', icon: Upload, permission: 'upload_as_approved' },
