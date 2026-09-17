@@ -39,6 +39,8 @@ import { CatalogueFilters, FilterState, EMPTY_FILTERS } from '../components/Cata
 import { Logo } from '../components/Logo';
 import { useToast } from '../components/Toast';
 import { SEO } from '../components/SEO';
+import { CitationModal } from '../components/CitationModal';
+import { ReadingListPicker } from '../components/ReadingListPicker';
 import { mergeDbCourses } from '../lib/liveCatalogue';
 import { analyticsTracker } from '../lib/analyticsTracker';
 import { aal2LoginChallenge, signInWithPasskey } from '../lib/security';
@@ -741,6 +743,8 @@ export function MaterialDetailPage({ onReadOnline }: PublicPagesProps) {
   const store = useStore();
   const { toast } = useToast();
   const material = store.getMaterialById(id || '') || store.getApprovedMaterials()[0];
+  const [showCitation, setShowCitation] = useState(false);
+  const [showReadingListPicker, setShowReadingListPicker] = useState(false);
 
   useEffect(() => {
     if (material) {
@@ -824,6 +828,12 @@ export function MaterialDetailPage({ onReadOnline }: PublicPagesProps) {
             <button onClick={handleToggleSave} className={isSaved ? 'active' : ''}>
               <Bookmark size={16} fill={isSaved ? 'currentColor' : 'none'} /> {isSaved ? 'Saved' : 'Save'}
             </button>
+            <button onClick={() => setShowReadingListPicker(true)}>
+              <Bookmark size={16} /> Add to Reading List
+            </button>
+            <button onClick={() => setShowCitation(true)}>
+              <CheckCircle2 size={16} /> Cite
+            </button>
             <button onClick={handleShare}>
               <Share2 size={16} /> Share
             </button>
@@ -871,6 +881,15 @@ export function MaterialDetailPage({ onReadOnline }: PublicPagesProps) {
           </dl>
         </section>
       </div>
+
+      {showCitation && <CitationModal material={material} onClose={() => setShowCitation(false)} />}
+      {showReadingListPicker && (
+        <ReadingListPicker
+          materialId={material.id}
+          resourceTitle={material.title}
+          onClose={() => setShowReadingListPicker(false)}
+        />
+      )}
     </main>
   );
 }

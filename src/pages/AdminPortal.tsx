@@ -55,7 +55,10 @@ import {
   UserCog,
   Pencil,
   ArrowLeft,
-  Calendar
+  Calendar,
+  Archive,
+  Layers,
+  HelpCircle
 } from 'lucide-react';
 import { useStore } from '../lib/useStore';
 import { useLiveCatalogue } from '../lib/useLiveCatalogue';
@@ -91,6 +94,13 @@ import { fetchAllSessions, terminateSession as terminateSessionDb, ActiveSession
 import { fetchGenderCounts, fetchMaterialsByFaculty, fetchMaterialsByDepartment, fetchAnalyticsDashboard, fetchTopMaterials, fetchRecentAnalyticsEvents, purgeAnalyticsData, fetchSearchInsights, type SearchInsights } from '../lib/analytics';
 import { AnalyticsChart, AnalyticsDatum } from '../components/AnalyticsCharts';
 import type { AnalyticsDashboard, TopMaterialRow, RecentAnalyticsEventRow } from '../lib/analyticsTypes';
+import {
+  AdminRepositoryTab,
+  AdminCollectionsTab,
+  AdminCopyrightReportsTab,
+  AdminHelpTab,
+  AdminAnnouncementsTab
+} from './AdminRepositoryTabs';
 
 interface AdminPortalProps {
   onReadOnline: (material: MaterialItem) => void;
@@ -100,6 +110,11 @@ const adminNavItems = [
   { label: 'Overview', path: '/admin', icon: LayoutDashboard, exact: true, permission: null },
   { label: 'Materials & Approvals', path: '/admin/materials', icon: FileText, permission: null },
   { label: 'Upload material', path: '/admin/upload', icon: Upload, permission: 'upload_as_approved' },
+  { label: 'Repository', path: '/admin/repository', icon: Archive, permission: 'manage_catalogue' },
+  { label: 'Collections', path: '/admin/collections', icon: Layers, permission: 'manage_catalogue' },
+  { label: 'Copyright reports', path: '/admin/copyright-reports', icon: FileWarning, permission: 'manage_students' },
+  { label: 'Help center', path: '/admin/help', icon: HelpCircle, permission: 'manage_students' },
+  { label: 'Announcements', path: '/admin/announcements', icon: Bell, permission: 'manage_students' },
   { label: 'AI & indexing', path: '/admin/ai', icon: Sparkles, permission: 'manage_ai' },
   { label: 'Students & users', path: '/admin/users', icon: Users, permission: 'manage_students' },
   { label: 'Deletion requests', path: '/admin/deletion-requests', icon: FileWarning, permission: 'manage_students' },
@@ -370,6 +385,40 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
           />
         ) : currentPath.startsWith('/admin/upload') ? (
           <AdminUploadTab onUploaded={() => navigate('/admin/materials')} />
+        ) : currentPath.startsWith('/admin/repository') ? (
+          hasPermission('manage_catalogue') ? (
+            <AdminRepositoryTab />
+          ) : (
+            <div className="empty-state card-empty">
+              <Lock size={40} />
+              <b>Repository management is restricted.</b>
+              <span>Your account does not have the "Manage catalogue" permission.</span>
+            </div>
+          )
+        ) : currentPath.startsWith('/admin/collections') ? (
+          <AdminCollectionsTab />
+        ) : currentPath.startsWith('/admin/copyright-reports') ? (
+          <AdminCopyrightReportsTab />
+        ) : currentPath.startsWith('/admin/help') ? (
+          hasPermission('manage_students') ? (
+            <AdminHelpTab />
+          ) : (
+            <div className="empty-state card-empty">
+              <Lock size={40} />
+              <b>Help center management is restricted.</b>
+              <span>Your account does not have the "Manage students" permission.</span>
+            </div>
+          )
+        ) : currentPath.startsWith('/admin/announcements') ? (
+          hasPermission('manage_students') ? (
+            <AdminAnnouncementsTab />
+          ) : (
+            <div className="empty-state card-empty">
+              <Lock size={40} />
+              <b>Announcement management is restricted.</b>
+              <span>Your account does not have the "Manage students" permission.</span>
+            </div>
+          )
         ) : currentPath.startsWith('/admin/ai') ? (
           hasPermission('manage_ai') ? (
             <AdminAiManagementTab />

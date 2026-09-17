@@ -8,6 +8,7 @@ import {
   Clock,
   Download,
   BookOpen,
+  Bookmark,
   Users,
   Settings,
   LogOut,
@@ -64,6 +65,7 @@ import { TrendingMaterialsSection } from '../components/TrendingMaterialsSection
 import { StudyInsightsPanel } from '../components/StudyInsightsPanel';
 import { StudyPlannerTab } from '../components/StudyPlannerTab';
 import { StudentNotesTab } from '../components/StudentNotesTab';
+import { ReadingListsTab, ReadingListDetailTab } from '../components/ReadingListsTabs';
 import { CatalogueFilters, FilterState } from '../components/CatalogueFilters';
 import { MultiDepartmentPicker, MultiDepartmentState, EMPTY_MULTI_DEPARTMENT } from '../components/MultiDepartmentPicker';
 import { catalogue, facultyByName, departmentByName, levelsFor, materialTypes, courseTitleByCode } from '../data/catalogue';
@@ -109,6 +111,7 @@ const studentNavItems = [
   { label: 'Study planner', path: '/student/planner', icon: CalendarRange },
   { label: 'My notes', path: '/student/notes', icon: StickyNote },
   { label: 'AI study assistant', path: '/student/assistant', icon: Sparkles },
+  { label: 'Reading lists', path: '/student/reading-lists', icon: Bookmark },
   { label: 'Saved materials', path: '/student/saved', icon: Heart },
   { label: 'Recently viewed', path: '/student/recent', icon: Clock },
   { label: 'Downloads', path: '/student/downloads', icon: Download },
@@ -561,6 +564,10 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
           <StudyPlannerTab />
         ) : currentPath.startsWith('/student/notes') ? (
           <StudentNotesTab />
+        ) : currentPath.startsWith('/student/reading-lists/') ? (
+          <ReadingListDetailTab />
+        ) : currentPath.startsWith('/student/reading-lists') ? (
+          <ReadingListsTab onReadOnline={onReadOnline} />
         ) : currentPath.startsWith('/student/messages') ? (
           <StudentMessagesTab />
         ) : currentPath.startsWith('/student/request-deletion') ? (

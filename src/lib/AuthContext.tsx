@@ -751,16 +751,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     gender?: string;
     phoneNumber?: string;
   }) => {
-    if (!supabase || !user) {
-      return { error: new Error('You must be authenticated to complete your profile.') };
+    if (!supabase) {
+      return { error: new Error('Supabase client is not configured.') };
     }
 
     try {
+      // Immediately after a fresh signUp the React `user` state is still the
+      // pre-render value (null), so resolve the authenticated identity from
+      // the live session instead of relying on the React state.
+      let currentUser = user;
+      if (!currentUser) {
+        const { data: sessionData } = await supabase.auth.getUser();
+        currentUser = sessionData?.user ?? null;
+      }
+      if (!currentUser) {
+        return { error: new Error('You must be authenticated to complete your profile.') };
+      }
+
       const newProfile: ProfileData = {
-        id: user.id,
+        id: currentUser.id,
         fullName: data.fullName.trim(),
         displayName: data.fullName.trim().split(' ')[0],
-        email: user.email || '',
+        email: currentUser.email || '',
         matricNumber: data.matricNumber.trim().toUpperCase(),
         faculty: data.faculty,
         department: data.department,
@@ -788,9 +800,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const usedLevel = profile?.levelChangesUsed ?? 0;
 
       const { error } = await supabase.from('profiles').upsert({
-        id: user.id,
+        id: currentUser.id,
         full_name: newProfile.fullName,
-        email: user.email,
+        email: currentUser.email,
         matric_number: newProfile.matricNumber,
         faculty: newProfile.faculty,
         department: newProfile.department,
@@ -810,10 +822,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Re-fetch so trigger-assigned fields (e.g. an admin invite role applied
       // on signup) are reflected immediately instead of using stale client state.
-      const fresh = await fetchProfile(user.id, user.email);
+      const fresh = await fetchProfile(currentUser.id, currentUser.email);
       const finalProfile = fresh ?? newProfile;
       setProfile(finalProfile);
-      syncToStore(finalProfile, user);
+      syncToStore(finalProfile, currentUser);
       return { error: null };
     } catch (err: any) {
       return { error: toUserFacingAuthError(err, 'Failed to save student profile.') };

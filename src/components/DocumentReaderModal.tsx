@@ -18,6 +18,7 @@ import { MaterialItem, store } from '../lib/store';
 import { getSecureFileUrl } from '../lib/materials';
 import { useToast } from './Toast';
 import { analyticsTracker } from '../lib/analyticsTracker';
+import { syncMaterialProgress } from '../lib/readingProgress';
 
 interface DocumentReaderModalProps {
   material: MaterialItem | null;
@@ -67,6 +68,7 @@ export function DocumentReaderModal({ material, onClose }: DocumentReaderModalPr
       if (looksLikePdf) {
         // Native PDF viewing is continuous - log the session as completed
         store.saveReadingProgress(material.id, 1, 1);
+        void syncMaterialProgress(material.id, 1, 1);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -76,6 +78,7 @@ export function DocumentReaderModal({ material, onClose }: DocumentReaderModalPr
   useEffect(() => {
     if (material && !looksLikePdf) {
       store.saveReadingProgress(material.id, page, totalPages);
+      void syncMaterialProgress(material.id, page, totalPages);
     }
   }, [page, material, looksLikePdf]);
 

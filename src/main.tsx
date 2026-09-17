@@ -36,6 +36,28 @@ const SuperAdminPortal = lazy(() =>
 const MaintenancePage = lazy(() =>
   import('./pages/MaintenancePage').then((m) => ({ default: m.MaintenancePage }))
 );
+const RepositoryPage = lazy(() =>
+  import('./pages/RepositoryPages').then((m) => ({ default: m.RepositoryPage }))
+);
+const RepositoryDetailPage = lazy(() =>
+  import('./pages/RepositoryPages').then((m) => ({ default: m.RepositoryDetailPage }))
+);
+const RepositorySubmitPage = lazy(() =>
+  import('./pages/RepositoryPages').then((m) => ({ default: m.RepositorySubmitPage }))
+);
+const HelpPage = lazy(() => import('./pages/HelpPages').then((m) => ({ default: m.HelpPage })));
+const ReportProblemPage = lazy(() =>
+  import('./pages/HelpPages').then((m) => ({ default: m.ReportProblemPage }))
+);
+const ReportCopyrightPage = lazy(() =>
+  import('./pages/HelpPages').then((m) => ({ default: m.ReportCopyrightPage }))
+);
+const CollectionsPage = lazy(() =>
+  import('./pages/CollectionPages').then((m) => ({ default: m.CollectionsPage }))
+);
+const CollectionDetailPage = lazy(() =>
+  import('./pages/CollectionPages').then((m) => ({ default: m.CollectionDetailPage }))
+);
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { MaintenanceGate } from './components/MaintenanceGate';
 import { analyticsTracker } from './lib/analyticsTracker';
@@ -334,6 +356,91 @@ function App() {
                 <RequireAuth>
                   <PublicLayout onReadOnline={handleReadOnline}>
                     <AboutPage />
+                  </PublicLayout>
+                </RequireAuth>
+              }
+            />
+
+            {/* Institutional Repository */}
+            <Route
+              path="/repository"
+              element={
+                <RequireAuth>
+                  <PublicLayout onReadOnline={handleReadOnline}>
+                    <RepositoryPage />
+                  </PublicLayout>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/repository/submit"
+              element={
+                <RequireAuth>
+                  <PublicLayout onReadOnline={handleReadOnline}>
+                    <RepositorySubmitPage />
+                  </PublicLayout>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/repository/:id"
+              element={
+                <RequireAuth>
+                  <PublicLayout onReadOnline={handleReadOnline}>
+                    <RepositoryDetailPage />
+                  </PublicLayout>
+                </RequireAuth>
+              }
+            />
+
+            {/* Help & Library Services */}
+            <Route
+              path="/help"
+              element={
+                <RequireAuth>
+                  <PublicLayout onReadOnline={handleReadOnline}>
+                    <HelpPage />
+                  </PublicLayout>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/report-problem"
+              element={
+                <RequireAuth>
+                  <PublicLayout onReadOnline={handleReadOnline}>
+                    <ReportProblemPage />
+                  </PublicLayout>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/report-copyright"
+              element={
+                <RequireAuth>
+                  <PublicLayout onReadOnline={handleReadOnline}>
+                    <ReportCopyrightPage />
+                  </PublicLayout>
+                </RequireAuth>
+              }
+            />
+            {/* Curated Collections */}
+            <Route
+              path="/collections"
+              element={
+                <RequireAuth>
+                  <PublicLayout onReadOnline={handleReadOnline}>
+                    <CollectionsPage />
+                  </PublicLayout>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/collections/:slug"
+              element={
+                <RequireAuth>
+                  <PublicLayout onReadOnline={handleReadOnline}>
+                    <CollectionDetailPage />
                   </PublicLayout>
                 </RequireAuth>
               }

@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FileText, Bookmark, Download, ArrowRight, Eye, Sparkles } from 'lucide-react';
+import { FileText, Bookmark, Download, ArrowRight, Eye, Sparkles, Quote } from 'lucide-react';
 import { MaterialItem, store } from '../lib/store';
 import { incrementDownload, getSecureFileUrl } from '../lib/materials';
 import { analyticsTracker } from '../lib/analyticsTracker';
 import { useToast } from './Toast';
+import { CitationModal } from './CitationModal';
 
 interface MaterialCardProps {
   material: MaterialItem;
@@ -15,6 +16,7 @@ interface MaterialCardProps {
 
 export function MaterialCard({ material, onReadOnline, onAskAi }: MaterialCardProps) {
   const { toast } = useToast();
+  const [showCitation, setShowCitation] = useState(false);
   const isSaved = store.isBookmarked(material.id);
 
   const handleSave = (e: React.MouseEvent) => {
@@ -153,6 +155,20 @@ export function MaterialCard({ material, onReadOnline, onAskAi }: MaterialCardPr
           <ArrowRight size={14} />
         </Link>
       </div>
+
+      <button
+        className="card-cite-link"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setShowCitation(true);
+        }}
+        title="Generate a citation for this material"
+      >
+        <Quote size={12} /> Cite
+      </button>
+
+      {showCitation && <CitationModal material={material} onClose={() => setShowCitation(false)} />}
     </article>
   );
 }

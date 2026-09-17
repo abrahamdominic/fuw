@@ -52,6 +52,15 @@ export function Header() {
           <NavLink to="/courses" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
             Courses
           </NavLink>
+          <NavLink to="/repository" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
+            Repository
+          </NavLink>
+          <NavLink to="/collections" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
+            Collections
+          </NavLink>
+          <NavLink to="/help" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
+            Help
+          </NavLink>
           <NavLink to="/about" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
             About
           </NavLink>
@@ -117,6 +126,15 @@ export function Header() {
               </NavLink>
               <NavLink to="/courses" className={({ isActive }) => (isActive ? 'mobile-link active' : 'mobile-link')}>
                 Course Directory
+              </NavLink>
+              <NavLink to="/repository" className={({ isActive }) => (isActive ? 'mobile-link active' : 'mobile-link')}>
+                Institutional Repository
+              </NavLink>
+              <NavLink to="/collections" className={({ isActive }) => (isActive ? 'mobile-link active' : 'mobile-link')}>
+                Curated Collections
+              </NavLink>
+              <NavLink to="/help" className={({ isActive }) => (isActive ? 'mobile-link active' : 'mobile-link')}>
+                Help & Library Services
               </NavLink>
               <NavLink to="/about" className={({ isActive }) => (isActive ? 'mobile-link active' : 'mobile-link')}>
                 About FUW E-Library
