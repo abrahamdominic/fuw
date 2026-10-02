@@ -118,6 +118,13 @@
     X-Content-Type-Options = "nosniff"
     Cache-Control = "public, max-age=3600, stale-while-revalidate=86400"
 
+# Netlify does not know the .webmanifest extension and would serve it as
+# application/octet-stream, which makes browsers ignore the PWA manifest.
+[[headers]]
+  for = "/site.webmanifest"
+  [headers.values]
+    Content-Type = "application/manifest+json; charset=utf-8"
+
 # Hashed build assets are immutable.
 [[headers]]
   for = "/assets/*"
