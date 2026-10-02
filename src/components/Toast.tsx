@@ -37,18 +37,21 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       {children}
       <div className="toast-container" aria-live="polite">
         {toasts.map((t) => (
-          <div key={t.id} className={`toast-item toast-${t.type}`}>
-            <div className="toast-icon">
-              {t.type === 'success' && <CheckCircle2 size={18} />}
-              {t.type === 'error' && <AlertCircle size={18} />}
-              {t.type === 'info' && <Info size={18} />}
+            <div
+              key={t.id}
+              className={`toast-item toast-${t.type}`}
+            >
+              <div className="toast-icon">
+                {t.type === 'success' && <CheckCircle2 size={18} />}
+                {t.type === 'error' && <AlertCircle size={18} />}
+                {t.type === 'info' && <Info size={18} />}
+              </div>
+              <p className="toast-message">{t.message}</p>
+              <button className="toast-close" onClick={() => removeToast(t.id)} aria-label="Dismiss notification">
+                <X size={15} />
+              </button>
             </div>
-            <p className="toast-message">{t.message}</p>
-            <button className="toast-close" onClick={() => removeToast(t.id)} aria-label="Dismiss notification">
-              <X size={15} />
-            </button>
-          </div>
-        ))}
+          ))}
       </div>
     </ToastContext.Provider>
   );

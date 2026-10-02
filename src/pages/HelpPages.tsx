@@ -3,11 +3,13 @@ import { Link } from 'react-router-dom';
 import {
   BookOpen, Search, Download, GraduationCap, Shield, ChevronDown, ChevronUp,
   MessageSquare, Building2, Quote, FileWarning, BookmarkCheck, HelpCircle,
-  Mail, Phone
+  Mail, Phone, BadgeCheck, Crown
 } from 'lucide-react';
 import { fetchHelpCatalog, HelpCatalog, HelpTopic, FaqItem, LibraryAnnouncement, ANNOUNCEMENT_TYPES } from '../lib/helpCenter';
 import { useToast } from '../components/Toast';
 import { SEO } from '../components/SEO';
+import { Breadcrumbs } from '../components/Breadcrumbs';
+import { PUBLIC_ROUTES } from '../lib/seo/routes';
 import { MessageText } from '../components/MessageText';
 
 export function HelpPage() {
@@ -44,16 +46,14 @@ export function HelpPage() {
     { icon: GraduationCap, title: 'Repository Guidelines', to: '/help#repository', desc: 'Submitting theses, projects and publications.' },
     { icon: FileWarning, title: 'Report a Problem', to: '/report-problem', desc: 'Tell us about a missing, broken or incorrect resource.' },
     { icon: Shield, title: 'Report Copyright Issue', to: '/report-copyright', desc: 'Submit a copyright or takedown request.' },
-    { icon: MessageSquare, title: 'Contact the Library', to: '/student/messages', desc: 'Message library staff directly from your dashboard.' }
+    { icon: MessageSquare, title: 'Contact the Library', to: '/student/messages', desc: 'Message library staff directly from your dashboard.' },
+    { icon: BadgeCheck, title: 'Verification & Premium', to: '/help#access', desc: 'How academic verification and premium access work.' }
   ];
 
   return (
     <>
-      <SEO
-        title="Help & Library Services — FUW Digital Library"
-        description="Get help using the FUW Digital Library: search guide, downloads, citations, repository submission, copyright policy, and frequently asked questions."
-        path="/help"
-      />
+      <SEO path="/help" breadcrumbs={PUBLIC_ROUTES['/help'].breadcrumbs} />
+      <Breadcrumbs trail={PUBLIC_ROUTES['/help'].breadcrumbs} />
       <div className="help-hero">
         <h1><HelpCircle size={28} style={{ verticalAlign: -4 }} /> Help & Library Services</h1>
         <p>Everything you need to make the most of the FUW Digital Library and Institutional Repository.</p>
@@ -80,20 +80,20 @@ export function HelpPage() {
             desc: 'Register with your university details to access the library.'
           },
           {
-            title: 'Sign in',
-            desc: 'Use your registered credentials to access your account.'
+            title: 'Verify your academic identity',
+            desc: 'Submit your matric number, faculty, department and level. A library officer reviews it — this is not email verification.'
           },
           {
-            title: 'Browse materials',
-            desc: 'Search and explore the available academic resources.'
+            title: 'Browse everything',
+            desc: 'Search, preview and read titles, past questions and repository publications. Browsing is always free.'
           },
           {
-            title: 'Read or download materials',
-            desc: 'Open materials and use the actions available within the reader.'
+            title: 'Get premium access',
+            desc: 'Downloads and full-text reading need a verified identity plus an active plan, which a library officer activates for you. Nothing is charged automatically.'
           },
           {
             title: 'Get help',
-            desc: 'Contact the appropriate support channel if you encounter a problem.'
+            desc: 'Contact the library if a submission is rejected, a plan is missing, or a resource is broken.'
           }
         ].map((step) => (
           <li className="help-step" key={step.title}>
@@ -121,6 +121,40 @@ export function HelpPage() {
             <Link to={s.to} className="secondary-btn">Open <ChevronUp size={13} style={{ transform: 'rotate(90deg)' }} /></Link>
           </div>
         ))}
+      </div>
+
+      <div className="section-head" style={{ padding: '0 1rem' }}>
+        <div>
+          <p className="kicker">ACCESS</p>
+          <h2>Verification and premium access</h2>
+        </div>
+      </div>
+      <div className="help-access" id="access">
+        <div className="help-access-card">
+          <BadgeCheck size={24} />
+          <b>1. Academic verification</b>
+          <p>
+            Verification confirms you are a registered FUW student. You submit your matric number,
+            faculty, department and level with one supporting document; a library officer approves or
+            rejects it with a reason. Email confirmation is a separate thing and does not count.
+          </p>
+        </div>
+        <div className="help-access-card">
+          <Crown size={24} />
+          <b>2. An active plan</b>
+          <p>
+            Plans are activated by a library officer after you have been verified — there is no
+            online payment and no auto-renewal. Ask at the library office or message staff.
+          </p>
+        </div>
+        <div className="help-access-card">
+          <Shield size={24} />
+          <b>What stays free</b>
+          <p>
+            Browsing the catalogue, abstracts, previews, study tools, reading lists, citations and the
+            AI study assistant are open to everyone. Only the document files need premium.
+          </p>
+        </div>
       </div>
 
       <div className="section-head" style={{ padding: '0 1rem' }}>
@@ -273,6 +307,12 @@ export function ReportProblemPage() {
   const { toast } = useToast();
   return (
     <div style={{ maxWidth: 640, margin: '0 auto', padding: '2rem 1rem 3rem' }}>
+      <SEO
+        title="Report a problem with a material"
+        description="Report a missing, incorrect or broken academic material to the FUW E-Library team."
+        path="/report-problem"
+        noindex
+      />
       <div className="section-head">
         <div>
           <p className="kicker">FEEDBACK</p>
@@ -332,6 +372,12 @@ export function ReportCopyrightPage() {
 
   return (
     <div style={{ maxWidth: 640, margin: '0 auto', padding: '2rem 1rem 3rem' }}>
+      <SEO
+        title="Report a copyright concern"
+        description="Submit a copyright or takedown concern about material published in the FUW E-Library."
+        path="/report-copyright"
+        noindex
+      />
       <div className="section-head">
         <div>
           <p className="kicker">POLICY</p>

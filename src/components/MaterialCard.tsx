@@ -6,6 +6,11 @@ import { incrementDownload, getSecureFileUrl } from '../lib/materials';
 import { analyticsTracker } from '../lib/analyticsTracker';
 import { useToast } from './Toast';
 import { CitationModal } from './CitationModal';
+import { fx } from '../lib/motion';
+import { useAuth } from '../lib/AuthContext';
+import { checkDocumentAccess } from '../lib/premium';
+import { PremiumGateModal } from './PremiumGateModal';
+import type { BlockReason } from '../lib/premium';
 
 interface MaterialCardProps {
   material: MaterialItem;
@@ -17,6 +22,8 @@ interface MaterialCardProps {
 export function MaterialCard({ material, onReadOnline, onAskAi }: MaterialCardProps) {
   const { toast } = useToast();
   const [showCitation, setShowCitation] = useState(false);
+  const [gate, setGate] = useState<{ reason: BlockReason; message: string } | null>(null);
+  const { isAuthenticated, profile, isAdmin } = useAuth();
   const isSaved = store.isBookmarked(material.id);
 
   const handleSave = (e: React.MouseEvent) => {
@@ -30,9 +37,18 @@ export function MaterialCard({ material, onReadOnline, onAskAi }: MaterialCardPr
   const handleDownload = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    const decision = await checkDocumentAccess({
+      authenticated: isAuthenticated,
+      verificationStatus: profile?.verificationStatus,
+      isAdmin
+    });
+    if (!decision.allowed && decision.reason) {
+      setGate({ reason: decision.reason, message: decision.message });
+      return;
+    }
     const url = await getSecureFileUrl(material);
     if (!url) {
-      toast('This file has not been uploaded yet.', 'error');
+      toast('This file could not be opened. Please try again.', 'error');
       return;
     }
     store.recordDownload(material.id);
@@ -60,18 +76,26 @@ export function MaterialCard({ material, onReadOnline, onAskAi }: MaterialCardPr
   };
 
   return (
-    <article className="material-card">
+    <article className={`material-card ${fx.fadeUp} ${fx.cardHover}`}>
       <div className="card-top-row">
         <div className={`file-icon-box ${material.tone}`}>
           <FileText size={24} />
         </div>
         <button
-          className={`save-btn ${isSaved ? 'saved' : ''}`}
+          type="button"
+          className={`save-btn ${isSaved ? 'saved' : ''} ${fx.press}`}
           onClick={handleSave}
           title={isSaved ? 'Remove from saved' : 'Save material'}
           aria-label={isSaved ? 'Remove from saved' : 'Save material'}
+          aria-pressed={isSaved}
         >
-          <Bookmark size={18} fill={isSaved ? 'currentColor' : 'none'} />
+          <span
+            key={isSaved ? 'saved' : 'unsaved'}
+            className={fx.iconSwap}
+            style={{ display: 'inline-flex' }}
+          >
+            <Bookmark size={18} fill={isSaved ? 'currentColor' : 'none'} />
+          </span>
         </button>
       </div>
 
@@ -169,6 +193,14 @@ export function MaterialCard({ material, onReadOnline, onAskAi }: MaterialCardPr
       </button>
 
       {showCitation && <CitationModal material={material} onClose={() => setShowCitation(false)} />}
+      {gate && (
+        <PremiumGateModal
+          open
+          reason={gate.reason}
+          message={gate.message}
+          onClose={() => setGate(null)}
+        />
+      )}
     </article>
   );
 }

@@ -4,7 +4,9 @@
   "version": "1.0.0",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && tsx scripts/generate-seo.ts",
+    "build:seo": "tsx scripts/generate-seo.ts",
+    "seo:check": "tsx scripts/validate-seo.ts",
     "server": "tsx watch server/src/index.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",

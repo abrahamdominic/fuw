@@ -19,6 +19,11 @@ import { getSecureFileUrl } from '../lib/materials';
 import { useToast } from './Toast';
 import { analyticsTracker } from '../lib/analyticsTracker';
 import { syncMaterialProgress } from '../lib/readingProgress';
+import { fx } from '../lib/motion';
+import { useAuth } from '../lib/AuthContext';
+import { checkDocumentAccess } from '../lib/premium';
+import { PremiumGateModal } from './PremiumGateModal';
+import type { BlockReason } from '../lib/premium';
 
 interface DocumentReaderModalProps {
   material: MaterialItem | null;
@@ -30,6 +35,8 @@ export function DocumentReaderModal({ material, onClose }: DocumentReaderModalPr
   const [zoom, setZoom] = useState(100);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const { toast } = useToast();
+  const { isAuthenticated, profile, isAdmin } = useAuth();
+  const [gate, setGate] = useState<{ reason: BlockReason; message: string } | null>(null);
 
   const totalPages = 18;
 
@@ -38,23 +45,50 @@ export function DocumentReaderModal({ material, onClose }: DocumentReaderModalPr
   // The source is resolved through secure storage so private buckets work too.
   const [source, setSource] = useState('');
   const [canEmbedFile, setCanEmbedFile] = useState(true);
+  const [checking, setChecking] = useState(false);
   useEffect(() => {
     let cancelled = false;
-    if (material) {
-      void getSecureFileUrl(material).then((url) => {
-        if (!cancelled) {
-          setSource(url);
-          setCanEmbedFile(Boolean(url) && (/\.pdf(\?|#|$)/i.test(url) || /\.pdf(\?|#|$)/i.test(material.fileName || '')));
-        }
+    const resolve = async () => {
+      if (!material) {
+        setSource('');
+        setCanEmbedFile(true);
+        return;
+      }
+      // Reading the document is the gated action, so ask the server first and
+      // show the paywall instead of silently rendering an empty viewer.
+      setChecking(true);
+      const decision = await checkDocumentAccess({
+        authenticated: isAuthenticated,
+        verificationStatus: profile?.verificationStatus,
+        isAdmin
       });
-    } else {
-      setSource('');
-      setCanEmbedFile(true);
-    }
+      if (cancelled) return;
+      if (!decision.allowed && decision.reason) {
+        setGate({ reason: decision.reason, message: decision.message });
+        setSource('');
+        setCanEmbedFile(false);
+        setChecking(false);
+        return;
+      }
+      const url = await getSecureFileUrl(material);
+      if (cancelled) return;
+      if (!url) {
+        setGate({ reason: 'no-plan', message: 'This document could not be opened. Please try again.' });
+        setSource('');
+        setCanEmbedFile(false);
+        setChecking(false);
+        return;
+      }
+      setGate(null);
+      setSource(url);
+      setCanEmbedFile(/\.pdf(\?|#|$)/i.test(url) || /\.pdf(\?|#|$)/i.test(material.fileName || ''));
+      setChecking(false);
+    };
+    void resolve();
     return () => {
       cancelled = true;
     };
-  }, [material]);
+  }, [material, isAdmin, isAuthenticated, profile?.verificationStatus]);
 
   const looksLikePdf =
     /\.pdf(\?|#|$)/i.test(source) || /\.pdf(\?|#|$)/i.test(material?.fileName || '');
@@ -87,7 +121,20 @@ export function DocumentReaderModal({ material, onClose }: DocumentReaderModalPr
   const isSaved = store.isBookmarked(material.id);
 
   const handleDownload = async () => {
+    const decision = await checkDocumentAccess({
+      authenticated: isAuthenticated,
+      verificationStatus: profile?.verificationStatus,
+      isAdmin
+    });
+    if (!decision.allowed && decision.reason) {
+      setGate({ reason: decision.reason, message: decision.message });
+      return;
+    }
     const url = await getSecureFileUrl(material);
+    if (!url) {
+      setGate({ reason: 'no-plan', message: 'This file could not be opened. Please try again.' });
+      return;
+    }
     store.recordDownload(material.id);
     analyticsTracker.trackMaterialDownload(material.id, material.title);
     toast(`Download initiated: ${material.fileName}`);
@@ -122,8 +169,14 @@ export function DocumentReaderModal({ material, onClose }: DocumentReaderModalPr
   };
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="reader-modal" onClick={(e) => e.stopPropagation()}>
+    <div
+      className={`modal-backdrop ${fx.overlay}`}
+      onClick={onClose}
+    >
+      <div
+        className={`reader-modal ${fx.scaleIn}`}
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Top Header */}
         <header className="reader-header">
           <div className="reader-meta">
@@ -349,6 +402,24 @@ export function DocumentReaderModal({ material, onClose }: DocumentReaderModalPr
           )}
         </footer>
       </div>
+
+      {gate && (
+        <PremiumGateModal
+          open
+          reason={gate.reason}
+          message={gate.message}
+          onClose={() => {
+            setGate(null);
+            if (!source) onClose();
+          }}
+        />
+      )}
+      {checking && !gate && (
+        <div className="reader-gate-loading" role="status">
+          <span className="mfa-setup-spinner" />
+          <p>Checking your access…</p>
+        </div>
+      )}
     </div>
   );
 }

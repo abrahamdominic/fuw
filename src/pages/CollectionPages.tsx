@@ -10,6 +10,9 @@ import {
 import { RESEARCH_TYPE_LABELS } from '../lib/repository';
 import { useToast } from '../components/Toast';
 import { SEO } from '../components/SEO';
+import { Breadcrumbs } from '../components/Breadcrumbs';
+import { PUBLIC_ROUTES } from '../lib/seo/routes';
+import { collectionMeta } from '../lib/seo/dynamic';
 
 export function CollectionsPage() {
   const { toast } = useToast();
@@ -30,11 +33,8 @@ export function CollectionsPage() {
 
   return (
     <>
-      <SEO
-        title="Curated Collections — FUW E-Library"
-        description="Curated reading collections assembled by FUW librarians to guide students to the most relevant course materials and research."
-        path="/collections"
-      />
+      <SEO path="/collections" breadcrumbs={PUBLIC_ROUTES['/collections'].breadcrumbs} />
+      <Breadcrumbs trail={PUBLIC_ROUTES['/collections'].breadcrumbs} />
       <div className="repo-hero">
         <h1><Layers size={26} style={{ verticalAlign: -4 }} /> Curated Collections</h1>
         <p>Expertly curated sets of materials assembled by FUW librarians to support courses, research and exam preparation.</p>
@@ -105,6 +105,7 @@ export function CollectionDetailPage() {
   if (notFound || !collection) {
     return (
       <div className="empty-state-card" style={{ margin: '3rem auto', maxWidth: 480 }}>
+        <SEO title="Collection not found" path={`/collections/${slug ?? ''}`} noindex />
         <Layers size={40} />
         <b>Collection not found</b>
         <span>This collection may have been unpublished or removed.</span>
@@ -116,9 +117,19 @@ export function CollectionDetailPage() {
   return (
     <>
       <SEO
-        title={`${collection.name} — FUW E-Library Collection`}
-        description={collection.description || `Curated collection: ${collection.name}`}
-        path={`/collections/${collection.slug}`}
+        {...collectionMeta({
+          slug: collection.slug,
+          name: collection.name,
+          description: collection.description,
+          itemCount: collection.item_count ?? collection.items?.length ?? 0
+        })}
+      />
+      <Breadcrumbs
+        trail={[
+          { name: 'Home', path: '/' },
+          { name: 'Collections', path: '/collections' },
+          { name: collection.name, path: `/collections/${collection.slug}` }
+        ]}
       />
       <div className="repo-hero">
         <button className="secondary-btn btn-sm" style={{ marginBottom: '0.8rem' }} onClick={() => navigate('/collections')}>

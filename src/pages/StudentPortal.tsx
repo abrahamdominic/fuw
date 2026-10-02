@@ -47,6 +47,8 @@ import {
   Send,
   FileWarning,
   UserCog,
+  BadgeCheck,
+  Crown,
   Wifi,
   Monitor,
   Bot,
@@ -87,6 +89,9 @@ import ProtectedActionModal from '../components/ProtectedActionModal';
 import { AuthenticatorAppCard } from '../components/AuthenticatorAppCard';
 import { PasskeysManager } from '../components/PasskeysManager';
 import { ProfileSetupBanner } from '../components/ProfileSetupBanner';
+import { VerificationReminderBanner } from '../components/VerificationReminderBanner';
+import { StudentVerificationTab } from '../pages/StudentVerificationTab';
+import { StudentSubscriptionTab } from '../pages/StudentSubscriptionTab';
 import { useAuth } from '../lib/AuthContext';
 import { MessageComposer } from '../components/MessageComposer';
 import { MessageText } from '../components/MessageText';
@@ -100,6 +105,8 @@ import { submitProfileChangeRequest, fetchMyChangeRequests, ProfileChangeRequest
 import { fetchMySessions, terminateSession, terminateAllOtherSessions, detectConnection, ActiveSession } from '../lib/sessions';
 import { fetchAcademicSessions, AcademicSession } from '../lib/academicSessions';
 import { analyticsTracker } from '../lib/analyticsTracker';
+import { fx, staggerDelay } from '../lib/motion';
+import { AnimatedModal } from '../components/animations/AnimatedModal';
 
 
 interface StudentPortalProps {
@@ -122,6 +129,8 @@ const studentNavItems = [
   { label: 'Downloads', path: '/student/downloads', icon: Download },
   { label: 'Reading history', path: '/student/reading', icon: BookOpen },
   { label: 'Messages', path: '/student/messages', icon: MessageSquare },
+  { label: 'Academic verification', path: '/student/verification', icon: BadgeCheck },
+  { label: 'Premium access', path: '/student/subscription', icon: Crown },
   { label: 'Request deletion', path: '/student/request-deletion', icon: FileWarning },
   { label: 'Profile change requests', path: '/student/change-requests', icon: UserCog },
   { label: 'My profile', path: '/student/profile', icon: Users },
@@ -165,7 +174,11 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
     bio: profile?.bio || storeUser.bio || '',
     avatarUrl: profile?.avatarUrl || storeUser.avatarUrl || '',
     isVerified: profile?.isVerified === true,
-    verificationStatus: (profile?.isVerified ? 'VERIFIED' : 'PENDING') as 'PENDING' | 'VERIFIED' | 'REJECTED',
+    verificationStatus: (profile?.verificationStatus ?? 'unsubmitted').toUpperCase() as
+      | 'UNSUBMITTED'
+      | 'PENDING'
+      | 'VERIFIED'
+      | 'REJECTED',
     joinedDate: profile?.joinedDate || storeUser.joinedDate || '2026'
   };
   const approvedMaterials = store.getApprovedMaterialsForDepartment(currentUser.department);
@@ -371,8 +384,8 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
             )}
           </button>
 
-          {notifOpen && (
-            <div className="notif-panel" role="dialog" aria-label="Your notifications">
+            {notifOpen && (
+            <div className={`notif-panel ${fx.fadeDown}`} role="dialog" aria-label="Your notifications">
               <div className="notif-panel-head">
                 <b>Notifications</b>
                 <div className="notif-panel-head-actions">
@@ -414,47 +427,55 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
                 </div>
               )}
               <div className="notif-list">
-                {notifications.length === 0 ? (
-                  <p className="notif-empty">You're all caught up — no notifications yet.</p>
-                ) : visibleNotifications.length === 0 ? (
-                  <p className="notif-empty">No notifications match “{notifFilter.trim()}”.</p>
-                ) : (
-                  visibleNotifications.map((n) => (
-                    <div key={n.id} className={`notif-item ${n.read ? '' : 'unread'}`}>
-                      <button
-                        type="button"
-                        className="notif-item-body"
-                        onClick={async () => {
-                          if (!n.read) {
-                            await markNotificationRead(n.id);
-                            setNotifications((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
-                          }
-                          if (n.link) navigate(n.link);
-                          setNotifOpen(false);
-                        }}
+                  {notifications.length === 0 ? (
+                    <p className={`notif-empty ${fx.fadeUp}`}>
+                      You're all caught up — no notifications yet.
+                    </p>
+                  ) : visibleNotifications.length === 0 ? (
+                    <p className={`notif-empty ${fx.fadeUp}`}>
+                      No notifications match “{notifFilter.trim()}”.
+                    </p>
+                  ) : (
+                    visibleNotifications.map((n, nIdx) => (
+                      <div
+                        key={n.id}
+                        className={`notif-item ${fx.listRow} ${n.read ? '' : 'unread'}`}
+                        style={staggerDelay(nIdx, 30)}
                       >
-                        <b>{n.title}</b>
-                        <NotificationTag type={n.type} />
-                        <MessageText body={n.body} inline />
-                        <small>
-                          {n.senderName ? `By ${n.senderName} · ` : ''}
-                          {new Date(n.createdAt).toLocaleString()}
-                        </small>
-                      </button>
-                      <button
-                        type="button"
-                        className="notif-delete"
-                        aria-label="Delete notification"
-                        onClick={async () => {
-                          await deleteNotification(n.id);
-                          setNotifications((prev) => prev.filter((x) => x.id !== n.id));
-                        }}
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  ))
-                )}
+                        <button
+                          type="button"
+                          className="notif-item-body"
+                          onClick={async () => {
+                            if (!n.read) {
+                              await markNotificationRead(n.id);
+                              setNotifications((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
+                            }
+                            if (n.link) navigate(n.link);
+                            setNotifOpen(false);
+                          }}
+                        >
+                          <b>{n.title}</b>
+                          <NotificationTag type={n.type} />
+                          <MessageText body={n.body} inline />
+                          <small>
+                            {n.senderName ? `By ${n.senderName} · ` : ''}
+                            {new Date(n.createdAt).toLocaleString()}
+                          </small>
+                        </button>
+                        <button
+                          type="button"
+                          className="notif-delete"
+                          aria-label="Delete notification"
+                          onClick={async () => {
+                            await deleteNotification(n.id);
+                            setNotifications((prev) => prev.filter((x) => x.id !== n.id));
+                          }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))
+                  )}
               </div>
             </div>
           )}
@@ -487,10 +508,12 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
           </div>
         </div>
 
-        {/* Incomplete-profile banner (shown until profile is complete / dismissed) */}
+        {/* Session-scoped reminders: incomplete profile, then unverified identity. */}
         <ProfileSetupBanner />
+        <VerificationReminderBanner />
 
         {/* Dynamic Subpages based on Path */}
+        <div key={currentPath} className={fx.page} style={{ animationDuration: '180ms' }}>
         {currentPath === '/student' || currentPath === '/student/' ? (
           <StudentOverviewTab
             currentUser={currentUser}
@@ -563,6 +586,10 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
           />
         ) : currentPath.startsWith('/student/profile') ? (
           <StudentProfileTab currentUser={currentUser} />
+        ) : currentPath.startsWith('/student/verification') ? (
+          <StudentVerificationTab />
+        ) : currentPath.startsWith('/student/subscription') ? (
+          <StudentSubscriptionTab />
         ) : currentPath.startsWith('/student/settings') ? (
           <StudentSettingsTab currentUser={currentUser} />
         ) : currentPath.startsWith('/student/course-upload') ? (
@@ -597,6 +624,7 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
             onAskAi={handleAskAi}
           />
         )}
+        </div>
 
         {/* Destructive-action confirmation */}
         <ConfirmDialog
@@ -680,22 +708,22 @@ function StudentOverviewTab({
 
       {/* Metrics Stats Grid */}
       <div className="portal-stats">
-        <section>
+        <section className={fx.fadeUp} style={staggerDelay(0, 60)}>
           <Heart />
           <b>{savedCount}</b>
           <span>Saved materials</span>
         </section>
-        <section>
+        <section className={fx.fadeUp} style={staggerDelay(1, 60)}>
           <Clock />
           <b>{recentCount}</b>
           <span>Recently viewed</span>
         </section>
-        <section>
+        <section className={fx.fadeUp} style={staggerDelay(2, 60)}>
           <Download />
           <b>{downloadsCount}</b>
           <span>Downloads</span>
         </section>
-        <section>
+        <section className={fx.fadeUp} style={staggerDelay(3, 60)}>
           <BookOpen />
           <b>{readingCount}</b>
           <span>Reading history</span>
@@ -1502,14 +1530,14 @@ function StudentAiChatTab({
 
           {messages.map((m, i) =>
             m.role === 'user' ? (
-              <div key={i} className="chat-row user">
+              <div key={i} className={`chat-row user ${fx.listRow}`}>
                 <div className="chat-bubble user">{m.content}</div>
                 <div className="chat-avatar user" aria-hidden="true">
                   {(profile?.fullName?.charAt(0) || 'S').toUpperCase()}
                 </div>
               </div>
             ) : (
-              <div key={i} className="chat-row assistant">
+              <div key={i} className={`chat-row assistant ${fx.listRow}`}>
                 <div className="chat-avatar assistant" aria-hidden="true">
                   <Bot size={15} />
                 </div>
@@ -1652,7 +1680,13 @@ function NotificationTag({ type }: { type: NotificationItem['type'] }) {
     announcement: { label: 'ANNOUNCEMENT', cls: 'announcement' },
     maintenance: { label: 'MAINTENANCE', cls: 'maintenance' },
     important: { label: 'IMPORTANT', cls: 'important' },
-    system_update: { label: 'SYSTEM UPDATE', cls: 'system-update' }
+    system_update: { label: 'SYSTEM UPDATE', cls: 'system-update' },
+    // Verification workflow and premium entitlement lifecycle.
+    verification_submitted: { label: 'VERIFICATION PENDING', cls: 'maintenance' },
+    verification_approved: { label: 'VERIFIED', cls: 'announcement' },
+    verification_rejected: { label: 'VERIFICATION NEEDS ATTENTION', cls: 'important' },
+    plan_activated: { label: 'PREMIUM ACTIVE', cls: 'system-update' },
+    plan_expired: { label: 'PREMIUM ENDED', cls: 'announcement' }
   };
   const tag = meta[type];
   if (!tag) return null;
@@ -3739,20 +3773,23 @@ function StudentMessagesTab() {
       </div>
 
       {/* Message Admin modal */}
-      {showMsgAdmin && (
-        <div className="modal-overlay" onClick={() => setShowMsgAdmin(false)}>
-          <div className="modal-card conv-modal" onClick={(e) => e.stopPropagation()}>
-            <form onSubmit={(e) => { e.preventDefault(); handleMsgAdmin(); }}>
-              <div className="modal-header">
-                <div className="modal-header-title">
-                  <span className="modal-head-icon"><MessageSquare size={17} /></span>
-                  <div>
-                    <h3>Message an Administrator</h3>
-                    <p className="modal-header-sub">Your message will be delivered securely to the admin team.</p>
-                  </div>
-                </div>
-                <button type="button" className="link-btn" onClick={() => setShowMsgAdmin(false)}><X size={18} /></button>
+      <AnimatedModal
+        open={showMsgAdmin}
+        onClose={() => setShowMsgAdmin(false)}
+        dialogClassName="conv-modal"
+        labelledBy="msg-admin-title"
+      >
+        <form onSubmit={(e) => { e.preventDefault(); handleMsgAdmin(); }}>
+          <div className="modal-header">
+            <div className="modal-header-title">
+              <span className="modal-head-icon"><MessageSquare size={17} /></span>
+              <div>
+                <h3 id="msg-admin-title">Message an Administrator</h3>
+                <p className="modal-header-sub">Your message will be delivered securely to the admin team.</p>
               </div>
+            </div>
+            <button type="button" className="link-btn" onClick={() => setShowMsgAdmin(false)}><X size={18} /></button>
+          </div>
               <div className="modal-body">
                 <div className="form-field">
                   <label className="form-label">Subject *</label>
@@ -3777,24 +3814,25 @@ function StudentMessagesTab() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+      </AnimatedModal>
 
       {/* New Student Chat modal */}
-      {showNewChat && (
-        <div className="modal-overlay" onClick={() => setShowNewChat(false)}>
-          <div className="modal-card conv-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <div className="modal-header-title">
-                <span className="modal-head-icon"><Users size={17} /></span>
-                <div>
-                  <h3>New Student Chat</h3>
-                  <p className="modal-header-sub">Find another student by username and start a conversation.</p>
-                </div>
-              </div>
-              <button type="button" className="link-btn" onClick={() => setShowNewChat(false)}><X size={18} /></button>
+      <AnimatedModal
+        open={showNewChat}
+        onClose={() => setShowNewChat(false)}
+        dialogClassName="conv-modal"
+        labelledBy="new-chat-title"
+      >
+        <div className="modal-header">
+          <div className="modal-header-title">
+            <span className="modal-head-icon"><Users size={17} /></span>
+            <div>
+              <h3 id="new-chat-title">New Student Chat</h3>
+              <p className="modal-header-sub">Find another student by username and start a conversation.</p>
             </div>
+          </div>
+          <button type="button" className="link-btn" onClick={() => setShowNewChat(false)}><X size={18} /></button>
+        </div>
             <div className="modal-body">
               <div className="form-field">
                 <label className="form-label">Search students</label>
@@ -3838,9 +3876,7 @@ function StudentMessagesTab() {
                 </div>
               )}
             </div>
-          </div>
-        </div>
-      )}
+      </AnimatedModal>
 
       <div className="conv-layout">
         {/* Conversation list */}
@@ -3860,7 +3896,11 @@ function StudentMessagesTab() {
             </div>
           ) : (
             filteredConversations.map((conv) => (
-              <div key={conv.id} onClick={() => setActiveConvId(conv.id)} className={`conv-list-item${activeConvId === conv.id ? ' active' : ''}`}>
+              <div
+                key={conv.id}
+                onClick={() => setActiveConvId(conv.id)}
+                className={`conv-list-item ${fx.listRow}${activeConvId === conv.id ? ' active' : ''}`}
+              >
                 <div className="conv-list-head">
                   <div className="conv-subject">{conv.is_direct ? (conv.peer?.username ? `@${conv.peer.username}` : peerOf(conv)) : (conv.subject || 'Message to Admin')}</div>
                   <div className="conv-meta">{timeSince(conv.last_message_at)}</div>
@@ -3901,7 +3941,7 @@ function StudentMessagesTab() {
                 messages.map((msg) => {
                   const isOwn = msg.sender_id === profile?.id;
                   return (
-                    <div key={msg.id} className="msg-bubble-wrap">
+                    <div key={msg.id} className={`msg-bubble-wrap ${fx.listRow}`}>
                       {!isOwn && msg.sender?.display_name && (
                         <div className="msg-sender-name">{msg.sender.display_name || msg.sender.full_name || 'User'}</div>
                       )}

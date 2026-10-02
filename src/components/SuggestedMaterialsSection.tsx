@@ -4,6 +4,7 @@ import { Sparkles, BookOpen, ChevronRight, Info } from 'lucide-react';
 import { MaterialItem } from '../lib/store';
 import { MaterialCard } from './MaterialCard';
 import { fetchSuggestedMaterials, fetchStudentCourseCodes, SuggestedMaterial } from '../lib/suggestions';
+import { fx } from '../lib/motion';
 
 interface SuggestedMaterialsProps {
   currentUser: {
@@ -80,7 +81,7 @@ export function SuggestedMaterialsSection({ currentUser, onReadOnline, onAskAi }
           ))}
         </div>
       ) : hasSuggestions ? (
-        <div className="suggested-grid">
+        <div className={`suggested-grid ${fx.fadeIn}`}>
           {suggested!.map(({ material, reason }) => (
             <div className="suggested-card" key={material.id}>
               <div className="suggested-reason">

@@ -1,0 +1,18 @@
+{
+  "name": "FUW E-Library",
+  "short_name": "FUW E-Library",
+  "description": "Federal University Wukari digital library: verified lecture notes, past questions, projects and research materials.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#064026",
+  "theme_color": "#0b6b3a",
+  "lang": "en-NG",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/favicon-32x32.png", "sizes": "32x32", "type": "image/png" },
+    { "src": "/favicon-48x48.png", "sizes": "48x48", "type": "image/png" },
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "/android-chrome-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -8,6 +8,7 @@ import {
   ReadingList
 } from '../lib/readingLists';
 import { useToast } from './Toast';
+import { AnimatedModal } from './animations/AnimatedModal';
 
 interface ReadingListPickerProps {
   materialId?: string | null;
@@ -77,9 +78,12 @@ export function ReadingListPicker({ materialId, researchItemId, resourceTitle, o
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 460 }} role="dialog" aria-modal="true" aria-label="Save to reading list">
-        <div className="modal-header">
+    <AnimatedModal
+      open
+      onClose={onClose}
+      dialogStyle={{ maxWidth: 460 }}
+    >
+      <div className="modal-header">
           <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Bookmark size={18} /> Save to Reading List</h3>
           <button className="link-btn" onClick={onClose} aria-label="Close"><X size={18} /></button>
         </div>
@@ -141,7 +145,6 @@ export function ReadingListPicker({ materialId, researchItemId, resourceTitle, o
             </>
           )}
         </div>
-      </div>
-    </div>
+    </AnimatedModal>
   );
 }

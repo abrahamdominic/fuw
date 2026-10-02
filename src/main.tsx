@@ -2,6 +2,7 @@ import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Route, Routes, Navigate, useLocation } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
+import { PageTransition } from './components/animations/PageTransition';
 import './styles.css';
 
 import { MaterialItem } from './lib/store';
@@ -58,8 +59,21 @@ const CollectionsPage = lazy(() =>
 const CollectionDetailPage = lazy(() =>
   import('./pages/CollectionPages').then((m) => ({ default: m.CollectionDetailPage }))
 );
+const FacultyDetailPage = lazy(() =>
+  import('./pages/DirectoryPages').then((m) => ({ default: m.FacultyDetailPage }))
+);
+const DepartmentDetailPage = lazy(() =>
+  import('./pages/DirectoryPages').then((m) => ({ default: m.DepartmentDetailPage }))
+);
+const CourseDetailPage = lazy(() =>
+  import('./pages/DirectoryPages').then((m) => ({ default: m.CourseDetailPage }))
+);
+const NotFoundPage = lazy(() =>
+  import('./pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage }))
+);
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { MaintenanceGate } from './components/MaintenanceGate';
+import { CrawlPolicyGuard } from './components/CrawlPolicyGuard';
 import { analyticsTracker } from './lib/analyticsTracker';
 
 // Captured when the JS bundle begins evaluating — the startup metric measures
@@ -151,10 +165,28 @@ function PublicLayout({
 }
 
 /**
- * Auth-first gate: everything except the explicitly public auth pages requires
- * a live session. While the session is still loading we render nothing (the
- * AppSplash overlay covers the screen), so unauthenticated visitors can never
- * glimpse the main site.
+ * A first-time visitor browsing the public library must not sit behind the
+ * branded welcome screen. The splash is for people returning to an
+ * existing session, where it covers the brief moment while Supabase
+ * restores that session.
+ */
+function hasStoredSupabaseSession(): boolean {
+  try {
+    for (let i = 0; i < window.localStorage.length; i += 1) {
+      const key = window.localStorage.key(i);
+      if (key && /^sb-.*-auth-token$/.test(key)) return true;
+    }
+  } catch {
+    // Storage can be blocked; treat as "no stored session".
+  }
+  return false;
+}
+
+/**
+ * Auth-first gate for genuinely private surfaces: the student dashboard,
+ * the admin portal, the super-admin portal, submission forms and report
+ * forms. Browsing the public library never passes through here, so search
+ * engines and first-time visitors reach the public pages directly.
  */
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { isLoading, isAuthenticated } = useAuth();
@@ -164,9 +196,26 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+/**
+ * Route-level transition shell. Keyed by the resolved pathname so every
+ * navigation re-mounts the view and eases it in with the shared `.fx-page-in`
+ * CSS keyframe.
+ */
+function RouteTransition({ children }: { children: React.ReactNode }) {
+  const location = useLocation();
+  return (
+    <PageTransition
+      id={`${location.pathname}${location.search}`}
+      className="route-transition"
+    >
+      {children}
+    </PageTransition>
+  );
+}
+
 function AppSplashBoundary() {
   const { isLoading } = useAuth();
-  return <AppSplash visible={isLoading} />;
+  return <AppSplash visible={isLoading && hasStoredSupabaseSession()} />;
 }
 
 function App() {
@@ -178,18 +227,21 @@ function App() {
 
   return (
     <AuthProvider>
-      <AnalyticsLayer />
-      <AppSplashBoundary />
-      <ToastProvider>
-        <MaintenanceGate>
-          <Suspense
-            fallback={
-              <div className="route-fallback" role="status" aria-label="Loading">
-                <span className="route-fallback-spinner" />
-              </div>
-            }
-          >
-            <Routes>
+      <>
+        <AnalyticsLayer />
+        <CrawlPolicyGuard />
+        <AppSplashBoundary />
+        <ToastProvider>
+          <MaintenanceGate>
+            <Suspense
+              fallback={
+                <div className="route-fallback" role="status" aria-label="Loading">
+                  <span className="route-fallback-spinner" />
+                </div>
+              }
+            >
+              <RouteTransition>
+                <Routes>
             {/* Global maintenance screen — reachable for everyone */}
             <Route path="/maintenance" element={<MaintenancePage />} />
 
@@ -289,75 +341,86 @@ function App() {
               }
             />
 
-            {/* Public Pages Layout — everything here is behind the auth gate */}
+            {/* Public Pages — browsable without an account.
+
+                Only approved catalogue data and published repository/collection
+                records are readable here, and every authenticated action
+                (download, read-online, submit, save) is still gated by the
+                session plus the server-side entitlement check. */}
             <Route
               path="/"
               element={
-                <RequireAuth>
-                  <PublicLayout onReadOnline={handleReadOnline}>
-                    <HomePage onReadOnline={handleReadOnline} />
-                  </PublicLayout>
-                </RequireAuth>
+                <PublicLayout onReadOnline={handleReadOnline}>
+                  <HomePage onReadOnline={handleReadOnline} />
+                </PublicLayout>
               }
             />
             <Route
               path="/library"
               element={
-                <RequireAuth>
-                  <PublicLayout onReadOnline={handleReadOnline}>
-                    <LibraryPage onReadOnline={handleReadOnline} />
-                  </PublicLayout>
-                </RequireAuth>
+                <PublicLayout onReadOnline={handleReadOnline}>
+                  <LibraryPage onReadOnline={handleReadOnline} />
+                </PublicLayout>
               }
             />
             <Route
               path="/faculties"
               element={
-                <RequireAuth>
-                  <PublicLayout onReadOnline={handleReadOnline}>
-                    <FacultiesPage />
-                  </PublicLayout>
-                </RequireAuth>
+                <PublicLayout onReadOnline={handleReadOnline}>
+                  <FacultiesPage />
+                </PublicLayout>
               }
             />
             <Route
-              path="/departments"
+              path="/faculties/:slug"
               element={
-                <RequireAuth>
-                  <PublicLayout onReadOnline={handleReadOnline}>
-                    <FacultiesPage />
-                  </PublicLayout>
-                </RequireAuth>
+                <PublicLayout onReadOnline={handleReadOnline}>
+                  <FacultyDetailPage />
+                </PublicLayout>
+              }
+            />
+            {/* Legacy alias: /departments duplicated /faculties, so it is a
+                permanent redirect rather than a second copy of the same
+                directory. */}
+            <Route path="/departments" element={<Navigate to="/faculties" replace />} />
+            <Route
+              path="/departments/:slug"
+              element={
+                <PublicLayout onReadOnline={handleReadOnline}>
+                  <DepartmentDetailPage />
+                </PublicLayout>
               }
             />
             <Route
               path="/courses"
               element={
-                <RequireAuth>
-                  <PublicLayout onReadOnline={handleReadOnline}>
-                    <CoursesPage />
-                  </PublicLayout>
-                </RequireAuth>
+                <PublicLayout onReadOnline={handleReadOnline}>
+                  <CoursesPage />
+                </PublicLayout>
+              }
+            />
+            <Route
+              path="/courses/:code"
+              element={
+                <PublicLayout onReadOnline={handleReadOnline}>
+                  <CourseDetailPage />
+                </PublicLayout>
               }
             />
             <Route
               path="/materials/:id"
               element={
-                <RequireAuth>
-                  <PublicLayout onReadOnline={handleReadOnline}>
-                    <MaterialDetailPage onReadOnline={handleReadOnline} />
-                  </PublicLayout>
-                </RequireAuth>
+                <PublicLayout onReadOnline={handleReadOnline}>
+                  <MaterialDetailPage onReadOnline={handleReadOnline} />
+                </PublicLayout>
               }
             />
             <Route
               path="/about"
               element={
-                <RequireAuth>
-                  <PublicLayout onReadOnline={handleReadOnline}>
-                    <AboutPage />
-                  </PublicLayout>
-                </RequireAuth>
+                <PublicLayout onReadOnline={handleReadOnline}>
+                  <AboutPage />
+                </PublicLayout>
               }
             />
 
@@ -365,11 +428,9 @@ function App() {
             <Route
               path="/repository"
               element={
-                <RequireAuth>
-                  <PublicLayout onReadOnline={handleReadOnline}>
-                    <RepositoryPage />
-                  </PublicLayout>
-                </RequireAuth>
+                <PublicLayout onReadOnline={handleReadOnline}>
+                  <RepositoryPage />
+                </PublicLayout>
               }
             />
             <Route
@@ -385,11 +446,9 @@ function App() {
             <Route
               path="/repository/:id"
               element={
-                <RequireAuth>
-                  <PublicLayout onReadOnline={handleReadOnline}>
-                    <RepositoryDetailPage />
-                  </PublicLayout>
-                </RequireAuth>
+                <PublicLayout onReadOnline={handleReadOnline}>
+                  <RepositoryDetailPage />
+                </PublicLayout>
               }
             />
 
@@ -397,11 +456,9 @@ function App() {
             <Route
               path="/help"
               element={
-                <RequireAuth>
-                  <PublicLayout onReadOnline={handleReadOnline}>
-                    <HelpPage />
-                  </PublicLayout>
-                </RequireAuth>
+                <PublicLayout onReadOnline={handleReadOnline}>
+                  <HelpPage />
+                </PublicLayout>
               }
             />
             <Route
@@ -428,42 +485,40 @@ function App() {
             <Route
               path="/collections"
               element={
-                <RequireAuth>
-                  <PublicLayout onReadOnline={handleReadOnline}>
-                    <CollectionsPage />
-                  </PublicLayout>
-                </RequireAuth>
+                <PublicLayout onReadOnline={handleReadOnline}>
+                  <CollectionsPage />
+                </PublicLayout>
               }
             />
             <Route
               path="/collections/:slug"
               element={
-                <RequireAuth>
-                  <PublicLayout onReadOnline={handleReadOnline}>
-                    <CollectionDetailPage />
-                  </PublicLayout>
-                </RequireAuth>
+                <PublicLayout onReadOnline={handleReadOnline}>
+                  <CollectionDetailPage />
+                </PublicLayout>
               }
             />
             <Route
               path="/contact"
               element={
-                <RequireAuth>
-                  <PublicLayout onReadOnline={handleReadOnline}>
-                    <AboutPage contact />
-                  </PublicLayout>
-                </RequireAuth>
+                <PublicLayout onReadOnline={handleReadOnline}>
+                  <AboutPage contact />
+                </PublicLayout>
               }
             />
+
+            {/* Unknown path: a real not-found page, never a silent redirect
+                back into the app. netlify.toml answers these with HTTP 404. */}
             <Route
               path="*"
               element={
-                <RequireAuth>
-                  <Navigate to="/student" replace />
-                </RequireAuth>
+                <PublicLayout onReadOnline={handleReadOnline}>
+                  <NotFoundPage />
+                </PublicLayout>
               }
             />
           </Routes>
+          </RouteTransition>
           </Suspense>
 
           {/* Global Interactive Document Reader Modal */}
@@ -475,6 +530,7 @@ function App() {
           )}
         </MaintenanceGate>
       </ToastProvider>
+      </>
     </AuthProvider>
   );
 }

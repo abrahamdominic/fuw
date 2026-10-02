@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useMemo, useRef } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState, useMemo, useRef } from 'react';
 import { User, Session, AuthChangeEvent } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { store, UserProfile } from './store';
@@ -7,6 +7,10 @@ import { createSession, touchSession, deleteCurrentSession } from './sessions';
 import { analyticsTracker } from './analyticsTracker';
 import { getAAL, type AALState, type TOTPFactor } from './security';
 import { toUserFacingAuthError } from './authErrors';
+import { fetchHasPremium, fetchMyPlan, type PlanSummary } from './verification';
+import { invalidatePremiumCache } from './premium';
+import { clearReminderDismissals } from './reminders';
+import { clearSignedUrlCache } from './materials';
 
 export interface ProfileData {
   id: string;
@@ -23,6 +27,11 @@ export interface ProfileData {
   bio?: string;
   avatarUrl?: string;
   isVerified?: boolean;
+  /** Server-owned academic identity verification state. */
+  verificationStatus?: 'unsubmitted' | 'pending' | 'verified' | 'rejected';
+  /** Student-visible reviewer explanation when a submission was rejected. */
+  verificationReason?: string;
+  verificationSubmittedAt?: string;
   joinedDate?: string;
   matricChangesUsed?: number;
   facultyChangesUsed?: number;
@@ -99,6 +108,15 @@ export interface AuthContextType {
   clearMfaRequired: () => void;
   /** The verified TOTP factor the login UI should challenge against. */
   mfaVerifiedFactor: TOTPFactor | null;
+  /** Current premium entitlement, or null when the student has none. */
+  plan: PlanSummary | null;
+  /**
+   * The single premium gate: verified academic identity AND an active
+   * entitlement. Resolved from the server, never inferred client-side.
+   */
+  hasPremium: boolean;
+  /** Re-read verification + entitlement after a server-side decision. */
+  refreshEntitlement: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -250,6 +268,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           bio: data.bio || '',
           avatarUrl: data.avatar_url || '',
           isVerified: data.verified === true,
+          verificationStatus: (data.verification_status as ProfileData['verificationStatus']) || 'unsubmitted',
+          verificationReason: data.verification_reason || '',
+          verificationSubmittedAt: data.verification_submitted_at || undefined,
           joinedDate: data.created_at ? new Date(data.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '2026',
           matricChangesUsed: data.matric_changes_used ?? 0,
           facultyChangesUsed: data.faculty_changes_used ?? 0,
@@ -305,6 +326,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             bio: created.bio || '',
             avatarUrl: created.avatar_url || '',
             isVerified: created.verified === true,
+            verificationStatus: (created.verification_status as ProfileData['verificationStatus']) || 'unsubmitted',
+            verificationReason: created.verification_reason || '',
+            verificationSubmittedAt: created.verification_submitted_at || undefined,
             joinedDate: created.created_at ? new Date(created.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '2026',
             matricChangesUsed: created.matric_changes_used ?? 0,
             facultyChangesUsed: created.faculty_changes_used ?? 0,
@@ -1067,6 +1091,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSession(null);
     setProfile(null);
     syncToStore(null, null);
+    // Reminder dismissals are session-scoped, so ending the session has to end
+    // them too — otherwise a sign-in in the same tab would stay nagged-free.
+    clearReminderDismissals();
   };
 
   // Refresh Profile
@@ -1095,6 +1122,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // A profile is complete once academic identity details have been saved
   const isProfileComplete = !!(profile && profile.matricNumber && profile.faculty && profile.department);
 
+  // Verification + entitlement live on the server, so they are resolved with a
+  // dedicated call rather than being derived from the cached profile row. Both
+  // are re-read whenever the signed-in user changes and can be refreshed after
+  // an administrator decision arrives.
+  const [plan, setPlan] = useState<PlanSummary | null>(null);
+  const [hasPremium, setHasPremium] = useState(false);
+
+  const refreshEntitlement = useCallback(async () => {
+    if (!user?.id) {
+      setPlan(null);
+      setHasPremium(false);
+      return;
+    }
+    try {
+      const [p, premium] = await Promise.all([fetchMyPlan(), fetchHasPremium()]);
+      setPlan(p);
+      setHasPremium(premium);
+      // A fresh server answer supersedes any cached gate decision and any signed
+      // URLs minted while the old state was valid.
+      invalidatePremiumCache();
+      clearSignedUrlCache();
+    } catch {
+      setPlan(null);
+      setHasPremium(false);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    void refreshEntitlement();
+  }, [refreshEntitlement]);
+
   const value = useMemo(
     () => ({
       user,
@@ -1120,9 +1178,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       refreshProfile,
       mfaRequired,
       clearMfaRequired,
-      mfaVerifiedFactor
+      mfaVerifiedFactor,
+      plan,
+      hasPremium,
+      refreshEntitlement
     }),
-    [user, session, profile, isLoading, isAuthenticated, isAdmin, isSuperAdmin, isStudent, isProfileComplete, role, permissions, mfaRequired, mfaVerifiedFactor]
+    [user, session, profile, isLoading, isAuthenticated, isAdmin, isSuperAdmin, isStudent, isProfileComplete, role, permissions, mfaRequired, mfaVerifiedFactor, plan, hasPremium, refreshEntitlement]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,5 +1,6 @@
 import React from 'react';
 import { AlertTriangle, XCircle } from 'lucide-react';
+import { AnimatedModal } from './animations/AnimatedModal';
 
 export interface ConfirmDialogState {
   open: boolean;
@@ -36,8 +37,6 @@ export function ConfirmDialog({
   icon: HeaderIcon,
   confirmIcon: ConfirmIcon
 }: ConfirmDialogProps) {
-  if (!open) return null;
-
   const BubbleIcon = HeaderIcon || AlertTriangle;
 
   const handleConfirm = async () => {
@@ -46,34 +45,31 @@ export function ConfirmDialog({
   };
 
   return (
-    <div className="modal-overlay" role="presentation" onClick={onClose}>
-      <div
-        className="confirm-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="confirm-dialog-title"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className={`confirm-dialog-icon ${tone === 'danger' ? 'is-danger' : ''}`}>
-          <BubbleIcon size={26} />
-        </div>
-        <h3 id="confirm-dialog-title">{title}</h3>
-        <p className="confirm-dialog-message">{message}</p>
-        <div className="confirm-dialog-actions">
-          <button type="button" className="btn-secondary" onClick={onClose}>
-            {cancelLabel}
-          </button>
-          <button
-            type="button"
-            className={tone === 'danger' ? 'btn-danger' : 'btn-primary'}
-            onClick={handleConfirm}
-          >
-            {ConfirmIcon && <ConfirmIcon size={16} />}
-            {confirmLabel}
-          </button>
-        </div>
+    <AnimatedModal
+      open={open}
+      onClose={onClose}
+      dialogClassName="confirm-dialog"
+      labelledBy="confirm-dialog-title"
+    >
+      <div className={`confirm-dialog-icon ${tone === 'danger' ? 'is-danger' : ''}`}>
+        <BubbleIcon size={26} />
       </div>
-    </div>
+      <h3 id="confirm-dialog-title">{title}</h3>
+      <p className="confirm-dialog-message">{message}</p>
+      <div className="confirm-dialog-actions">
+        <button type="button" className="btn-secondary" onClick={onClose}>
+          {cancelLabel}
+        </button>
+        <button
+          type="button"
+          className={tone === 'danger' ? 'btn-danger' : 'btn-primary'}
+          onClick={handleConfirm}
+        >
+          {ConfirmIcon && <ConfirmIcon size={16} />}
+          {confirmLabel}
+        </button>
+      </div>
+    </AnimatedModal>
   );
 }
 
@@ -115,8 +111,6 @@ export function PromptDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  if (!open) return null;
-
   const handleSubmit = async () => {
     setBusy(true);
     await onSubmit(value.trim());
@@ -125,37 +119,34 @@ export function PromptDialog({
   };
 
   return (
-    <div className="modal-overlay" role="presentation" onClick={onClose}>
-      <div
-        className="confirm-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="prompt-dialog-title"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="confirm-dialog-icon is-danger">
-          <XCircle size={26} />
-        </div>
-        <h3 id="prompt-dialog-title">{title}</h3>
-        <p className="confirm-dialog-message">{message}</p>
-        <textarea
-          className="confirm-dialog-input"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          placeholder={placeholder}
-          rows={3}
-          autoFocus
-          disabled={busy}
-        />
-        <div className="confirm-dialog-actions">
-          <button type="button" className="btn-secondary" onClick={onClose} disabled={busy}>
-            Cancel
-          </button>
-          <button type="button" className="btn-danger" onClick={handleSubmit} disabled={busy}>
-            {busy ? 'Submitting…' : confirmLabel}
-          </button>
-        </div>
+    <AnimatedModal
+      open={open}
+      onClose={onClose}
+      dialogClassName="confirm-dialog"
+      labelledBy="prompt-dialog-title"
+    >
+      <div className="confirm-dialog-icon is-danger">
+        <XCircle size={26} />
       </div>
-    </div>
+      <h3 id="prompt-dialog-title">{title}</h3>
+      <p className="confirm-dialog-message">{message}</p>
+      <textarea
+        className="confirm-dialog-input"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder={placeholder}
+        rows={3}
+        autoFocus
+        disabled={busy}
+      />
+      <div className="confirm-dialog-actions">
+        <button type="button" className="btn-secondary" onClick={onClose} disabled={busy}>
+          Cancel
+        </button>
+        <button type="button" className="btn-danger" onClick={handleSubmit} disabled={busy}>
+          {busy ? 'Submitting…' : confirmLabel}
+        </button>
+      </div>
+    </AnimatedModal>
   );
 }

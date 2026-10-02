@@ -1,30 +1,32 @@
+// ProfileSetupBanner — reminds an incomplete-profile student to finish setup.
+//
+// The reminder must come back on every sign-in, so dismissal is scoped to the
+// current session only (sessionStorage). A localStorage flag here would hide the
+// notice permanently and leave students with unusable accounts.
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, ArrowRight, X } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../lib/AuthContext';
-
-const DISMISS_KEY = 'fuw:profileSetupBannerHidden';
+import { dismissReminder, reminderDismissed } from '../lib/reminders';
 
 export function ProfileSetupBanner() {
   const navigate = useNavigate();
-  const { isProfileComplete } = useAuth();
-  const [hidden, setHidden] = useState(() => {
-    try {
-      return localStorage.getItem(DISMISS_KEY) === '1';
-    } catch {
-      return false;
-    }
-  });
+  const { isProfileComplete, user } = useAuth();
+  const [hidden, setHidden] = useState(false);
+
+  // Read the dismissal after mount so the banner does not flash for students who
+  // already closed it earlier in this session.
+  useEffect(() => {
+    setHidden(reminderDismissed('profile-setup', user?.id));
+  }, [user?.id]);
 
   if (isProfileComplete || hidden) return null;
 
   const dismiss = () => {
     setHidden(true);
-    try {
-      localStorage.setItem(DISMISS_KEY, '1');
-    } catch {
-      // Storage unavailable — non-critical, just leave the banner visible.
-    }
+    // Session-scoped and account-scoped: signing out clears it, so the next
+    // sign-in reminds the student again.
+    dismissReminder('profile-setup', user?.id);
   };
 
   return (
@@ -46,7 +48,7 @@ export function ProfileSetupBanner() {
       <button
         type="button"
         className="profile-setup-banner-close"
-        aria-label="Dismiss profile setup notice"
+        aria-label="Dismiss profile setup notice for this session"
         onClick={dismiss}
       >
         <X size={16} />

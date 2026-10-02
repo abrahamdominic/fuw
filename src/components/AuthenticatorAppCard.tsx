@@ -1,6 +1,7 @@
 // AuthenticatorAppCard — shows whether TOTP (Authenticator App) 2FA is active,
 // lets the user set it up (via AuthenticatorSetupModal) or remove it.
 import React, { useEffect, useState } from 'react';
+import { AlertTriangle, CheckCircle2, Loader2, ShieldCheck, Smartphone, Trash2 } from 'lucide-react';
 import {
   getAAL,
   unenrollFactor,
@@ -55,73 +56,98 @@ export const AuthenticatorAppCard: React.FC = () => {
   };
 
   return (
-    <div className="security-tool-block">
+    <section className="security-tool-block" aria-labelledby="totp-heading">
       <div className="security-tool-head">
-        <div className="security-tool-icon">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2">
-            <rect x="4" y="10" width="16" height="10" rx="2" />
-            <path d="M8 10V7a4 4 0 0 1 8 0v3" />
-            <path d="M12 14v3" />
-          </svg>
-        </div>
+        <span className="security-tool-icon" aria-hidden="true">
+          <Smartphone size={21} strokeWidth={1.9} />
+        </span>
         <div className="security-tool-info">
-          <b>Authenticator App (2-Factor Authentication)</b>
+          <b id="totp-heading">Authenticator App (2-Factor Authentication)</b>
           <p>
             Add an extra layer of security. You will need a code from your Authenticator App
             (Google Authenticator, Microsoft Authenticator, Authy…) when you sign in.
           </p>
         </div>
-        {loading ? null : hasVerifiedFactor ? (
-          <span className="security-tool-status is-on">
-            <span className="status-dot" /> On
-          </span>
-        ) : (
-          <button
-            type="button"
-            className="primary save-btn security-tool-btn"
-            onClick={() => {
-              setError(null);
-              setNotice(null);
-              setSetupOpen(true);
-            }}
-            disabled={busy}
-          >
-            Set Up Authenticator App
-          </button>
-        )}
+        <div className="security-tool-actions">
+          {!loading &&
+            (hasVerifiedFactor ? (
+              <span className="security-tool-status is-on">
+                <span className="status-dot" aria-hidden="true" /> On
+              </span>
+            ) : (
+              <button
+                type="button"
+                className="primary save-btn security-tool-btn"
+                onClick={() => {
+                  setError(null);
+                  setNotice(null);
+                  setSetupOpen(true);
+                }}
+                disabled={busy}
+              >
+                Set Up Authenticator App
+              </button>
+            ))}
+        </div>
       </div>
 
-      {loading && <p className="security-tool-note">Checking your security settings…</p>}
-      {!loading && error && <p className="security-tool-error">{error}</p>}
-      {!loading && notice && <p className="security-tool-success">{notice}</p>}
+      {loading && (
+        <p className="security-tool-note" role="status">
+          <Loader2 size={14} className="animate-spin" aria-hidden="true" />
+          <span>Checking your security settings…</span>
+        </p>
+      )}
+      {error && (
+        <p className="security-tool-error" role="alert">
+          <AlertTriangle size={14} aria-hidden="true" />
+          <span>{error}</span>
+        </p>
+      )}
+      {notice && (
+        <p className="security-tool-success" role="status">
+          <CheckCircle2 size={14} aria-hidden="true" />
+          <span>{notice}</span>
+        </p>
+      )}
+
+      {!loading && !hasVerifiedFactor && !error && (
+        <div className="security-tool-empty">
+          <ShieldCheck size={22} aria-hidden="true" />
+          <b>Two-factor authentication is off</b>
+          <span>
+            Set up an authenticator app to require a one-time code each time you sign in.
+          </span>
+        </div>
+      )}
 
       {!loading && hasVerifiedFactor && (
-        <div className="security-tool-list">
+        <ul className="security-tool-list">
           {factors
             .filter((f) => f.status === 'verified')
             .map((f) => (
-              <div key={f.id} className="security-tool-row">
-                <div className="security-tool-row-icon">
-                  <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2">
-                    <rect x="4" y="10" width="16" height="10" rx="2" />
-                    <path d="M8 10V7a4 4 0 0 1 8 0v3" />
-                  </svg>
-                </div>
+              <li className="security-tool-row" key={f.id}>
+                <span className="security-tool-row-icon" aria-hidden="true">
+                  <Smartphone size={16} strokeWidth={1.9} />
+                </span>
                 <div className="security-tool-row-info">
                   <b>{f.friendly_name || 'Authenticator App'}</b>
                   <span>Verified · Codes rotate every 30 seconds</span>
                 </div>
-                <button
-                  type="button"
-                  className="link-btn danger security-tool-remove"
-                  onClick={() => handleRemove(f.id)}
-                  disabled={busy}
-                >
-                  Remove
-                </button>
-              </div>
+                <div className="security-tool-row-actions">
+                  <button
+                    type="button"
+                    className="link-btn danger security-tool-remove"
+                    onClick={() => handleRemove(f.id)}
+                    disabled={busy}
+                    aria-busy={busy}
+                  >
+                    <Trash2 size={13} aria-hidden="true" />
+                    <span>{busy ? 'Removing…' : 'Remove'}</span>
+                  </button>
+                </div>
+              </li>
             ))}
-        </div>
+        </ul>
       )}
 
       <AuthenticatorSetupModal
@@ -133,7 +159,7 @@ export const AuthenticatorAppCard: React.FC = () => {
           setTimeout(() => setNotice(null), 4000);
         }}
       />
-    </div>
+    </section>
   );
 };
 

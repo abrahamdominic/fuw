@@ -20,8 +20,13 @@ import {
 import { getAllDepartmentsForRepository, repositoryFaculties } from '../lib/repositoryCatalogue';
 import { useToast } from '../components/Toast';
 import { useAuth } from '../lib/AuthContext';
+import { checkDocumentAccess, type BlockReason } from '../lib/premium';
+import { PremiumGateModal } from '../components/PremiumGateModal';
 import { CitationModal } from '../components/CitationModal';
 import { SEO } from '../components/SEO';
+import { Breadcrumbs } from '../components/Breadcrumbs';
+import { PUBLIC_ROUTES } from '../lib/seo/routes';
+import { repositoryMeta } from '../lib/seo/dynamic';
 
 export const REPOSITORY_TYPES: { value: ResearchItemType; label: string }[] = [
   { value: 'final_year_project', label: 'Final Year Project' },
@@ -38,6 +43,8 @@ export const REPOSITORY_TYPES: { value: ResearchItemType; label: string }[] = [
 
 export function RepositoryPage() {
   const navigate = useNavigate();
+  const { isAuthenticated, profile, isAdmin } = useAuth();
+  const [gate, setGate] = useState<{ reason: BlockReason; message: string } | null>(null);
   const { toast } = useToast();
   const [items, setItems] = useState<ResearchItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -87,10 +94,22 @@ export function RepositoryPage() {
     navigate(`/repository/${item.id}`);
   };
 
+  // Opening the file is the gated action, so the server decides first and the
+  // paywall explains the refusal. No public-URL fallback: an empty URL means
+  // "no access", never "open the legacy link".
   const handleDownload = async (item: ResearchItem) => {
+    const decision = await checkDocumentAccess({
+      authenticated: isAuthenticated,
+      verificationStatus: profile?.verificationStatus,
+      isAdmin
+    });
+    if (!decision.allowed) {
+      setGate({ reason: decision.reason as BlockReason, message: decision.message });
+      return;
+    }
     try {
       const url = await getResearchFileUrl(item);
-      if (!url) { toast('No file is available for this publication yet.', 'error'); return; }
+      if (!url) { toast('This document could not be opened. Please try again.', 'error'); return; }
       void incrementResearchDownload(item.id);
       window.open(url, '_blank', 'noopener,noreferrer');
     } catch (err: any) {
@@ -107,11 +126,20 @@ export function RepositoryPage() {
 
   return (
     <>
+      {gate && (
+        <PremiumGateModal
+          open
+          reason={gate.reason}
+          message={gate.message}
+          onClose={() => setGate(null)}
+        />
+      )}
       <SEO
-        title="FUW Institutional Repository — Theses, Projects & Research Publications"
-        description="Browse the Federal University Wukari institutional repository: theses, dissertations, final-year projects, journal articles, conference papers and research publications."
         path="/repository"
+        noindex={Boolean(debouncedQuery.trim()) || Boolean(typeFilter) || Boolean(deptFilter) || Boolean(yearFilter)}
+        breadcrumbs={PUBLIC_ROUTES['/repository'].breadcrumbs}
       />
+      <Breadcrumbs trail={PUBLIC_ROUTES['/repository'].breadcrumbs} />
       <div className="repo-hero">
         <h1><Landmark size={26} style={{ verticalAlign: -4 }} /> FUW Institutional Repository</h1>
         <p>The university's permanent archive of theses, dissertations, final-year projects, research papers, and scholarly publications produced by the FUW community.</p>
@@ -215,11 +243,13 @@ export function RepositoryDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { isAuthenticated, profile, isAdmin } = useAuth();
   const [item, setItem] = useState<ResearchItem | null>(null);
   const [authors, setAuthors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCitation, setShowCitation] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [gate, setGate] = useState<{ reason: BlockReason; message: string } | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -247,8 +277,17 @@ export function RepositoryDetailPage() {
     if (!item) return;
     setDownloading(true);
     try {
+      const decision = await checkDocumentAccess({
+        authenticated: isAuthenticated,
+        verificationStatus: profile?.verificationStatus,
+        isAdmin
+      });
+      if (!decision.allowed) {
+        setGate({ reason: decision.reason as BlockReason, message: decision.message });
+        return;
+      }
       const url = await getResearchFileUrl(item);
-      if (!url) { toast('No file is available for this publication yet.', 'error'); return; }
+      if (!url) { toast('This document could not be opened. Please try again.', 'error'); return; }
       void incrementResearchDownload(item.id);
       window.open(url, '_blank', 'noopener,noreferrer');
     } catch (err: any) {
@@ -262,14 +301,58 @@ export function RepositoryDetailPage() {
     return <div className="loading-spinner-row"><Loader2 size={18} className="animate-spin" /> Loading publication…</div>;
   }
 
-  if (!item) return null;
+  // An unknown publication must answer as a real not-found page rather than
+  // rendering an empty document (which would look like a soft 404).
+  if (!item) {
+    return (
+      <main className="public-container">
+        <SEO title="Publication not found" path={`/repository/${id ?? ''}`} noindex />
+        <div className="empty-state" style={{ padding: '4rem 1rem' }}>
+          <Landmark size={48} />
+          <h1>Publication not found</h1>
+          <p>
+            This record is not available in the FUW institutional repository. It may still be under review, or it may
+            have been withdrawn.
+          </p>
+          <Link to="/repository" className="primary">
+            Browse the repository
+          </Link>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <>
+      {gate && (
+        <PremiumGateModal
+          open
+          reason={gate.reason}
+          message={gate.message}
+          onClose={() => setGate(null)}
+        />
+      )}
       <SEO
-        title={`${item.title} — FUW Institutional Repository`}
-        description={item.abstract?.slice(0, 160) || item.title}
-        path={`/repository/${item.id}`}
+        {...repositoryMeta({
+          id: item.id,
+          title: item.title,
+          subtitle: item.subtitle,
+          researchTypeLabel: RESEARCH_TYPE_LABELS[item.research_type] || 'Publication',
+          year: item.year,
+          department: item.department,
+          faculty: item.faculty,
+          abstract: item.abstract,
+          keywords: item.keywords,
+          authors: item.author_names,
+          datePublished: item.published_at
+        })}
+      />
+      <Breadcrumbs
+        trail={[
+          { name: 'Home', path: '/' },
+          { name: 'Repository', path: '/repository' },
+          { name: item.title, path: `/repository/${item.id}` }
+        ]}
       />
       <div className="repo-detail-hero">
         <span className="repo-type-chip">{RESEARCH_TYPE_LABELS[item.research_type] || 'Publication'}</span>
@@ -409,6 +492,12 @@ export function RepositorySubmitPage() {
 
   return (
     <div style={{ maxWidth: 760, margin: '0 auto', padding: '0 1rem 2.5rem' }}>
+      <SEO
+        title="Submit to the FUW institutional repository"
+        description="Submit a thesis, final-year project or research paper to the Federal University Wukari institutional repository."
+        path="/repository/submit"
+        noindex
+      />
       <div className="request-page-header">
         <div>
           <h2 className="page-title"><Upload size={22} />Submit to the Repository</h2>

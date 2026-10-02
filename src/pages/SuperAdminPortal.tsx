@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { requireSupabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
+import { fx, staggerDelay } from '../lib/motion';
 import { useToast } from '../components/Toast';
 import { ConfirmDialog, PromptDialog } from '../components/ConfirmDialog';
 import { DashboardSearch } from '../components/DashboardSearch';
@@ -394,32 +395,32 @@ function SuperOverviewTab({
       </div>
 
       <div className="portal-stats admin-stats-grid">
-        <section>
+        <section className={fx.fadeUp} style={staggerDelay(0, 50)}>
           <ShieldCheck />
           <b>{loading ? '…' : admins.length}</b>
           <span>Total staff accounts</span>
         </section>
-        <section>
+        <section className={fx.fadeUp} style={staggerDelay(1, 50)}>
           <UserCog />
           <b>{loading ? '…' : activeAdmins}</b>
           <span>Active administrators</span>
         </section>
-        <section>
+        <section className={fx.fadeUp} style={staggerDelay(2, 50)}>
           <KeyRound />
           <b>{loading ? '…' : superAdmins}</b>
           <span>Super admins</span>
         </section>
-        <section>
+        <section className={fx.fadeUp} style={staggerDelay(3, 50)}>
           <Users />
           <b>{studentCount.toLocaleString()}</b>
           <span>Registered students</span>
         </section>
-        <section>
+        <section className={fx.fadeUp} style={staggerDelay(4, 50)}>
           <FileText />
           <b>{materialCounts.approved}</b>
           <span>Approved materials</span>
         </section>
-        <section>
+        <section className={fx.fadeUp} style={staggerDelay(5, 50)}>
           <Clock />
           <b>{materialCounts.pending}</b>
           <span>Pending review</span>

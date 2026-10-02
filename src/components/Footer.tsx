@@ -1,9 +1,34 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Logo } from './Logo';
-import { GraduationCap, BookOpen, ShieldCheck, Mail, MapPin, Phone } from 'lucide-react';
+import { GraduationCap, BookOpen, ShieldCheck, Mail, MapPin } from 'lucide-react';
+import { facultySlug, shortFacultyName, DIRECTORY_TOTALS } from '../lib/seo/directory';
+import { catalogue } from '../data/catalogue';
+
+/**
+ * Site footer.
+ *
+ * Two deliberate SEO choices here:
+ *
+ *  * Faculty links point at the permanent, indexable `/faculties/:slug` pages
+ *    rather than at filtered `/library?faculty=…` views. Filtered views are
+ *    `noindex`, so linking only to them would waste the crawl budget the
+ *    directory pages exist to earn.
+ *  * Every destination is a real route. A footer link to a retired route is an
+ *    internal 404, and internal 404s are exactly what the 404 report in Search
+ *    Console is for.
+ */
+const FOOTER_FACULTIES = [
+  'Faculty of Agriculture & Life Sciences',
+  'Faculty of Bio-Sciences',
+  'Faculty of Computing & Information System',
+  'Faculty of Physical Sciences',
+  'Faculty of Law'
+];
 
 export function Footer() {
+  const featured = FOOTER_FACULTIES.map((name) => catalogue.find((f) => f.name === name)).filter(Boolean);
+
   return (
     <footer className="main-footer">
       <div className="footer-content">
@@ -12,11 +37,12 @@ export function Footer() {
             <Logo size={42} />
             <div>
               <h3>Federal University Wukari</h3>
-              <p>E-Library & Digital Repository</p>
+              <p>E-Library &amp; Digital Repository</p>
             </div>
           </div>
           <p className="footer-desc">
-            Empowering students, researchers, and faculty with 24/7 access to curated academic materials, past examination questions, research archives, and textbooks.
+            Empowering students, researchers, and faculty with 24/7 access to curated academic materials, past examination
+            questions, research archives, and textbooks.
           </p>
           <div className="footer-contact-info">
             <span><MapPin size={14} /> PMB 1020, Kastina-Ala Road, Wukari, Taraba State, Nigeria</span>
@@ -27,13 +53,19 @@ export function Footer() {
         <div className="footer-col">
           <h4>Academic Faculties</h4>
           <ul className="footer-links">
-            <li><Link to="/library?faculty=Faculty+of+Agriculture+%26+Life+Sciences">Agriculture & Life Sciences</Link></li>
-            <li><Link to="/library?faculty=Faculty+of+Bio-Sciences">Bio-Sciences</Link></li>
-            <li><Link to="/library?faculty=Faculty+of+Computing+%26+Information+System">Computing & Information System</Link></li>
-            <li><Link to="/library?faculty=Faculty+of+Physical+Sciences">Physical Sciences</Link></li>
-            <li><Link to="/library?faculty=Faculty+of+Law">Faculty of Law</Link></li>
-            <li><Link to="/faculties#college-of-health-sciences">College of Health Sciences</Link></li>
-            <li><Link to="/faculties">View All 14 Faculties →</Link></li>
+            {featured.map((faculty) => (
+              <li key={faculty!.name}>
+                <Link to={`/faculties/${facultySlug(faculty!)}`}>{shortFacultyName(faculty!.name)}</Link>
+              </li>
+            ))}
+            <li>
+              <Link to="/faculties#college-of-health-sciences">College of Health Sciences</Link>
+            </li>
+            <li>
+              <Link to="/faculties">
+                View all {DIRECTORY_TOTALS.faculties} faculties &rarr;
+              </Link>
+            </li>
           </ul>
         </div>
 
@@ -41,11 +73,14 @@ export function Footer() {
           <h4>Quick Navigation</h4>
           <ul className="footer-links">
             <li><Link to="/library">Library Collection</Link></li>
+            <li><Link to="/faculties">Faculties &amp; Departments</Link></li>
             <li><Link to="/courses">Course Directory</Link></li>
-            <li><Link to="/student">Student Portal</Link></li>
-            <li><Link to="/student/upload">Submit Learning Material</Link></li>
-            <li><Link to="/about">About FUW Digital Repository</Link></li>
+            <li><Link to="/repository">Institutional Repository</Link></li>
+            <li><Link to="/collections">Curated Collections</Link></li>
+            <li><Link to="/help">Help &amp; Library Services</Link></li>
+            <li><Link to="/about">About the E-Library</Link></li>
             <li><Link to="/contact">Library Helpdesk</Link></li>
+            <li><Link to="/student">Student Portal</Link></li>
           </ul>
         </div>
 
@@ -64,6 +99,16 @@ export function Footer() {
               <div>
                 <b>Open Educational Access</b>
                 <span>Free for all enrolled FUW candidates</span>
+              </div>
+            </div>
+            <div className="badge-item">
+              <GraduationCap size={16} />
+              <div>
+                <b>Structured Directory</b>
+                <span>
+                  {DIRECTORY_TOTALS.faculties} faculties, {DIRECTORY_TOTALS.departments} departments,{' '}
+                  {DIRECTORY_TOTALS.courses} courses
+                </span>
               </div>
             </div>
           </div>

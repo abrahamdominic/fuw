@@ -1,83 +1,133 @@
 <!doctype html>
-<html lang="en">
+<html lang="en-NG">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <!-- Primary Meta Tags -->
-    <title>FUW E-Library | Federal University Wukari Digital Library</title>
-    <meta name="title" content="FUW E-Library | Federal University Wukari Digital Library" />
+    <!--
+      This file is the static shell for the whole single-page app: Vite emits
+      one index.html, which netlify.toml also serves as /404.html so unknown
+      paths answer with a real HTTP 404 while React Router still renders the
+      right page.
+
+      It carries only the site-level facts — canonical origin, brand, social
+      cards, icons. Per-route titles, descriptions, canonicals, robots
+      directives and JSON-LD are rendered at runtime by <SEO> from the
+      registry in src/lib/seo/routes.ts, so nothing here can drift away from
+      the sitemap or the client-rendered head.
+    -->
+    <title>FUW E-Library | Verified Lecture Notes &amp; Past Questions</title>
     <meta
       name="description"
-      content="Federal University Wukari (FUW) Digital E-Library — access verified lecture notes, test & exam past questions, handouts, and research materials across all faculties and departments."
+      content="The FUW E-Library is Federal University Wukari’s digital library: verified lecture notes, test and exam past questions, handouts and research materials organised by faculty and department."
     />
-    <meta name="keywords" content="FUW, Federal University Wukari, digital library, e-library, lecture notes, past questions, test past questions, exam past questions, handouts, research materials, Nigerian university library" />
     <meta name="author" content="FUW E-Library" />
-    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <meta name="googlebot" content="index, follow, max-image-preview:large, max-snippet:-1" />
     <link rel="canonical" href="https://fuwtest.netlify.app/" />
-    <meta name="theme-color" content="#12603d" />
+    <meta name="theme-color" content="#0B6B3A" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="format-detection" content="telephone=no" />
+    <link rel="alternate" hreflang="en-NG" href="https://fuwtest.netlify.app/" />
+
+    <!-- Icons and installability -->
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+
+    <!-- Performance: the LCP element is the hero still frame (~20 KB). -->
+    <link rel="preload" as="image" href="/images/animation-poster.jpg" fetchpriority="high" />
 
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="FUW E-Library | Federal University Wukari Digital Library" />
+    <meta property="og:locale" content="en_NG" />
+    <meta property="og:site_name" content="FUW E-Library" />
+    <meta property="og:title" content="FUW E-Library | Verified Lecture Notes &amp; Past Questions" />
     <meta
       property="og:description"
-      content="Federal University Wukari (FUW) Digital E-Library — access verified lecture notes, test & exam past questions, handouts, and research materials across all faculties and departments."
+      content="Verified lecture notes, test and exam past questions, handouts and research materials from every faculty and department of Federal University Wukari."
     />
     <meta property="og:url" content="https://fuwtest.netlify.app/" />
-    <meta property="og:site_name" content="FUW E-Library" />
-    <meta property="og:locale" content="en_NG" />
-    <meta property="og:image" content="https://fuwtest.netlify.app/images/Fuw.png" />
+    <meta property="og:image" content="https://fuwtest.netlify.app/images/fuw-elibrary-og.png" />
+    <meta property="og:image:type" content="image/png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="FUW E-Library — Federal University Wukari Digital Library" />
+    <meta
+      property="og:image:alt"
+      content="FUW E-Library — Federal University Wukari’s digital library of lecture notes, past questions and research materials."
+    />
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="FUW E-Library | Federal University Wukari Digital Library" />
+    <meta name="twitter:title" content="FUW E-Library | Verified Lecture Notes &amp; Past Questions" />
     <meta
       name="twitter:description"
-      content="Federal University Wukari (FUW) Digital E-Library — access verified lecture notes, test & exam past questions, handouts, and research materials across all faculties and departments."
+      content="Verified lecture notes, test and exam past questions, handouts and research materials from every faculty and department of Federal University Wukari."
     />
-    <meta name="twitter:image" content="https://fuwtest.netlify.app/images/Fuw.png" />
-    <meta name="twitter:image:alt" content="FUW E-Library — Federal University Wukari Digital Library" />
+    <meta name="twitter:image" content="https://fuwtest.netlify.app/images/fuw-elibrary-og.png" />
+    <meta name="twitter:image:alt" content="FUW E-Library — Federal University Wukari digital library." />
 
-    <link rel="icon" type="image/png" href="/images/Fuw.png" />
-
-    <!-- Structured Data: Website + Organization -->
+    <!--
+      Structured data: the site-level graph only. WebPage / ItemList /
+      Course / LearningResource / ScholarlyArticle / BreadcrumbList nodes for
+      individual routes are emitted by <SEO> at runtime so each page's schema
+      always describes the page actually being viewed.
+    -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
-      "@type": "WebSite",
-      "name": "FUW E-Library",
-      "alternateName": "Federal University Wukari Digital Library",
-      "url": "https://fuwtest.netlify.app/",
-      "description": "Federal University Wukari (FUW) Digital E-Library — verified lecture notes, test & exam past questions, handouts, and research materials across every faculty and department.",
-      "inLanguage": "en",
-      "potentialAction": {
-        "@type": "SearchAction",
-        "target": {
-          "@type": "EntryPoint",
-          "urlTemplate": "https://fuwtest.netlify.app/library?q={search_term_string}"
+      "@graph": [
+        {
+          "@type": "CollegeOrUniversity",
+          "@id": "https://fuwtest.netlify.app/#organization",
+          "name": "Federal University Wukari",
+          "alternateName": "FUW",
+          "url": "https://fuwtest.netlify.app/",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://fuwtest.netlify.app/images/fuw-logo.png"
+          },
+          "image": "https://fuwtest.netlify.app/images/fuw-elibrary-og.png"
         },
-        "query-input": "required name=search_term_string"
-      },
-      "publisher": {
-        "@type": "Organization",
-        "name": "FUW E-Library",
-        "url": "https://fuwtest.netlify.app/",
-        "logo": {
-          "@type": "ImageObject",
-          "url": "https://fuwtest.netlify.app/images/Fuw.png",
-          "width": 1200,
-          "height": 630
+        {
+          "@type": "WebSite",
+          "@id": "https://fuwtest.netlify.app/#website",
+          "url": "https://fuwtest.netlify.app/",
+          "name": "FUW E-Library",
+          "alternateName": "Federal University Wukari Digital Library",
+          "description": "Federal University Wukari’s digital library of verified lecture notes, test and exam past questions, handouts and research materials, organised by faculty, department, level and semester.",
+          "inLanguage": "en-NG",
+          "publisher": { "@id": "https://fuwtest.netlify.app/#organization" },
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": {
+              "@type": "EntryPoint",
+              "urlTemplate": "https://fuwtest.netlify.app/library?q={search_term_string}"
+            },
+            "query-input": "required name=search_term_string"
+          }
         }
-      }
+      ]
     }
     </script>
   </head>
   <body>
     <div id="root"></div>
+    <noscript>
+      <div style="max-width: 44rem; margin: 3rem auto; padding: 0 1.25rem; font: 16px/1.6 system-ui, sans-serif; color: #14261d">
+        <h1 style="font-size: 1.5rem">FUW E-Library</h1>
+        <p>
+          The Federal University Wukari digital library needs JavaScript to search its
+          catalogue of lecture notes, past questions and research materials. Please enable
+          JavaScript, or contact the library team at the central helpdesk for a copy of any
+          material you need.
+        </p>
+        <p><a href="https://fuwukari.edu.ng/">Visit the Federal University Wukari website</a></p>
+      </div>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

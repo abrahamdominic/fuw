@@ -58,7 +58,10 @@ export function materialToCitationSource(m: MaterialItem): CitationSource {
     session: m.session,
     department: m.department,
     faculty: m.faculty,
-    url: m.fileUrl
+    // No URL: fileUrl points at an object inside the private premium bucket, so
+    // exporting it would leak a storage location that is dead for anyone
+    // without access anyway.
+    url: undefined
   };
 }
 
@@ -79,7 +82,9 @@ export function researchToCitationSource(r: ResearchItem): CitationSource {
     isbn: r.isbn,
     issn: r.issn,
     edition: r.edition,
-    url: r.file_url || undefined
+    // As above: research_items.file_url is a private-bucket object path, not a
+    // public landing page.
+    url: undefined
   };
 }
 

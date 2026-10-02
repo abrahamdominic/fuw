@@ -19,6 +19,7 @@ import {
   signInWithPasskey
 } from '../lib/security';
 import { toUserFacingAuthError } from '../lib/authErrors';
+import { AnimatedModal } from './animations/AnimatedModal';
 
 export type ProtectedActionTone = 'danger' | 'warning' | 'primary';
 
@@ -96,8 +97,6 @@ export const ProtectedActionModal: React.FC<ProtectedActionModalProps> = ({
     };
   }, [isOpen]);
 
-  if (!isOpen) return null;
-
   const needsKeyword = Boolean(confirmKeyword);
   const needsOtp = Boolean(totpFactorId);
   const keywordOk = !needsKeyword || typed === confirmKeyword;
@@ -160,9 +159,13 @@ export const ProtectedActionModal: React.FC<ProtectedActionModalProps> = ({
   const otpVerifiedOk = isOtpComplete && !otpError;
 
   return (
-    <div className="protected-modal-overlay" role="dialog" aria-modal="true" aria-label={title}>
-      <div className="protected-modal">
-        <div className={`protected-header is-${tone}`}>
+    <AnimatedModal
+      open={isOpen}
+      onClose={onClose}
+      overlayClassName="protected-modal-overlay"
+      dialogClassName="protected-modal"
+    >
+      <div className={`protected-header is-${tone}`}>
           <div className="protected-shield-wrap">
             <div className="protected-shield-rings">
               <span />
@@ -340,8 +343,7 @@ export const ProtectedActionModal: React.FC<ProtectedActionModalProps> = ({
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </AnimatedModal>
   );
 };
 

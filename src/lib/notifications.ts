@@ -16,7 +16,13 @@ export type NotificationType =
   | 'announcement'
   | 'maintenance'
   | 'important'
-  | 'system_update';
+  | 'system_update'
+  // Verification workflow and premium entitlement lifecycle.
+  | 'verification_submitted'
+  | 'verification_approved'
+  | 'verification_rejected'
+  | 'plan_activated'
+  | 'plan_expired';
 
 export interface NotificationItem {
   id: string;

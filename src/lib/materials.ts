@@ -553,12 +553,12 @@ export async function submitMaterial(input: {
     throw new Error(storageError.message || 'File upload failed. Please try again.');
   }
 
-  // 4. Attach file metadata to the row.
-  const { data: urlData } = client.storage.from(BUCKET).getPublicUrl(path);
+  // 4. Attach file metadata to the row. No public URL is stored: the bucket is
+  // private and documents are fetched with short-lived signed URLs.
   const { data: finalRow, error: updateError } = await client
     .from('materials')
     .update({
-      file_url: urlData.publicUrl,
+      file_url: '',
       file_path: path,
       file_name: input.file.name,
       file_size: input.file.size
@@ -571,7 +571,7 @@ export async function submitMaterial(input: {
   void store.syncMaterialsFromSupabase();
 
   if (updateError || !finalRow) {
-    return mapMaterialRow({ ...inserted, file_url: urlData.publicUrl, file_name: input.file.name, file_size: input.file.size });
+    return mapMaterialRow({ ...inserted, file_path: path, file_name: input.file.name, file_size: input.file.size });
   }
 
   return mapMaterialRow(finalRow);
@@ -730,10 +730,20 @@ async function refreshAfterMutation(): Promise<void> {
   await store.syncMaterialsFromSupabase();
 }
 
-// Secure file access. When the storage bucket is private, `file_url` stored at
-// upload time may be stale/unreachable, so we mint a short-lived signed URL
-// from `file_path` and cache it until just before it expires. Falls back to the
-// public URL when no path is available or the signed URL fails.
+// Secure file access. The storage bucket is private, so documents are fetched
+// with a signed URL minted from `file_path` and cached only briefly.
+//
+// The lifetime is deliberately short: a signed URL cannot be revoked once
+// issued, so a long cache would let a student keep reading premium documents
+// after an entitlement or verification was withdrawn. Caching for a few minutes
+// keeps repeated opens snappy while bounding the exposure to roughly that
+// window.
+//
+// There is deliberately NO fallback to the stored public URL: the storage
+// policies gate the document bytes behind `has_premium_access()`, so handing
+// back `file_url` would either be dead or leak the document. A refusal is
+// returned as an empty string and callers surface the paywall instead.
+const SIGNED_URL_TTL_SECONDS = 300;
 const signedUrlCache = new Map<string, { url: string; expiresAt: number }>();
 
 export async function getSecureFileUrl(material: {
@@ -741,20 +751,26 @@ export async function getSecureFileUrl(material: {
   filePath?: string;
   fileName?: string;
 }): Promise<string> {
-  const { fileUrl, filePath } = material;
-  if (!filePath) return fileUrl || '';
+  const { filePath } = material;
+  // No fallback to the stored public URL. The bucket is private and storage RLS
+  // is the real gate, so a missing object path means "no access" rather than a
+  // reason to try a link that would bypass the premium check.
+  if (!filePath) return '';
   const cached = signedUrlCache.get(filePath);
   if (cached && Date.now() < cached.expiresAt) return cached.url;
   try {
     const client = requireSupabase();
     const { data, error } = await client.storage
       .from(BUCKET)
-      .createSignedUrl(filePath, 3600);
-    if (error || !data?.signedUrl) return fileUrl || '';
-    signedUrlCache.set(filePath, { url: data.signedUrl, expiresAt: Date.now() + (3600 - 120) * 1000 });
+      .createSignedUrl(filePath, SIGNED_URL_TTL_SECONDS);
+    if (error || !data?.signedUrl) return '';
+    signedUrlCache.set(filePath, {
+      url: data.signedUrl,
+      expiresAt: Date.now() + (SIGNED_URL_TTL_SECONDS - 30) * 1000
+    });
     return data.signedUrl;
   } catch {
-    return fileUrl || '';
+    return '';
   }
 }
 

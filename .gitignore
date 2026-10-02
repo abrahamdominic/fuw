@@ -5,3 +5,5 @@ BUG_FIXES_SUMMARY.md
 COMPREHENSIVE_TESTING.md
 QUICK_FIX_GUIDE.md
 README_FIXES.md
+tsconfig.tsbuildinfo
+*.tsbuildinfo

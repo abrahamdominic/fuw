@@ -7,6 +7,8 @@ import {
   FileText,
   Upload,
   Users,
+  BadgeCheck,
+  Crown,
   Building2,
   GraduationCap,
   Bookmark,
@@ -61,6 +63,8 @@ import {
   Layers,
   HelpCircle
 } from 'lucide-react';
+import { fx, staggerDelay } from '../lib/motion';
+import { AnimatedModal } from '../components/animations/AnimatedModal';
 import { useStore } from '../lib/useStore';
 import { useLiveCatalogue } from '../lib/useLiveCatalogue';
 import { MaterialItem } from '../lib/store';
@@ -105,6 +109,8 @@ import {
   AdminHelpTab,
   AdminAnnouncementsTab
 } from './AdminRepositoryTabs';
+import { AdminVerificationTab } from './AdminVerificationTab';
+import { AdminPlansTab } from './AdminPlansTab';
 
 interface AdminPortalProps {
   onReadOnline: (material: MaterialItem) => void;
@@ -124,6 +130,8 @@ const adminNavItems = [
   { label: 'Students & users', path: '/admin/users', icon: Users, permission: 'manage_students' },
   { label: 'Deletion requests', path: '/admin/deletion-requests', icon: FileWarning, permission: 'manage_students' },
   { label: 'Profile change requests', path: '/admin/change-requests', icon: UserCog, permission: 'manage_students' },
+  { label: 'Verification queue', path: '/admin/verification', icon: BadgeCheck, permission: 'manage_students' },
+  { label: 'Premium plans', path: '/admin/plans', icon: Crown, permission: 'manage_students' },
   { label: 'Student messages', path: '/admin/messages', icon: MessageSquare, permission: 'manage_students' },
   { label: 'Active sessions', path: '/admin/sessions', icon: Laptop, permission: 'manage_students' },
   { label: 'Faculties', path: '/admin/faculties', icon: Building2, permission: 'manage_catalogue' },
@@ -438,6 +446,10 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
           <AdminUsersTab />
         ) : currentPath.startsWith('/admin/deletion-requests') ? (
           <AdminDeletionRequestsTab />
+        ) : currentPath.startsWith('/admin/plans') ? (
+          <AdminPlansTab />
+        ) : currentPath.startsWith('/admin/verification') ? (
+          <AdminVerificationTab />
         ) : currentPath.startsWith('/admin/change-requests') ? (
           <AdminChangeRequestsTab />
         ) : currentPath.startsWith('/admin/messages') ? (
@@ -618,46 +630,46 @@ function AdminOverviewTab({
 
       {/* 8-Panel Metric Stats Grid */}
       <div className="portal-stats admin-stats-grid">
-        <section>
+        <section className={fx.fadeUp} style={staggerDelay(0, 50)}>
           <Users />
           <b>{stats.studentsCount.toLocaleString()}</b>
           <span>Registered students</span>
         </section>
-        <section>
-          <ShieldCheck />
-          <b>{stats.verifiedStudents.toLocaleString()}</b>
-          <span>Verified students</span>
-        </section>
-        <section>
-          <FileText />
-          <b>{stats.approvedMaterials}</b>
-          <span>Approved materials</span>
-        </section>
-        <section>
-          <Clock />
-          <b>{pendingCount}</b>
-          <span>Pending approval</span>
-        </section>
-        <section>
-          <Building2 />
-          <b>{stats.facultiesCount}</b>
-          <span>Faculties</span>
-        </section>
-        <section>
-          <GraduationCap />
-          <b>{stats.departmentsCount}</b>
-          <span>Departments</span>
-        </section>
-        <section>
-          <Download />
-          <b>{stats.totalDownloads.toLocaleString()}</b>
-          <span>Total downloads</span>
-        </section>
-        <section>
-          <Eye />
-          <b>{stats.totalViews.toLocaleString()}</b>
-          <span>Total views</span>
-        </section>
+            <section className={fx.fadeUp} style={staggerDelay(1, 50)}>
+              <ShieldCheck />
+              <b>{stats.verifiedStudents.toLocaleString()}</b>
+              <span>Verified students</span>
+            </section>
+            <section className={fx.fadeUp} style={staggerDelay(2, 50)}>
+              <FileText />
+              <b>{stats.approvedMaterials}</b>
+              <span>Approved materials</span>
+            </section>
+            <section className={fx.fadeUp} style={staggerDelay(3, 50)}>
+              <Clock />
+              <b>{pendingCount}</b>
+              <span>Pending approval</span>
+            </section>
+            <section className={fx.fadeUp} style={staggerDelay(4, 50)}>
+              <Building2 />
+              <b>{stats.facultiesCount}</b>
+              <span>Faculties</span>
+            </section>
+            <section className={fx.fadeUp} style={staggerDelay(5, 50)}>
+              <GraduationCap />
+              <b>{stats.departmentsCount}</b>
+              <span>Departments</span>
+            </section>
+            <section className={fx.fadeUp} style={staggerDelay(6, 50)}>
+              <Download />
+              <b>{stats.totalDownloads.toLocaleString()}</b>
+              <span>Total downloads</span>
+            </section>
+            <section className={fx.fadeUp} style={staggerDelay(7, 50)}>
+              <Eye />
+              <b>{stats.totalViews.toLocaleString()}</b>
+              <span>Total views</span>
+            </section>
       </div>
 
       {/* Monthly Uploads Activity Chart (real database records) */}
@@ -2962,14 +2974,14 @@ function AdminUsageAnalyticsTab() {
       ) : (
         <>
           <div className="stat-cards">
-            <div className="stat-card"><span className="stat-value">{dashboard.total_sessions.toLocaleString()}</span><span className="stat-label">Total sessions</span></div>
-            <div className="stat-card"><span className="stat-value">{dashboard.total_events.toLocaleString()}</span><span className="stat-label">Total events</span></div>
-            <div className="stat-card"><span className="stat-value">{dashboard.daily_active_users}</span><span className="stat-label">Active today</span></div>
-            <div className="stat-card"><span className="stat-value">{dashboard.weekly_active_users}</span><span className="stat-label">Active (7d)</span></div>
-            <div className="stat-card"><span className="stat-value">{dashboard.monthly_active_users}</span><span className="stat-label">Active (30d)</span></div>
-            <div className="stat-card"><span className="stat-value">{Math.round(dashboard.avg_session_duration_seconds)}s</span><span className="stat-label">Avg session</span></div>
-            <div className="stat-card"><span className="stat-value">{dashboard.searches_last_7d}</span><span className="stat-label">Searches (7d)</span></div>
-            <div className="stat-card"><span className="stat-value">{dashboard.errors_last_7d}</span><span className="stat-label">Errors (7d)</span></div>
+            <div className={`stat-card ${fx.fadeUp}`} style={staggerDelay(0, 40)}><span className="stat-value">{dashboard.total_sessions.toLocaleString()}</span><span className="stat-label">Total sessions</span></div>
+            <div className={`stat-card ${fx.fadeUp}`} style={staggerDelay(1, 40)}><span className="stat-value">{dashboard.total_events.toLocaleString()}</span><span className="stat-label">Total events</span></div>
+            <div className={`stat-card ${fx.fadeUp}`} style={staggerDelay(2, 40)}><span className="stat-value">{dashboard.daily_active_users}</span><span className="stat-label">Active today</span></div>
+            <div className={`stat-card ${fx.fadeUp}`} style={staggerDelay(3, 40)}><span className="stat-value">{dashboard.weekly_active_users}</span><span className="stat-label">Active (7d)</span></div>
+            <div className={`stat-card ${fx.fadeUp}`} style={staggerDelay(4, 40)}><span className="stat-value">{dashboard.monthly_active_users}</span><span className="stat-label">Active (30d)</span></div>
+            <div className={`stat-card ${fx.fadeUp}`} style={staggerDelay(5, 40)}><span className="stat-value">{Math.round(dashboard.avg_session_duration_seconds)}s</span><span className="stat-label">Avg session</span></div>
+            <div className={`stat-card ${fx.fadeUp}`} style={staggerDelay(6, 40)}><span className="stat-value">{dashboard.searches_last_7d}</span><span className="stat-label">Searches (7d)</span></div>
+            <div className={`stat-card ${fx.fadeUp}`} style={staggerDelay(7, 40)}><span className="stat-value">{dashboard.errors_last_7d}</span><span className="stat-label">Errors (7d)</span></div>
           </div>
 
           <div className="analytics-block">
@@ -3071,10 +3083,10 @@ function AdminUsageAnalyticsTab() {
             ) : (
               <>
                 <div className="stat-cards">
-                  <div className="stat-card"><span className="stat-value">{searchInsights.total_searches.toLocaleString()}</span><span className="stat-label">Searches (14d)</span></div>
-                  <div className="stat-card">{searchInsights.failed_searches > 0 ? <span className="stat-value warn">{searchInsights.failed_searches}</span> : <span className="stat-value">{searchInsights.failed_searches}</span>}<span className="stat-label">No results</span></div>
-                  <div className="stat-card"><span className="stat-value">{searchInsights.searches_with_click.toLocaleString()}</span><span className="stat-label">With results</span></div>
-                  <div className="stat-card"><span className="stat-value">{searchInsights.no_result_queries.length}</span><span className="stat-label">Missing topics</span></div>
+                  <div className={`stat-card ${fx.fadeUp}`} style={staggerDelay(8, 40)}><span className="stat-value">{searchInsights.total_searches.toLocaleString()}</span><span className="stat-label">Searches (14d)</span></div>
+                  <div className={`stat-card ${fx.fadeUp}`} style={staggerDelay(9, 40)}>{searchInsights.failed_searches > 0 ? <span className="stat-value warn">{searchInsights.failed_searches}</span> : <span className="stat-value">{searchInsights.failed_searches}</span>}<span className="stat-label">No results</span></div>
+                  <div className={`stat-card ${fx.fadeUp}`} style={staggerDelay(10, 40)}><span className="stat-value">{searchInsights.searches_with_click.toLocaleString()}</span><span className="stat-label">With results</span></div>
+                  <div className={`stat-card ${fx.fadeUp}`} style={staggerDelay(11, 40)}><span className="stat-value">{searchInsights.no_result_queries.length}</span><span className="stat-label">Missing topics</span></div>
                 </div>
                 <div className="analytics-grid">
                   <div>

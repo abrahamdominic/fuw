@@ -9,6 +9,7 @@ import {
 import type { MaterialItem } from '../lib/store';
 import type { ResearchItem } from '../lib/repository';
 import { useToast } from './Toast';
+import { AnimatedModal } from './animations/AnimatedModal';
 
 interface CitationModalProps {
   material?: MaterialItem | null;
@@ -61,10 +62,14 @@ export function CitationModal({ material, researchItem, onClose }: CitationModal
   );
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-card citation-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Cite this resource">
-        <div className="modal-header">
-          <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+    <AnimatedModal
+      open
+      onClose={onClose}
+      dialogClassName="modal-card citation-modal"
+      labelledBy="citation-modal-title"
+    >
+      <div className="modal-header">
+          <h3 id="citation-modal-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Quote size={18} /> Cite this {material ? 'Material' : 'Publication'}
           </h3>
           <button className="link-btn" onClick={onClose} aria-label="Close citation dialog">
@@ -112,8 +117,7 @@ export function CitationModal({ material, researchItem, onClose }: CitationModal
               DOI: <a href={`https://doi.org/${source.doi}`} target="_blank" rel="noopener noreferrer">{source.doi}</a>
             </div>
           )}
-        </div>
       </div>
-    </div>
+    </AnimatedModal>
   );
 }

@@ -6,6 +6,7 @@ import { updateMaterial as updateMaterialDb, type DepartmentOption } from '../li
 import { DepartmentAssigner } from './DepartmentAssigner';
 import { materialTypes, levelsFor } from '../data/catalogue';
 import { useToast } from './Toast';
+import { AnimatedModal } from './animations/AnimatedModal';
 
 interface EditMaterialModalProps {
   material: MaterialItem | null;
@@ -75,7 +76,7 @@ export function EditMaterialModal({
     }
   }, [material]);
 
-  if (!isOpen || !material) return null;
+  if (!material) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -149,13 +150,13 @@ export function EditMaterialModal({
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 1100 }}>
-      <div
-        className="modal-card"
-        onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: '720px', maxHeight: '90vh', overflowY: 'auto' }}
-      >
-        <div className="modal-header">
+    <AnimatedModal
+      open={isOpen}
+      onClose={onClose}
+      overlayStyle={{ zIndex: 1100 }}
+      dialogStyle={{ maxWidth: '720px', maxHeight: '90vh', overflowY: 'auto' }}
+    >
+      <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <BookOpen size={20} color="#0B6B3A" />
             <div>
@@ -331,7 +332,6 @@ export function EditMaterialModal({
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </AnimatedModal>
   );
 }

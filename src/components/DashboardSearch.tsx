@@ -14,6 +14,7 @@ import {
   CornerDownLeft
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { fx } from '../lib/motion';
 
 type ResultGroup = 'Materials' | 'Students' | 'Administrators' | 'Invites' | 'Notifications';
 
@@ -360,7 +361,7 @@ export function DashboardSearch({ scope }: { scope: 'admin' | 'super' }) {
         {isOpen && (
           <div
             id={`dash-search-results-${scope}`}
-            className="dash-search-panel"
+            className={`dash-search-panel ${fx.fadeIn}`}
             role="listbox"
             aria-label="Search results"
           >
@@ -422,9 +423,9 @@ export function DashboardSearch({ scope }: { scope: 'admin' | 'super' }) {
                       </button>
                     );
                   })}
-                </div>
-              );
-            })}
+</div>
+          );
+        })}
           </div>
         )}
       </div>

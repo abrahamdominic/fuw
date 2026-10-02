@@ -12,6 +12,7 @@ import {
   challengeTOTP,
   verifyTOTP
 } from '../lib/security';
+import { AnimatedModal } from './animations/AnimatedModal';
 
 export interface AuthenticatorSetupModalProps {
   isOpen: boolean;
@@ -113,8 +114,6 @@ export const AuthenticatorSetupModal: React.FC<AuthenticatorSetupModalProps> = (
     if (status === 'enrolling' || status === 'verifying') return;
     onClose();
   };
-
-  if (!isOpen) return null;
 
   const renderBody = () => {
     if (status === 'enrolling') {
@@ -232,9 +231,13 @@ export const AuthenticatorSetupModal: React.FC<AuthenticatorSetupModalProps> = (
   };
 
   return (
-    <div className="protected-modal-overlay" role="dialog" aria-modal="true" aria-label="Set up Authenticator App">
-      <div className="protected-modal mfa-setup-modal">
-        <div className="protected-header is-primary">
+    <AnimatedModal
+      open={isOpen}
+      onClose={handleClose}
+      overlayClassName="protected-modal-overlay"
+      dialogClassName="protected-modal mfa-setup-modal"
+    >
+      <div className="protected-header is-primary">
           <div className="protected-shield-wrap">
             <div className="protected-shield-rings"><span /><span /><span /></div>
             <div className="protected-shield-icon">
@@ -256,8 +259,7 @@ export const AuthenticatorSetupModal: React.FC<AuthenticatorSetupModalProps> = (
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </AnimatedModal>
   );
 };
 

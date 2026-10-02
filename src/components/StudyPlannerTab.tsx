@@ -13,6 +13,7 @@ import {
   Flag,
   AlertTriangle
 } from 'lucide-react';
+import { fx, staggerDelay } from '../lib/motion';
 import {
   fetchPlannerTasks,
   createPlannerTask,
@@ -323,11 +324,15 @@ export function StudyPlannerTab() {
       {/* Task list */}
       {visibleTasks.length > 0 && (
         <div className="planner-list">
-          {visibleTasks.map((task) => {
+          {visibleTasks.map((task, taskIndex) => {
             const isDone = task.status === 'completed';
             const overdue = task.status !== 'completed' && task.status !== 'skipped' && !!task.dueDate && new Date(task.dueDate).getTime() < Date.now();
             return (
-              <div key={task.id} className={`planner-item ${isDone ? 'done' : ''} ${task.status === 'in_progress' ? 'focus' : ''}`}>
+              <div
+                key={task.id}
+                style={staggerDelay(taskIndex, 30)}
+                className={`planner-item ${fx.listRow} ${isDone ? 'done' : ''} ${task.status === 'in_progress' ? 'focus' : ''}`}
+              >
                 <button
                   type="button"
                   className="planner-item-toggle"

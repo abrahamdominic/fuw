@@ -5,6 +5,7 @@ import { Logo } from './Logo';
 import { useStore } from '../lib/useStore';
 import { useAuth } from '../lib/AuthContext';
 import { useToast } from './Toast';
+import { fx } from '../lib/motion';
 
 export function Header() {
   const [open, setOpen] = useState(false);
@@ -112,8 +113,12 @@ export function Header() {
 
       {/* Mobile Drawer Navigation */}
       {open && (
-        <div className="mobile-nav-drawer" role="dialog" aria-modal="true">
-          <div className="mobile-nav-inner">
+          <div
+            className={`mobile-nav-drawer ${fx.overlay}`}
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className={`mobile-nav-inner ${fx.fadeDown}`}>
             <div className="mobile-nav-links">
               <NavLink to="/" end className={({ isActive }) => (isActive ? 'mobile-link active' : 'mobile-link')}>
                 Home
@@ -175,8 +180,8 @@ export function Header() {
                 </Link>
               </div>
             )}
+            </div>
           </div>
-        </div>
       )}
     </>
   );

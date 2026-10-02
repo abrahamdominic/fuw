@@ -27,8 +27,6 @@ import {
   Sparkles,
   UserRound,
   UserPlus,
-  Volume2,
-  VolumeX,
   X
 } from 'lucide-react';
 import { SEO } from '../components/SEO';
@@ -44,6 +42,8 @@ import {
   isPlatformAuthenticatorAvailable
 } from '../lib/security';
 import { passkeyErrorMessage } from '../lib/authErrors';
+import { fx, staggerDelay } from '../lib/motion';
+import { usePrefersStaticBackdrop } from '../lib/backdrop';
 
 type AuthMode = 'login' | 'register' | 'forgot';
 
@@ -52,59 +52,79 @@ type AuthMode = 'login' | 'register' | 'forgot';
  * ------------------------------------------------------------------------- */
 export function AuthShowcase() {
   const [isPlaying, setIsPlaying] = useState(true);
-  const [isMuted, setIsMuted] = useState(true);
-  const [videoLoaded, setVideoLoaded] = useState(false);
+  const [shouldLoadVideo, setShouldLoadVideo] = useState(false);
   const [videoError, setVideoError] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const useStaticPoster = usePrefersStaticBackdrop();
+  // A GIF rendered by <img> has no playback API and cannot be frozen with CSS.
+  // A <video> can, so the motion toggle genuinely pauses it. The sources are
+  // attached after first paint and never at all for reduced-motion visitors or
+  // small/low-memory viewports.
+  const showStaticPoster = useStaticPoster || videoError;
 
-  const toggleSound = () => {
+  useEffect(() => {
+    if (useStaticPoster) return;
+    const load = () => setShouldLoadVideo(true);
+    const idle = (window as unknown as {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    }).requestIdleCallback;
+
+    if (typeof idle === 'function') {
+      const handle = idle(load, { timeout: 2500 });
+      return () => {
+        const cancel = (window as unknown as { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback;
+        if (cancel) cancel(handle);
+      };
+    }
+    const timer = window.setTimeout(load, 1200);
+    return () => window.clearTimeout(timer);
+  }, [useStaticPoster]);
+
+  useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    if (isMuted) {
-      video.muted = false;
-      video.volume = 0.7;
-      setIsMuted(false);
-      if (video.paused) {
-        video.play().catch(() => {});
-        setIsPlaying(true);
-      }
-    } else {
-      video.muted = true;
-      setIsMuted(true);
-    }
-  };
-
-  const togglePlayback = () => {
-    const video = videoRef.current;
-    if (!video) return;
-    if (video.paused) {
-      video.play().then(() => setIsPlaying(true)).catch(() => {});
-    } else {
-      video.pause();
-      setIsPlaying(false);
-    }
-  };
+    if (isPlaying) void video.play().catch(() => undefined);
+    else video.pause();
+  }, [isPlaying, shouldLoadVideo]);
 
   return (
     <aside className="mac-showcase" aria-label="FUW E-Library Institutional Showcase">
-      <div className={`mac-showcase-video-box ${videoLoaded ? 'loaded' : ''}`}>
-        {!videoError && (
+      {/* The layer is opacity:0 until it has something painted, and the still
+          frame counts — otherwise the reduced-motion fallback would be blank. */}
+      <div className={`mac-showcase-video-box ${showStaticPoster || shouldLoadVideo ? 'loaded' : ''}`}>
+        {showStaticPoster ? (
+          <img
+            className="mac-showcase-video"
+            src="/images/animation-poster.jpg"
+            alt=""
+            aria-hidden="true"
+            width={272}
+            height={484}
+            decoding="async"
+          />
+        ) : (
           <video
             ref={videoRef}
             className="mac-showcase-video"
-            autoPlay
+            poster="/images/animation-poster.jpg"
+            width={272}
+            height={484}
+            muted
             loop
-            muted={isMuted}
             playsInline
-            preload="auto"
-            onLoadedData={() => setVideoLoaded(true)}
-            onError={() => {
-              setVideoError(true);
-              setVideoLoaded(false);
-            }}
+            autoPlay={shouldLoadVideo}
+            preload="none"
+            aria-hidden="true"
+            tabIndex={-1}
+            onError={() => setVideoError(true)}
           >
-            <source src="/images/animation.mp4" type="video/mp4" />
-            <source src="/animation.mp4" type="video/mp4" />
+            {shouldLoadVideo && (
+              <>
+                <source src="/images/hero-loop.webm" type="video/webm" />
+                <source src="/images/hero-loop.mp4" type="video/mp4" />
+              </>
+            )}
           </video>
         )}
         <div className="mac-showcase-gradient" />
@@ -158,27 +178,23 @@ export function AuthShowcase() {
           </div>
         </div>
 
-        {/* Media Controls for Background Animation */}
-        {!videoError && (
+        {/* Motion toggle for the background animation */}
+        {!showStaticPoster && (
           <div className="mac-showcase-media-bar">
             <button
               type="button"
-              className={`mac-media-pill ${!isMuted ? 'active' : ''}`}
-              onClick={toggleSound}
-              title={isMuted ? 'Unmute video audio' : 'Mute video audio'}
-            >
-              {!isMuted ? <Volume2 size={13} /> : <VolumeX size={13} />}
-              <span>{!isMuted ? 'Audio On' : 'Audio Muted'}</span>
-            </button>
-            <button
-              type="button"
               className="mac-media-pill"
-              onClick={togglePlayback}
+              onClick={() => setIsPlaying((p) => !p)}
+              aria-pressed={!isPlaying}
+              aria-label={isPlaying ? 'Pause background animation' : 'Play background animation'}
               title={isPlaying ? 'Pause animation' : 'Play animation'}
             >
               {isPlaying ? <Pause size={13} /> : <Play size={13} />}
               <span>{isPlaying ? 'Pause Motion' : 'Play Motion'}</span>
             </button>
+            {useStaticPoster && (
+              <span className="mac-media-note">Still image shown to save data</span>
+            )}
           </div>
         )}
       </div>
@@ -209,19 +225,19 @@ export function MacPage({
 
         {/* Right Side / Centered Mobile Card Shell */}
         <div className="mac-shell">
-          <header className="mac-header">
-            <div className="mac-logo-circle">
+          <div className="mac-header">
+            <div className={`mac-logo-circle ${fx.fadeUp}`} style={staggerDelay(0, 70)}>
               <Logo size={54} />
             </div>
-            <span className="mac-pill">
+            <span className={`mac-pill ${fx.fadeUp}`} style={staggerDelay(1, 70)}>
               <School size={12} />
               <span>{pill}</span>
             </span>
-            <h1 className="mac-title">FUW E-Library</h1>
-            <p className="mac-subtitle">
+            <h1 className={`mac-title ${fx.fadeUp}`} style={staggerDelay(2, 70)}>FUW E-Library</h1>
+            <p className={`mac-subtitle ${fx.fadeUp}`} style={staggerDelay(3, 70)}>
               {subtitle ?? 'Institutional Academic Repository & Study Portal'}
             </p>
-          </header>
+          </div>
 
           {children}
 

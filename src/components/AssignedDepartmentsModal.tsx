@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, Building2, Layers, Hash } from 'lucide-react';
 import { MaterialItem } from '../lib/store';
+import { AnimatedModal } from './animations/AnimatedModal';
 
 interface AssignedDepartmentsModalProps {
   material: MaterialItem | null;
@@ -16,7 +17,7 @@ export function AssignedDepartmentsModal({
   isOpen,
   onClose
 }: AssignedDepartmentsModalProps) {
-  if (!isOpen || !material) return null;
+  if (!material) return null;
 
   const depts =
     material.assignedDepartments && material.assignedDepartments.length > 0
@@ -37,12 +38,15 @@ export function AssignedDepartmentsModal({
   }, {});
 
   return (
-    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 1100 }}>
-      <div
-        className="adm-modal"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
+    <AnimatedModal
+      open={isOpen && material != null}
+      onClose={onClose}
+      overlayStyle={{ zIndex: 1100 }}
+      dialogClassName="adm-modal"
+    >
+      {/*
+       * Header
+       */}
         <div className="adm-header">
           <div className="adm-header-left">
             <div className="adm-header-icon">
@@ -122,7 +126,6 @@ export function AssignedDepartmentsModal({
             Done
           </button>
         </div>
-      </div>
-    </div>
+    </AnimatedModal>
   );
 }

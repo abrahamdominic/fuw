@@ -315,10 +315,11 @@ export async function submitResearchItem(input: {
       }
       throw uploadError;
     }
-    const { data: urlData } = client.storage.from(BUCKET).getPublicUrl(filePath);
+    // Private bucket: repository documents are served through short-lived signed
+    // URLs, so no public URL is persisted.
     const { data: updated } = await client
       .from('research_items')
-      .update({ file_url: urlData.publicUrl })
+      .update({ file_url: '' })
       .eq('id', item.id)
       .select('*')
       .single();
@@ -453,18 +454,29 @@ export async function incrementResearchView(itemId: string): Promise<void> {
   }
 }
 
-/** Secure download link for a repository item (signed URL when available). */
+/**
+ * Secure download link for a repository item.
+ *
+ * Storage gates the bytes behind `has_premium_access()`, so there is no fallback
+ * to the stored public URL — an empty string means "no access, show the paywall".
+ */
+const SIGNED_URL_TTL_SECONDS = 300;
+
 export async function getResearchFileUrl(item: ResearchItem): Promise<string> {
-  if (!item.file_path) return item.file_url || '';
+  // Deliberately no fallback to the stored public URL: repository documents
+  // share the premium gate, so an empty string means "no access".
+  if (!item.file_path) return '';
   try {
     const client = requireSupabase();
     const { data, error } = await client.storage
       .from(BUCKET)
-      .createSignedUrl(item.file_path, 3600);
-    if (error || !data?.signedUrl) return item.file_url || '';
+      // Short-lived on purpose: a signed URL cannot be revoked once issued, so a
+      // long lifetime would keep working after an entitlement was withdrawn.
+      .createSignedUrl(item.file_path, SIGNED_URL_TTL_SECONDS);
+    if (error || !data?.signedUrl) return '';
     return data.signedUrl;
   } catch {
-    return item.file_url || '';
+    return '';
   }
 }
 

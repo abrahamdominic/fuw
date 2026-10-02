@@ -592,7 +592,10 @@ class MaterialsStore {
           course_title: newMaterial.courseTitle,
           semester: newMaterial.semester,
           material_type: newMaterial.type,
-          file_url: newMaterial.fileUrl,
+          // Never persist the local blob: URL. A blob: URL dies with this tab,
+          // and file_url must not be used as a document link now that the bucket
+          // is private. file_path (not file_url) is what signed access uses.
+          file_url: '',
           file_name: newMaterial.fileName,
           status: 'approved'
         })
@@ -676,7 +679,10 @@ class MaterialsStore {
           course_title: newMaterial.courseTitle,
           semester: newMaterial.semester,
           material_type: newMaterial.type,
-          file_url: newMaterial.fileUrl,
+          // Never persist the local blob: URL. A blob: URL dies with this tab,
+          // and file_url must not be used as a document link now that the bucket
+          // is private. file_path (not file_url) is what signed access uses.
+          file_url: '',
           file_name: newMaterial.fileName,
           status: 'pending'
         })

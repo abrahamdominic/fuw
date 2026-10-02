@@ -24,13 +24,21 @@ import {
   AlertCircle,
   RefreshCw,
   EyeOff,
-  ArrowLeft
+  ArrowLeft,
+  Landmark
 } from 'lucide-react';
 import { useStore } from '../lib/useStore';
 import { MaterialItem } from '../lib/store';
+import { getSecureFileUrl } from '../lib/materials';
+import { checkDocumentAccess, type BlockReason } from '../lib/premium';
+import { PremiumGateModal } from '../components/PremiumGateModal';
 import { logSearch } from '../lib/searchLog';
 import { friendlyError } from '../lib/friendlyError';
-import { catalogue, facultyByName, departmentByName, levelsFor, allDepartments, normalizeLevel, groupedFaculties } from '../data/catalogue';
+import { catalogue, facultyByName, departmentByName, levelsFor, allDepartments, normalizeLevel, groupedFaculties, materialTypes } from '../data/catalogue';
+import { facultySlug, departmentSlug, shortFacultyName, courseEntries } from '../lib/seo/directory';
+import { materialMeta } from '../lib/seo/dynamic';
+import { PUBLIC_ROUTES } from '../lib/seo/routes';
+import { Breadcrumbs } from '../components/Breadcrumbs';
 import { useAuth, USERNAME_PATTERN, normalizeUsername, validatePasswordPolicy, PASSWORD_REQUIREMENTS_TEXT } from '../lib/AuthContext';
 import { aiSearch, AiSearchResult } from '../lib/ai';
 import { HeroSection } from '../components/HeroSection';
@@ -45,6 +53,7 @@ import { mergeDbCourses } from '../lib/liveCatalogue';
 import { analyticsTracker } from '../lib/analyticsTracker';
 import { aal2LoginChallenge, signInWithPasskey } from '../lib/security';
 import { MacPage, MacCard, MacBanner, PasswordControl } from './AuthScreens';
+import { fx, staggerDelay } from '../lib/motion';
 
 
 interface PublicPagesProps {
@@ -67,17 +76,13 @@ export function HomePage({ onReadOnline }: PublicPagesProps) {
 
   return (
     <>
-      <SEO
-        title="Federal University Wukari Digital Library — Lecture Notes, Past Questions & Textbooks"
-        description="Federal University Wukari Digital E-Library — access verified lecture notes, past questions, textbooks, and research materials across all faculties and departments."
-        path="/"
-      />
+      <SEO path="/" />
       <HeroSection />
 
       {/* University Stats Bar */}
-      <section className="stats" aria-label="FUW Statistics">
+      <section className="stats" aria-label="FUW E-Library at a glance">
         {stats.map(([Icon, num, label]: any, idx) => (
-          <div key={idx}>
+          <div key={idx} className={fx.fadeUp} style={staggerDelay(idx, 60)}>
             <Icon size={24} />
             <b>{num}</b>
             <span>{label}</span>
@@ -91,18 +96,95 @@ export function HomePage({ onReadOnline }: PublicPagesProps) {
         <div className="section-head">
           <div>
             <p className="kicker">EXPLORE THE COLLECTION</p>
-            <h2>Popular & verified materials</h2>
+            <h2>Popular &amp; verified academic materials</h2>
           </div>
           <Link to="/library" className="view-all-link">
-            View all materials <ChevronRight size={17} />
+            Browse all materials <ChevronRight size={17} />
           </Link>
         </div>
 
-        <div className="grid materials">
-          {approvedMaterials.slice(0, 6).map((m) => (
-            <MaterialCard key={m.id} material={m} onReadOnline={onReadOnline} />
-          ))}
-        </div>
+        {approvedMaterials.length === 0 ? (
+          <div className="empty-state library-empty">
+            <BookOpen size={44} />
+            <h3>The catalogue is being prepared</h3>
+            <p>
+              Approved lecture notes, handouts and past questions appear here as soon as the library publishes them.
+              In the meantime, browse the full academic directory.
+            </p>
+            <Link to="/courses" className="primary">
+              Open the FUW course directory
+            </Link>
+          </div>
+        ) : (
+          <div className="grid materials">
+            {approvedMaterials.slice(0, 6).map((m) => (
+              <MaterialCard key={m.id} material={m} onReadOnline={onReadOnline} />
+            ))}
+          </div>
+        )}
+
+        {/* What the FUW E-Library is */}
+        <section className="info-grid" style={{ marginTop: '2.5rem' }}>
+          <section>
+            <BookOpen size={28} />
+            <h2>What the FUW E-Library is</h2>
+            <p>
+              The FUW E-Library is Federal University Wukari&rsquo;s digital library: one place where every
+              undergraduate and postgraduate student can find the academic material for the courses they are sitting.
+              It replaces scattered WhatsApp folders and departmental drives with a single, searchable, librarian-vetted
+              catalogue that works on a phone, a laptop or the university network.
+            </p>
+          </section>
+          <section>
+            <ShieldCheck size={28} />
+            <h2>Who it is for</h2>
+            <p>
+              Students of {catalogue.length} faculties and {departmentsCount} accredited departments, the lecturers
+              who teach them, and researchers looking for project and thesis material. Browse, search and read online are
+              open to everyone; downloading a file needs a verified student account.
+            </p>
+          </section>
+          <section>
+            <GraduationCap size={28} />
+            <h2>What you can find</h2>
+            <p>
+              Lecture notes and handouts for every level and semester, test and exam past questions, final-year
+              project guides, plus the theses, dissertations and research papers archived in the{' '}
+              <Link to="/repository">FUW institutional repository</Link>. Materials are organised by faculty,
+              department, course code, level and semester, so the exact file you need is never more than a search away.
+            </p>
+          </section>
+          <section>
+            <Users size={28} />
+            <h2>How to navigate</h2>
+            <p>
+              Start from the <Link to="/library">library catalogue</Link> to search by keyword or course code, browse{' '}
+              <Link to="/faculties">faculties and departments</Link> if you know your department, look a course up in
+              the <Link to="/courses">course directory</Link>, or open a{' '}
+              <Link to="/collections">curated collection</Link> when a librarian has already grouped the material for
+              a course or an exam. Every faculty, department and course code also has its own permanent page.
+            </p>
+          </section>
+          <section>
+            <HelpCircle size={28} />
+            <h2>Finding the material for a course</h2>
+            <p>
+              Search the catalogue with your course code, for example the code printed on your course handout. Results
+              narrow by faculty, department, level, semester and material type. If a material is missing, broken or
+              wrong, <Link to="/help">tell the library</Link> and it will be corrected.
+            </p>
+          </section>
+          <section>
+            <Landmark size={28} />
+            <h2>Beyond the catalogue</h2>
+            <p>
+              The <Link to="/repository">institutional repository</Link> holds final-year projects, theses,
+              dissertations, journal articles and conference papers produced in the university, while{' '}
+              <Link to="/about">about the FUW E-Library</Link> explains how material is verified before it is
+              published.
+            </p>
+          </section>
+        </section>
 
         {/* Faculties Exploration Section */}
         <div className="section-head faculty-head">
@@ -117,24 +199,65 @@ export function HomePage({ onReadOnline }: PublicPagesProps) {
 
         <div className="grid faculty-grid">
           {catalogue.slice(0, 6).map((f, i) => (
-            <Link className="faculty" to={`/library?faculty=${encodeURIComponent(f.name)}`} key={f.name}>
-              <span>{String(i + 1).padStart(2, '0')}</span>
-              <h3>{f.name}</h3>
-              <p>{f.departments.length} accredited departments</p>
-              <ArrowRight size={18} />
+            <div key={f.name} className={fx.fadeUp} style={staggerDelay(i, 50)}>
+              <Link className="faculty" to={`/faculties/${facultySlug(f)}`}>
+                <span>{String(i + 1).padStart(2, '0')}</span>
+                <h3>{f.name}</h3>
+                <p>{f.departments.length} accredited departments</p>
+                <ArrowRight size={18} />
+              </Link>
+            </div>
+          ))}
+        </div>
+
+        {/* Academic resource categories */}
+        <div className="section-head" style={{ padding: '0 1rem', marginTop: '2rem' }}>
+          <div>
+            <p className="kicker">RESOURCE CATEGORIES</p>
+            <h2>Academic materials by type</h2>
+          </div>
+          <Link to="/library" className="view-all-link">
+            Search every material <ChevronRight size={17} />
+          </Link>
+        </div>
+        <div className="dept-links-grid">
+          {materialTypes.map((type) => (
+            <Link
+              key={type}
+              to={`/library?type=${encodeURIComponent(type)}`}
+              className="dept-link-item"
+            >
+              <span>
+                {type === 'Lecture Note'
+                  ? 'Lecture notes'
+                  : type === 'Test Past Questions'
+                    ? 'Test past questions'
+                    : type === 'Exam Past Questions'
+                      ? 'Exam past questions'
+                      : `${type} from FUW students and faculty`}
+              </span>
+              <ChevronRight size={15} aria-hidden="true" />
             </Link>
           ))}
+          <Link to="/library?type=Handouts" className="dept-link-item">
+            <span>Lecture handouts and course summaries</span>
+            <ChevronRight size={15} aria-hidden="true" />
+          </Link>
+          <Link to="/collections" className="dept-link-item">
+            <span>Librarian-curated collections</span>
+            <ChevronRight size={15} aria-hidden="true" />
+          </Link>
         </div>
 
         {/* College of Health Sciences Banner */}
         <section className="health">
           <p>COLLEGE OF HEALTH SCIENCES</p>
-          <h2>Medical & Health Sciences Division</h2>
+          <h2>Medical &amp; Health Sciences Division</h2>
           <div>
-            Basic Medical Sciences · Allied Health Sciences · Clinical Sciences · Human Anatomy · Physiology · Medical Laboratory Science · Physiotherapy · Medicine & Surgery
+            Basic Medical Sciences · Allied Health Sciences · Clinical Sciences · Human Anatomy · Physiology · Medical Laboratory Science · Physiotherapy · Medicine &amp; Surgery
           </div>
           <Link to="/faculties#college-of-health-sciences" className="health-link">
-            Browse Medical Collection →
+            Browse the FUW medical and health sciences collection →
           </Link>
         </section>
       </main>
@@ -323,21 +446,36 @@ export function LibraryPage({ onReadOnline }: PublicPagesProps) {
     queryType
   ].filter(Boolean).length;
 
+  // Re-key the results grid on every search/filter/sort change so the new
+  // result set fades in cleanly (no flashing), with the sequence resetting.
+  const resultsKey = `${queryQ}|${queryFaculty}|${queryDepartment}|${queryCourse}|${queryLevel}|${querySemester}|${queryType}|${sortBy}`;
+
   return (
     <main className="library public-container">
       <SEO
-        title="Library Collection"
-        description="Browse and search verified academic materials — lecture notes, past questions, textbooks, and theses across all faculties at Federal University Wukari."
         path="/library"
+        noindex={Boolean(queryQ) || activeFiltersCount > 0}
+        title={queryQ ? `Search results for “${queryQ}”` : undefined}
+        breadcrumbs={[
+          { name: 'Home', path: '/' },
+          { name: 'Library', path: '/library' }
+        ]}
       />
-      <div className="crumb">
-        <Link to="/">Home</Link> <ChevronRight size={14} /> <span>Library Collection</span>
-      </div>
+      <Breadcrumbs
+        trail={[
+          { name: 'Home', path: '/' },
+          { name: 'Library', path: '/library' }
+        ]}
+      />
 
       <div className="library-header-row">
         <div>
-          <h1>Explore the digital library</h1>
-          <p className="subtitle">Discover verified course notes, past questions, textbooks, and theses across FUW.</p>
+          <h1>Explore the FUW digital library</h1>
+          <p className="subtitle">
+            Search verified lecture notes, test and exam past questions, handouts and final-year projects from every
+            faculty and department of Federal University Wukari. Filter by faculty, department, course, level, semester
+            or material type.
+          </p>
         </div>
 
         <button
@@ -377,55 +515,76 @@ export function LibraryPage({ onReadOnline }: PublicPagesProps) {
 
       {/* Active Filter Chips */}
       {(activeFiltersCount > 0 || queryQ) && (
-        <div className="active-filter-chips">
+        <div className={`active-filter-chips ${fx.fadeDown}`}>
           <span className="chips-label">Active Filters:</span>
           {queryQ && (
-            <span className="filter-chip">
-              Search: "{queryQ}"
-              <button onClick={() => {
-                setSearchInput('');
-                const p = new URLSearchParams(searchParams);
-                p.delete('q');
-                setSearchParams(p);
-              }}><X size={12} /></button>
-            </span>
-          )}
-          {queryFaculty && (
-            <span className="filter-chip">
-              Faculty: {queryFaculty}
-              <button onClick={() => handleFilterChange({ ...filters, faculty: '' })}><X size={12} /></button>
-            </span>
-          )}
-          {queryDepartment && (
-            <span className="filter-chip">
-              Dept: {queryDepartment}
-              <button onClick={() => handleFilterChange({ ...filters, department: '' })}><X size={12} /></button>
-            </span>
-          )}
-          {queryCourse && (
-            <span className="filter-chip">
-              Course: {queryCourse}
-              <button onClick={() => handleFilterChange({ ...filters, course: '' })}><X size={12} /></button>
-            </span>
-          )}
-          {queryLevel && (
-            <span className="filter-chip">
-              Level: {queryLevel}
-              <button onClick={() => handleFilterChange({ ...filters, level: '' })}><X size={12} /></button>
-            </span>
-          )}
-          {querySemester && (
-            <span className="filter-chip">
-              Semester: {querySemester}
-              <button onClick={() => handleFilterChange({ ...filters, semester: '' })}><X size={12} /></button>
-            </span>
-          )}
-          {queryType && (
-            <span className="filter-chip">
-              Type: {queryType}
-              <button onClick={() => handleFilterChange({ ...filters, type: '' })}><X size={12} /></button>
-            </span>
-          )}
+              <span
+                key="chip-q"
+                className={`filter-chip ${fx.fadeIn}`}
+              >
+                Search: "{queryQ}"
+                <button onClick={() => {
+                  setSearchInput('');
+                  const p = new URLSearchParams(searchParams);
+                  p.delete('q');
+                  setSearchParams(p);
+                }}><X size={12} /></button>
+              </span>
+            )}
+            {queryFaculty && (
+              <span
+                key="chip-faculty"
+                className={`filter-chip ${fx.fadeIn}`}
+              >
+                Faculty: {queryFaculty}
+                <button onClick={() => handleFilterChange({ ...filters, faculty: '' })}><X size={12} /></button>
+              </span>
+            )}
+            {queryDepartment && (
+              <span
+                key="chip-dept"
+                className={`filter-chip ${fx.fadeIn}`}
+              >
+                Dept: {queryDepartment}
+                <button onClick={() => handleFilterChange({ ...filters, department: '' })}><X size={12} /></button>
+              </span>
+            )}
+            {queryCourse && (
+              <span
+                key="chip-course"
+                className={`filter-chip ${fx.fadeIn}`}
+              >
+                Course: {queryCourse}
+                <button onClick={() => handleFilterChange({ ...filters, course: '' })}><X size={12} /></button>
+              </span>
+            )}
+            {queryLevel && (
+              <span
+                key="chip-level"
+                className={`filter-chip ${fx.fadeIn}`}
+              >
+                Level: {queryLevel}
+                <button onClick={() => handleFilterChange({ ...filters, level: '' })}><X size={12} /></button>
+              </span>
+            )}
+            {querySemester && (
+              <span
+                key="chip-semester"
+                className={`filter-chip ${fx.fadeIn}`}
+              >
+                Semester: {querySemester}
+                <button onClick={() => handleFilterChange({ ...filters, semester: '' })}><X size={12} /></button>
+              </span>
+            )}
+            {queryType && (
+              <span
+                key="chip-type"
+                className={`filter-chip ${fx.fadeIn}`}
+              >
+                Type: {queryType}
+                <button onClick={() => handleFilterChange({ ...filters, type: '' })}><X size={12} /></button>
+              </span>
+            )}
           <button className="clear-all-chips" onClick={clearAllFilters}>
             Clear all
           </button>
@@ -507,7 +666,10 @@ export function LibraryPage({ onReadOnline }: PublicPagesProps) {
               </button>
             </div>
           ) : (
-            <div className="grid materials library-cards-grid">
+            <div
+              key={resultsKey}
+              className={`grid materials library-cards-grid ${fx.fadeUp}`}
+            >
               {filteredMaterials.map((m) => (
                 <MaterialCard key={m.id} material={m} onReadOnline={onReadOnline} />
               ))}
@@ -528,20 +690,39 @@ export function FacultiesPage() {
   return (
     <main className="faculties public-container">
       <SEO
-        title="Faculties & Departments"
-        description="Explore academic materials organized across Federal University Wukari's faculties and accredited departments."
         path="/faculties"
+        schemaItems={groups.flatMap((group) =>
+          group.faculties.map((f) => ({ name: f.name, path: `/faculties/${facultySlug(f)}` }))
+        )}
       />
-      <div className="crumb">
-        <Link to="/">Home</Link> <ChevronRight size={14} /> <span>Faculties & Departments</span>
-      </div>
+      <Breadcrumbs trail={PUBLIC_ROUTES['/faculties'].breadcrumbs} />
 
-      <h1>Faculties & accredited departments</h1>
+      <h1>Faculties &amp; accredited departments</h1>
       <p className="subtitle">
-        Explore academic materials organized systematically across Federal University Wukari's{' '}
-        {totalFaculty} faculties ({departmentsCount} departments), including the College of Health
-        Sciences and its four constituent faculties.
+        Federal University Wukari runs {totalFaculty} faculties and {departmentsCount} accredited departments, including
+        the {groups.find((g) => g.college)?.faculties.length ?? 0} faculties of the College of Health Sciences. Every
+        faculty and department has its own page listing its courses and the academic materials published for it.
       </p>
+
+      <div className="info-grid">
+        <section>
+          <Building2 size={28} />
+          <h2>How the directory works</h2>
+          <p>
+            Choose your faculty below to see its departments, or open a department to read its full curriculum by level
+            and semester. Each page links straight to the lecture notes, handouts and past questions published for
+            that department, filtered to exactly your course.
+          </p>
+        </section>
+        <section>
+          <GraduationCap size={28} />
+          <h2>Not sure which faculty?</h2>
+          <p>
+            Look your course code up in the <Link to="/courses">FUW course directory</Link>. It shows the level,
+            semester and the department that offers the course, then links to the published materials.
+          </p>
+        </section>
+      </div>
 
       <div className="faculty-list">
         {groups.map((group) => (
@@ -555,12 +736,20 @@ export function FacultiesPage() {
             )}
             {group.faculties.map((f) => (
               <section key={f.name} className={`faculty-section-card ${group.college ? 'in-college' : ''}`}>
-                <h2>{f.name}</h2>
+                <h2>
+                  <Link to={`/faculties/${facultySlug(f)}`}>{f.name}</Link>
+                </h2>
+                <p className="subtitle" style={{ margin: '0 0 10px' }}>
+                  {f.departments.length} accredited department{f.departments.length === 1 ? '' : 's'} ·{' '}
+                  <Link to={`/library?faculty=${encodeURIComponent(f.name)}`}>
+                    Browse {shortFacultyName(f.name)} materials
+                  </Link>
+                </p>
                 <div className="dept-links-grid">
                   {f.departments.map((d) => (
                     <Link
                       key={d.name}
-                      to={`/library?faculty=${encodeURIComponent(f.name)}&department=${encodeURIComponent(d.name)}`}
+                      to={`/departments/${departmentSlug(d)}`}
                       className="dept-link-item"
                     >
                       <span>{d.name}</span>
@@ -581,6 +770,7 @@ export function FacultiesPage() {
 export function CoursesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [courseFilters, setCourseFilters] = useState<FilterState>({ ...EMPTY_FILTERS });
+  const departmentsCount = catalogue.reduce((acc, f) => acc + f.departments.length, 0);
   // Courses published by administrators appear here too, merged into the
   // canonical (static) directory from the live database.
   const [liveRows, setLiveRows] = useState<any[] | null>(null);
@@ -641,19 +831,30 @@ export function CoursesPage() {
     );
   });
 
+  const hasCourseFilters = Boolean(
+    courseFilters.faculty ||
+      courseFilters.department ||
+      courseFilters.level ||
+      courseFilters.semester ||
+      courseFilters.course
+  );
+
   return (
     <main className="courses-page public-container">
       <SEO
-        title="Course Directory"
-        description="Find learning resources, past questions, and lecture notes for every course at Federal University Wukari."
         path="/courses"
+        noindex={Boolean(searchTerm.trim()) || hasCourseFilters}
+        title={searchTerm.trim() ? `Course search results for “${searchTerm.trim()}”` : undefined}
+        breadcrumbs={PUBLIC_ROUTES['/courses'].breadcrumbs}
       />
-      <div className="crumb">
-        <Link to="/">Home</Link> <ChevronRight size={14} /> <span>Course Directory</span>
-      </div>
+      <Breadcrumbs trail={PUBLIC_ROUTES['/courses'].breadcrumbs} />
 
       <h1>Course curriculum directory</h1>
-      <p className="subtitle">Find learning resources, past questions, and notes for your specific course code.</p>
+      <p className="subtitle">
+        Search every FUW course code to see its title, department, level and semester, then open the course page for
+        lecture notes, handouts and past questions. {allCourses.length} courses across{' '}
+        {catalogue.length} faculties and {departmentsCount} departments.
+      </p>
 
       {/* Modern course search bar */}
       <div className="course-search-bar">
@@ -716,10 +917,16 @@ export function CoursesPage() {
         {filtered.map((c, i) => (
           <div className="tr courses-table-grid" key={`${c.code}-${c.dept}-${i}`}>
             <span>
-              <b className="course-code-highlight">{c.code}</b>
+              <Link to={`/courses/${c.code.toLowerCase()}`} className="course-code-highlight">
+                {c.code}
+              </Link>
             </span>
-            <span>{c.name}</span>
-            <span>{c.dept}</span>
+            <span>
+              <Link to={`/courses/${c.code.toLowerCase()}`}>{c.name}</Link>
+            </span>
+            <span>
+              <Link to={`/departments/${departmentSlug({ name: c.dept })}`}>{c.dept}</Link>
+            </span>
             <span>{c.level}</span>
             <span>{c.semester}</span>
             <span>
@@ -742,9 +949,14 @@ export function MaterialDetailPage({ onReadOnline }: PublicPagesProps) {
   const { id } = useParams<{ id: string }>();
   const store = useStore();
   const { toast } = useToast();
-  const material = store.getMaterialById(id || '') || store.getApprovedMaterials()[0];
+  const { isAuthenticated, profile, isAdmin } = useAuth();
+  // Resolve strictly by id. Falling back to "the first approved material"
+  // would serve the wrong document under someone else's URL, which creates
+  // duplicate content and a soft-404 for the crawlers.
+  const material = id ? store.getMaterialById(id) : undefined;
   const [showCitation, setShowCitation] = useState(false);
   const [showReadingListPicker, setShowReadingListPicker] = useState(false);
+  const [gate, setGate] = useState<{ reason: BlockReason; message: string } | null>(null);
 
   useEffect(() => {
     if (material) {
@@ -756,24 +968,46 @@ export function MaterialDetailPage({ onReadOnline }: PublicPagesProps) {
 
   if (!material) {
     return (
-      <main className="public-container empty-state">
-        <BookOpen size={48} />
-        <h2>Material not found</h2>
-        <Link to="/library" className="primary">
-          Back to Library
-        </Link>
+      <main className="public-container">
+        <SEO title="Material not found" path={`/materials/${id ?? ''}`} noindex />
+        <div className="empty-state" style={{ padding: '4rem 1rem' }}>
+          <BookOpen size={48} />
+          <h1>Material not found</h1>
+          <p>
+            This material is not available in the FUW E-Library. It may have been replaced or removed by the library.
+          </p>
+          <Link to="/library" className="primary">
+            Search the library catalogue
+          </Link>
+        </div>
       </main>
     );
   }
 
   const isSaved = store.isBookmarked(material.id);
 
-  const handleDownload = () => {
+  // Same rule as the portal reader: the server decides, then a short-lived
+  // signed URL is minted. The stored public fileUrl is never used as a fallback.
+  const handleDownload = async () => {
+    const decision = await checkDocumentAccess({
+      authenticated: isAuthenticated,
+      verificationStatus: profile?.verificationStatus,
+      isAdmin
+    });
+    if (!decision.allowed && decision.reason) {
+      setGate({ reason: decision.reason, message: decision.message });
+      return;
+    }
+    const url = await getSecureFileUrl(material);
+    if (!url) {
+      setGate({ reason: 'no-plan', message: 'This file could not be opened. Please try again.' });
+      return;
+    }
     store.recordDownload(material.id);
     analyticsTracker.trackMaterialDownload(material.id, material.title);
     toast(`Downloading ${material.fileName}`);
     const link = document.createElement('a');
-    link.href = material.fileUrl;
+    link.href = url;
     link.download = material.fileName;
     document.body.appendChild(link);
     link.click();
@@ -793,21 +1027,33 @@ export function MaterialDetailPage({ onReadOnline }: PublicPagesProps) {
 
   return (
     <main className="detail public-container">
+      {gate && (
+        <PremiumGateModal open reason={gate.reason} message={gate.message} onClose={() => setGate(null)} />
+      )}
       <SEO
-        title={material.title}
-        description={`${material.title} — ${material.type} for ${material.course} in ${material.department}, ${material.faculty}. ${material.description.slice(0, 150)}`}
-        path={`/materials/${material.id}`}
-        type="article"
-        article={{
-          datePublished: material.createdAt,
-          author: material.uploadedBy?.name || 'FUW E-Library'
-        }}
+        {...materialMeta({
+          id: material.id,
+          title: material.title,
+          type: material.type,
+          course: material.course,
+          department: material.department,
+          faculty: material.faculty,
+          description: material.description,
+          level: material.level,
+          semester: material.semester,
+          createdAt: material.createdAt
+        })}
       />
-      <div className="crumb">
-        <Link to="/library">Library</Link> <ChevronRight size={14} /> <span>{material.course}</span> <ChevronRight size={14} /> <span>{material.title}</span>
-      </div>
+      <Breadcrumbs
+        trail={[
+          { name: 'Home', path: '/' },
+          { name: 'Library', path: '/library' },
+          { name: material.course, path: `/library?q=${encodeURIComponent(material.course)}` },
+          { name: material.title, path: `/materials/${material.id}` }
+        ]}
+      />
 
-      <div className="detail-grid">
+      <div className={`detail-grid ${fx.page}`} key={material?.id}>
         <div className="detail-preview-panel">
           <div className="pdf-preview">
             <FileText size={64} />
@@ -901,14 +1147,10 @@ export function AboutPage({ contact = false }: { contact?: boolean }) {
   return (
     <main className="info public-container">
       <SEO
-        title={contact ? 'Contact' : 'About'}
-        description={
-          contact
-            ? 'Get in touch with the Federal University Wukari E-Library helpdesk for support with digital resources and account access.'
-            : 'Learn about the Federal University Wukari Digital E-Library — the primary academic digital repository for all enrolled students.'
-        }
         path={contact ? '/contact' : '/about'}
+        breadcrumbs={PUBLIC_ROUTES[contact ? '/contact' : '/about'].breadcrumbs}
       />
+      <Breadcrumbs trail={PUBLIC_ROUTES[contact ? '/contact' : '/about'].breadcrumbs} />
       <p className="kicker">FEDERAL UNIVERSITY WUKARI</p>
       <h1>{contact ? 'Library Helpdesk & Support' : 'Academic Knowledge Within Reach.'}</h1>
       <p className="subtitle">

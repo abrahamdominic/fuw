@@ -2,23 +2,109 @@
   command = "npm run build"
   publish = "dist"
 
+# ----------------------------------------------------------------------------
+# Redirects
+#
+# netlify.toml is the single source of truth. public/_redirects is kept empty
+# on purpose: Netlify merges both files and a SPA catch-all in _redirects would
+# win over everything below and turn genuine 404s into soft 404s.
+# ----------------------------------------------------------------------------
+
+# Legacy alias: /departments was a duplicate of /faculties. One permanent
+# redirect, no chain, no second copy of the same directory page.
+[[redirects]]
+  from = "/departments"
+  to = "/faculties"
+  status = 301
+  force = true
+
+# Historic .html URLs that may still be linked from outside.
+[[redirects]]
+  from = "/index.html"
+  to = "/"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/library.html"
+  to = "/library"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/faculties.html"
+  to = "/faculties"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/courses.html"
+  to = "/courses"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/repository.html"
+  to = "/repository"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/collections.html"
+  to = "/collections"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/about.html"
+  to = "/about"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/contact.html"
+  to = "/contact"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/help.html"
+  to = "/help"
+  status = 301
+  force = true
+
 # Block access to any potential sensitive file extensions or patterns
 [[redirects]]
   from = "/*.sql"
-  to = "/index.html"
+  to = "/404.html"
   status = 404
   force = true
 
 [[redirects]]
   from = "/.env*"
-  to = "/index.html"
+  to = "/404.html"
   status = 404
   force = true
 
 [[redirects]]
+  from = "/*.bak"
+  to = "/404.html"
+  status = 404
+  force = true
+
+# SPA fallback. dist/404.html is a byte-for-byte copy of dist/index.html
+# written by scripts/generate-seo.ts, so React Router still renders the correct
+# public page (including its canonical, robots and JSON-LD head) while Netlify
+# answers with a genuine HTTP 404 instead of HTTP 200.
+[[redirects]]
   from = "/*"
-  to = "/index.html"
-  status = 200
+  to = "/404.html"
+  status = 404
+  force = true
+
+# ----------------------------------------------------------------------------
+# Headers
+# ----------------------------------------------------------------------------
 
 # Security headers for robots.txt
 [[headers]]
@@ -26,6 +112,24 @@
   [headers.values]
     X-Content-Type-Options = "nosniff"
     Cache-Control = "public, max-age=86400, stale-while-revalidate=43200"
+
+[[headers]]
+  for = "/sitemap.xml"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Cache-Control = "public, max-age=3600, stale-while-revalidate=86400"
+
+# Hashed build assets are immutable.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# The generated 404 shell must never be cached as a successful document.
+[[headers]]
+  for = "/404.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
 
 # Security headers (CFG-01). Served with every response.
 # CSP: SPA assets from 'self'; Google Fonts; Supabase API/Realtime/storage.
