@@ -51,7 +51,7 @@ export function MaintenancePage() {
   return (
     <div className="maintenance-screen">
       <div className="maintenance-card" role="status" aria-live="polite">
-        <Link className="maintenance-brand" to="/" aria-label="FUW E-Library home">
+        <Link className="maintenance-brand" to="/home" aria-label="FUW E-Library home">
           <Logo size={40} />
         </Link>
 

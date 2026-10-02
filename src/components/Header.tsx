@@ -33,7 +33,7 @@ export function Header() {
   return (
     <>
       <header className="main-header">
-        <Link className="brand" to="/" aria-label="Federal University Wukari Digital Library Home">
+        <Link className="brand" to="/home" aria-label="Federal University Wukari Digital Library Home">
           <Logo size={36} />
           <span className="brand-text">
             <b>FUW</b> E-Library
@@ -41,7 +41,7 @@ export function Header() {
         </Link>
 
         <nav className="desktop-nav" aria-label="Main Navigation">
-          <NavLink to="/" end className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
+          <NavLink to="/home" end className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
             Home
           </NavLink>
           <NavLink to="/library" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
@@ -120,7 +120,7 @@ export function Header() {
           >
             <div className={`mobile-nav-inner ${fx.fadeDown}`}>
             <div className="mobile-nav-links">
-              <NavLink to="/" end className={({ isActive }) => (isActive ? 'mobile-link active' : 'mobile-link')}>
+              <NavLink to="/home" end className={({ isActive }) => (isActive ? 'mobile-link active' : 'mobile-link')}>
                 Home
               </NavLink>
               <NavLink to="/library" className={({ isActive }) => (isActive ? 'mobile-link active' : 'mobile-link')}>

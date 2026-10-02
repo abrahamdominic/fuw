@@ -61,7 +61,7 @@ interface InviteRow {
 }
 
 const superNavItems = [
-  { label: 'Home', path: '/', icon: Home, exact: true },
+  { label: 'Home', path: '/home', icon: Home, exact: true },
   { label: 'Overview', path: '/super', icon: LayoutDashboard, exact: true },
   { label: 'Administrators', path: '/super/admins', icon: ShieldCheck },
   { label: 'Admin invites', path: '/super/invites', icon: MailPlus },
@@ -163,7 +163,7 @@ export function SuperAdminPortal() {
       {/* Sidebar Navigation */}
       <aside className={`side admin-side ${mobileMenuOpen ? 'mobile-open' : ''}`}>
         <div className="side-header">
-          <Link className="brand" to="/" onClick={() => setMobileMenuOpen(false)}>
+          <Link className="brand" to="/home" onClick={() => setMobileMenuOpen(false)}>
             <Logo size={32} />
             <b>FUW</b> Super Admin
           </Link>

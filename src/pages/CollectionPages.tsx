@@ -126,7 +126,7 @@ export function CollectionDetailPage() {
       />
       <Breadcrumbs
         trail={[
-          { name: 'Home', path: '/' },
+          { name: 'Home', path: '/home' },
           { name: 'Collections', path: '/collections' },
           { name: collection.name, path: `/collections/${collection.slug}` }
         ]}

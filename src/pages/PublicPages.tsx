@@ -457,13 +457,13 @@ export function LibraryPage({ onReadOnline }: PublicPagesProps) {
         noindex={Boolean(queryQ) || activeFiltersCount > 0}
         title={queryQ ? `Search results for “${queryQ}”` : undefined}
         breadcrumbs={[
-          { name: 'Home', path: '/' },
+          { name: 'Home', path: '/home' },
           { name: 'Library', path: '/library' }
         ]}
       />
       <Breadcrumbs
         trail={[
-          { name: 'Home', path: '/' },
+          { name: 'Home', path: '/home' },
           { name: 'Library', path: '/library' }
         ]}
       />
@@ -1046,7 +1046,7 @@ export function MaterialDetailPage({ onReadOnline }: PublicPagesProps) {
       />
       <Breadcrumbs
         trail={[
-          { name: 'Home', path: '/' },
+          { name: 'Home', path: '/home' },
           { name: 'Library', path: '/library' },
           { name: material.course, path: `/library?q=${encodeURIComponent(material.course)}` },
           { name: material.title, path: `/materials/${material.id}` }
@@ -2440,7 +2440,7 @@ export function AdminLoginPage() {
               </button>
 
               <p className="auth-back-link">
-                <Link to="/">← Return to Public Library</Link>
+                <Link to="/home">← Return to Public Library</Link>
               </p>
             </form>
           </>

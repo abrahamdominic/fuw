@@ -72,7 +72,7 @@ export interface PageMeta {
   priority?: number;
 }
 
-const HOME_CRUMB: Crumb = { name: 'Home', path: '/' };
+const HOME_CRUMB: Crumb = { name: 'Home', path: '/home' };
 
 export const KEYWORDS = {
   brand: ['FUW E-Library', 'Federal University Wukari E-Library'],

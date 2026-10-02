@@ -114,7 +114,7 @@ interface StudentPortalProps {
 }
 
 const studentNavItems = [
-  { label: 'Home', path: '/', icon: Home, exact: true },
+  { label: 'Home', path: '/home', icon: Home, exact: true },
   { label: 'Dashboard', path: '/student', icon: LayoutDashboard, exact: true },
   { label: 'Upload material', path: '/student/upload', icon: Upload },
   { label: 'My uploads', path: '/student/uploads', icon: FileText },
@@ -297,7 +297,7 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
       {/* Sidebar Navigation */}
       <aside className={`side ${mobileMenuOpen ? 'mobile-open' : ''}`}>
         <div className="side-header">
-          <Link className="brand" to="/" onClick={() => setMobileMenuOpen(false)}>
+          <Link className="brand" to="/home" onClick={() => setMobileMenuOpen(false)}>
             <Logo size={32} />
             <b>FUW</b> E-Library
           </Link>

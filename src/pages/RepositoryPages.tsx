@@ -349,7 +349,7 @@ export function RepositoryDetailPage() {
       />
       <Breadcrumbs
         trail={[
-          { name: 'Home', path: '/' },
+          { name: 'Home', path: '/home' },
           { name: 'Repository', path: '/repository' },
           { name: item.title, path: `/repository/${item.id}` }
         ]}

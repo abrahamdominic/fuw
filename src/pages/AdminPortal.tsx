@@ -117,7 +117,7 @@ interface AdminPortalProps {
 }
 
 const adminNavItems = [
-  { label: 'Home', path: '/', icon: Home, exact: true, permission: null },
+  { label: 'Home', path: '/home', icon: Home, exact: true, permission: null },
   { label: 'Overview', path: '/admin', icon: LayoutDashboard, exact: true, permission: null },
   { label: 'Materials & Approvals', path: '/admin/materials', icon: FileText, permission: null },
   { label: 'Upload material', path: '/admin/upload', icon: Upload, permission: 'upload_as_approved' },
@@ -280,7 +280,7 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
       {/* Sidebar Navigation */}
       <aside className={`side admin-side ${mobileMenuOpen ? 'mobile-open' : ''}`}>
         <div className="side-header">
-          <Link className="brand" to="/" onClick={() => setMobileMenuOpen(false)}>
+          <Link className="brand" to="/home" onClick={() => setMobileMenuOpen(false)}>
             <Logo size={32} />
             <b>FUW</b> Admin Portal
           </Link>

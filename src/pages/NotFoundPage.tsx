@@ -90,7 +90,7 @@ export function NotFoundPage() {
         </div>
       </div>
       <div className="dept-links-grid">
-        <Link to="/" className="dept-link-item">
+        <Link to="/home" className="dept-link-item">
           <span>FUW E-Library home</span>
         </Link>
         <Link to="/help" className="dept-link-item">
