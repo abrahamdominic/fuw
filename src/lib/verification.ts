@@ -50,10 +50,16 @@ export interface CatalogPlan {
   duration_days: number;
   is_premium: boolean;
   features: string[];
+  currency?: string;
 }
 
-export const naira = (kobo: number): string =>
-  `₦${(kobo / 100).toLocaleString('en-NG', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+export const naira = (kobo: number, currency = 'NGN'): string =>
+  new Intl.NumberFormat('en-NG', {
+    style: 'currency',
+    currency,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2
+  }).format(kobo / 100);
 
 /** Turn a Postgres error into something a student can act on. */
 function friendly(message: string, fallback: string): string {
@@ -186,14 +192,20 @@ export async function fetchHasPremium(): Promise<boolean> {
 
 export async function fetchCatalogPlans(): Promise<CatalogPlan[]> {
   const client = requireSupabase();
-  const { data, error } = await client
-    .from('plans')
-    .select('id, slug, name, description, price_kobo, duration_days, is_premium, features')
-    .eq('is_active', true)
-    .order('price_kobo', { ascending: true });
-  if (error) return [];
-  return ((data ?? []) as CatalogPlan[]).map((p) => ({
+  const [plansResult, configResult] = await Promise.all([
+    client
+      .from('plans')
+      .select('id, slug, name, description, price_kobo, duration_days, is_premium, features')
+      .eq('is_active', true)
+      .order('price_kobo', { ascending: true }),
+    client.rpc('get_payment_configuration')
+  ]);
+  if (plansResult.error) throw new Error(plansResult.error.message);
+  if (configResult.error) throw new Error(configResult.error.message);
+  const currency = (configResult.data as { currency?: string } | null)?.currency || 'NGN';
+  return ((plansResult.data ?? []) as CatalogPlan[]).map((p) => ({
     ...p,
+    currency,
     features: Array.isArray(p.features) ? (p.features as string[]) : [],
   }));
 }

@@ -95,19 +95,6 @@ const C = DIRECTORY_TOTALS.courses;
  * rendered into a static HTML shell at build time.
  */
 export const PUBLIC_ROUTES: Record<string, PageMeta> = {
-  '/': {
-    title: 'FUW E-Library | Verified Lecture Notes & Past Questions',
-    description:
-      'The FUW E-Library is Federal University Wukari’s digital library: verified lecture notes, test and exam past questions, handouts and research materials organised by faculty and department.',
-    path: '/',
-    changefreq: 'daily',
-    priority: 1.0,
-    keywords: [...KEYWORDS.brand, ...KEYWORDS.materials, 'Federal University Wukari online library'],
-    indexability: 'index',
-    breadcrumbs: [HOME_CRUMB],
-    schema: 'home'
-  },
-
   '/library': {
     title: 'FUW E-Library | Academic Materials & Digital Library',
     description:
@@ -262,6 +249,24 @@ export const NOINDEX_ROUTES: Record<string, PageMeta> = {
  * and RLS are what actually protect the data behind them.
  */
 export const PRIVATE_ROUTES: Record<string, PageMeta> = {
+  '/': {
+    title: 'Sign In | FUW E-Library',
+    description: 'Sign in to continue to your Federal University Wukari E-Library dashboard.',
+    path: '/',
+    keywords: [],
+    indexability: 'noindex',
+    breadcrumbs: [],
+    schema: 'none'
+  },
+  '/home': {
+    title: 'Home | FUW E-Library',
+    description: 'Your authenticated FUW E-Library homepage.',
+    path: '/home',
+    keywords: [],
+    indexability: 'noindex',
+    breadcrumbs: [HOME_CRUMB],
+    schema: 'none'
+  },
   '/login': {
     title: 'Sign In | FUW E-Library',
     description: 'Sign in to your Federal University Wukari E-Library account.',

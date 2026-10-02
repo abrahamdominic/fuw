@@ -1,11 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://fuwtest.netlify.app/</loc>
-    <changefreq>daily</changefreq>
-    <priority>1.0</priority>
-  </url>
-  <url>
     <loc>https://fuwtest.netlify.app/library</loc>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
@@ -779,6 +774,12 @@
     <loc>https://fuwtest.netlify.app/courses/sta122c</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://fuwtest.netlify.app/materials/524bffb7-8cd5-4ff5-b90d-53b7787ac273</loc>
+    <lastmod>2026-10-02</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
   </url>
   <url>
     <loc>https://fuwtest.netlify.app/materials/eb9baf47-96e7-4fb1-8fbd-4d21b9c80685</loc>

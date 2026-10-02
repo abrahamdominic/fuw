@@ -183,10 +183,8 @@ function hasStoredSupabaseSession(): boolean {
 }
 
 /**
- * Auth-first gate for genuinely private surfaces: the student dashboard,
- * the admin portal, the super-admin portal, submission forms and report
- * forms. Browsing the public library never passes through here, so search
- * engines and first-time visitors reach the public pages directly.
+ * Auth-first gate for private surfaces, including the authenticated Home page.
+ * Browsing catalogue pages remains available without an account.
  */
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { isLoading, isAuthenticated } = useAuth();
@@ -364,8 +362,8 @@ function App() {
                 (download, read-online, submit, save) is still gated by the
                 session plus the server-side entitlement check.
 
-                NOTE: The root / redirects to login or the user's dashboard.
-                The public homepage remains available at /home. */}
+                NOTE: / redirects to login or the user's dashboard. /home is
+                the authenticated application homepage. */}
             <Route
               path="/"
               element={<RootRedirect />}
@@ -377,9 +375,11 @@ function App() {
             <Route
               path="/home"
               element={
-                <PublicLayout onReadOnline={handleReadOnline}>
-                  <HomePage onReadOnline={handleReadOnline} />
-                </PublicLayout>
+                <RequireAuth>
+                  <PublicLayout onReadOnline={handleReadOnline}>
+                    <HomePage onReadOnline={handleReadOnline} />
+                  </PublicLayout>
+                </RequireAuth>
               }
             />
             <Route

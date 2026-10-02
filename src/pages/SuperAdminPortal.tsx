@@ -24,6 +24,7 @@ import {
   Settings2,
   Ban,
   Wrench,
+  CreditCard,
   Loader2
 } from 'lucide-react';
 import { requireSupabase } from '../lib/supabase';
@@ -40,6 +41,7 @@ import {
   setMaintenanceMode,
   MaintenanceStatus
 } from '../lib/maintenance';
+import { PaymentsAdminTab } from './PaymentsAdminTab';
 
 interface AdminRow {
   id: string;
@@ -65,6 +67,7 @@ const superNavItems = [
   { label: 'Overview', path: '/super', icon: LayoutDashboard, exact: true },
   { label: 'Administrators', path: '/super/admins', icon: ShieldCheck },
   { label: 'Admin invites', path: '/super/invites', icon: MailPlus },
+  { label: 'Premium payments', path: '/super/payments', icon: CreditCard },
   { label: 'System & maintenance', path: '/super/system', icon: Wrench }
 ];
 
@@ -264,6 +267,8 @@ export function SuperAdminPortal() {
 
         {currentPath.startsWith('/super/system') ? (
           <MaintenanceControlTab />
+        ) : currentPath.startsWith('/super/payments') ? (
+          <PaymentsAdminTab />
         ) : currentPath.startsWith('/super/admins') ? (
           <AdminManagementTab
             admins={admins}

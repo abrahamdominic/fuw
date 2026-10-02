@@ -180,10 +180,10 @@ export async function startConversation(
 
   if (convError) throw convError;
 
-  const { error: msgError } = await client
-    .from('messages')
-    .insert({ conversation_id: conv.id, sender_id: user.id, body: normalizeMessageBody(body) });
-
+  const { error: msgError } = await client.rpc('send_conversation_message', {
+    p_conversation_id: conv.id,
+    p_body: normalizeMessageBody(body)
+  });
   if (msgError) throw msgError;
 
   // Notifications are created server-side by the AFTER INSERT trigger.
@@ -217,28 +217,15 @@ export async function searchStudents(query: string): Promise<StudentSearchResult
 /** Send a message in an existing conversation. */
 export async function sendMessage(conversationId: string, body: string): Promise<Message> {
   const client = requireSupabase();
-  const { data: { user } } = await client.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
-
   const trimmed = normalizeMessageBody(body);
   if (!trimmed) throw new Error('Message cannot be empty.');
 
-  const { data, error } = await client
-    .from('messages')
-    .insert({ conversation_id: conversationId, sender_id: user.id, body: trimmed })
-    .select('*')
-    .single();
-
+  const { data, error } = await client.rpc('send_conversation_message', {
+    p_conversation_id: conversationId,
+    p_body: trimmed
+  });
   if (error) throw error;
-  const msg = data as Message;
-
-  // Bump last_message_at (now permitted by the participant UPDATE policy).
-  await client
-    .from('conversations')
-    .update({ last_message_at: new Date().toISOString() })
-    .eq('id', conversationId);
-
-  return msg;
+  return data as Message;
 }
 
 /** Mark incoming messages in a conversation as read. */

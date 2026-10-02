@@ -76,7 +76,12 @@ export function HomePage({ onReadOnline }: PublicPagesProps) {
 
   return (
     <>
-      <SEO path="/" />
+      <SEO
+        path="/home"
+        title="Home | FUW E-Library"
+        description="Your authenticated FUW E-Library homepage."
+        noindex
+      />
       <HeroSection />
 
       {/* University Stats Bar */}
