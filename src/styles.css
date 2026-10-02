@@ -2539,6 +2539,46 @@ button {
   word-break: break-word;
   overflow-wrap: anywhere;
 }
+
+/* Announcement / message block elements with proper paragraph spacing */
+.msg-body .msg-para {
+  margin: 0 0 0.8rem;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.65;
+}
+.msg-body .msg-para:last-child {
+  margin-bottom: 0;
+}
+.msg-body .msg-heading {
+  margin: 0 0 0.55rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.msg-body h2.msg-heading {
+  font-size: 1.2em;
+}
+.msg-body h3.msg-heading {
+  font-size: 1.1em;
+}
+.msg-body h4.msg-heading {
+  font-size: 1em;
+}
+.msg-body .msg-list {
+  margin: 0 0 0.8rem;
+  padding-left: 1.5rem;
+  line-height: 1.65;
+}
+.msg-body .msg-list:last-child {
+  margin-bottom: 0;
+}
+.msg-body .msg-list li {
+  margin-bottom: 0.25rem;
+  word-break: break-word;
+}
+.msg-body .msg-list li:last-child {
+  margin-bottom: 0;
+}
 .msg-body p {
   margin: 0 0 0.4rem;
   white-space: normal;

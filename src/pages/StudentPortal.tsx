@@ -84,7 +84,7 @@ import {
 import { aiAsk, AiCitation, aiConfiguredHint } from '../lib/ai';
 import { friendlyError } from '../lib/friendlyError';
 import { requireSupabase } from '../lib/supabase';
-import { ConfirmDialog } from '../components/ConfirmDialog';
+import { ConfirmDialog, ConfirmDialogState } from '../components/ConfirmDialog';
 import ProtectedActionModal from '../components/ProtectedActionModal';
 import { AuthenticatorAppCard } from '../components/AuthenticatorAppCard';
 import { PasskeysManager } from '../components/PasskeysManager';
@@ -3376,6 +3376,12 @@ function StudentCourseHistoryTab() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editCode, setEditCode] = useState('');
   const [editTitle, setEditTitle] = useState('');
+  const [confirm, setConfirm] = useState<ConfirmDialogState>({
+    open: false,
+    title: '',
+    message: '',
+    onConfirm: () => {}
+  });
 
   const loadCourses = async () => {
     try {
@@ -3394,15 +3400,23 @@ function StudentCourseHistoryTab() {
   }, []);
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Remove this course?')) return;
-    try {
-      const { deleteStudentCourse } = await import('../lib/studentCourses');
-      await deleteStudentCourse(id);
-      setCourses((prev) => prev.filter((c) => c.id !== id));
-      toast('Course removed.', 'success');
-    } catch (err: any) {
-      toast(err.message || 'Failed to delete.', 'error');
-    }
+    setConfirm({
+      open: true,
+      title: 'Remove course',
+      message: 'Remove this course from your submitted course history?',
+      confirmLabel: 'Remove course',
+      tone: 'danger',
+      onConfirm: async () => {
+        try {
+          const { deleteStudentCourse } = await import('../lib/studentCourses');
+          await deleteStudentCourse(id);
+          setCourses((prev) => prev.filter((c) => c.id !== id));
+          toast('Course removed.', 'success');
+        } catch (err: any) {
+          toast(err.message || 'Failed to delete.', 'error');
+        }
+      }
+    });
   };
 
   const handleEdit = async (id: string) => {
@@ -3552,6 +3566,7 @@ function StudentCourseHistoryTab() {
           </table>
         </div>
       )}
+      <ConfirmDialog {...confirm} onClose={() => setConfirm((c) => ({ ...c, open: false }))} />
     </div>
   );
 }

@@ -67,7 +67,7 @@ import { fx, staggerDelay } from '../lib/motion';
 import { AnimatedModal } from '../components/animations/AnimatedModal';
 import { useStore } from '../lib/useStore';
 import { useLiveCatalogue } from '../lib/useLiveCatalogue';
-import { MaterialItem } from '../lib/store';
+import { AuditLogItem, MaterialItem } from '../lib/store';
 import { Logo } from '../components/Logo';
 import { CatalogueFilters, FilterState } from '../components/CatalogueFilters';
 import { catalogue, materialTypes, courseTitleByCode } from '../data/catalogue';
@@ -88,7 +88,7 @@ import { DepartmentAssigner } from '../components/DepartmentAssigner';
 import { EditMaterialModal } from '../components/EditMaterialModal';
 import { AssignedDepartmentsModal } from '../components/AssignedDepartmentsModal';
 import { aiProcessMaterial } from '../lib/ai';
-import { ConfirmDialog, PromptDialog } from '../components/ConfirmDialog';
+import { ConfirmDialog, ConfirmDialogState, PromptDialog } from '../components/ConfirmDialog';
 import ProtectedActionModal from '../components/ProtectedActionModal';
 import { AuthenticatorAppCard } from '../components/AuthenticatorAppCard';
 import { PasskeysManager } from '../components/PasskeysManager';
@@ -151,6 +151,7 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
   const { toast } = useToast();
   const { signOut, profile, hasPermission, role, isSuperAdmin } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [auditActors, setAuditActors] = useState<Record<string, AuditActorProfile>>({});
   // Confirmation dialog for destructive actions
   const [confirmState, setConfirmState] = useState<{
     open: boolean;
@@ -187,9 +188,40 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
   const approvedMaterials = store.getApprovedMaterials();
   const rejectedMaterials = store.getRejectedMaterials();
   const auditLogs = store.getAuditLogs();
+  const auditActorIds = [...new Set(
+    auditLogs.map((log) => log.performedById).filter((id): id is string =>
+      !!id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+    )
+  )];
+  const auditActorIdsKey = auditActorIds.join('|');
   const stats = store.getSystemStats();
 
   const currentPath = location.pathname;
+
+  useEffect(() => {
+    if (!supabase || !auditActorIdsKey) {
+      setAuditActors({});
+      return;
+    }
+    let active = true;
+    const ids = auditActorIdsKey.split('|');
+    void supabase
+      .from('profiles')
+      .select('id, full_name, username, matric_number, email, role')
+      .in('id', ids)
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error) {
+          toast('Could not load audit account details.', 'error');
+          setAuditActors({});
+          return;
+        }
+        setAuditActors(Object.fromEntries((data || []).map((row) => [row.id, row])));
+      });
+    return () => {
+      active = false;
+    };
+  }, [auditActorIdsKey, toast]);
 
   /** Run a moderation action through the database RPCs (with notifications). */
   const runAction = async (
@@ -467,7 +499,7 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
         ) : currentPath.startsWith('/admin/categories') ? (
           <AdminCategoriesTab />
         ) : currentPath.startsWith('/admin/logs') ? (
-          <AdminAuditLogsTab logs={auditLogs} />
+          <AdminAuditLogsTab logs={auditLogs} actors={auditActors} />
         ) : currentPath.startsWith('/admin/usage-analytics') ? (
           <AdminUsageAnalyticsTab />
         ) : currentPath.startsWith('/admin/settings') ? (
@@ -477,6 +509,7 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
             stats={stats}
             pendingCount={pendingMaterials.length}
             auditLogs={auditLogs}
+            auditActors={auditActors}
             pendingMaterials={pendingMaterials}
             allMaterials={allMaterials}
             canApprove={hasPermission('approve_materials')}
@@ -515,11 +548,38 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
   );
 }
 
+interface AuditActorProfile {
+  id: string;
+  full_name: string | null;
+  username: string | null;
+  matric_number: string | null;
+  email: string | null;
+  role: string | null;
+}
+
+function AuditActor({ log, actors }: { log: AuditLogItem; actors: Record<string, AuditActorProfile> }) {
+  const actor = log.performedById ? actors[log.performedById] : undefined;
+  if (actor) {
+    return (
+      <span className="audit-actor">
+        <b>{actor.full_name || actor.username || 'Account holder'}</b>
+        {actor.matric_number && <small>Matric: {actor.matric_number}</small>}
+        <small>{[actor.role, actor.email].filter(Boolean).join(' · ')}</small>
+      </span>
+    );
+  }
+  const legacyName = log.performedBy && !/^[0-9a-f-]{30,}$/i.test(log.performedBy)
+    ? log.performedBy
+    : 'Former or unavailable account';
+  return <span>{legacyName}</span>;
+}
+
 // 1. Admin Overview Tab
 function AdminOverviewTab({
   stats,
   pendingCount,
   auditLogs,
+  auditActors,
   pendingMaterials,
   allMaterials = [],
   canApprove = true,
@@ -861,7 +921,7 @@ function AdminOverviewTab({
                 <b>{log.action}</b>
                 <small>{log.details || 'System activity'}</small>
               </span>
-              <span>{log.performedBy}</span>
+              <AuditActor log={log} actors={auditActors || {}} />
               <span>{log.entity}</span>
               <span>{new Date(log.timestamp).toLocaleString()}</span>
               <span>
@@ -2061,6 +2121,7 @@ function AdminCoursesTab() {
   const [showPublisher, setShowPublisher] = useState(false);
   const [published, setPublished] = useState<any[]>([]);
   const [publishedLoading, setPublishedLoading] = useState(true);
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState>({ open: false, title: '', message: '', onConfirm: () => {} });
   const approved = React.useMemo(() => store.getApprovedMaterials(), []);
 
   const countCourse = (dept: string, code: string) =>
@@ -2108,15 +2169,23 @@ function AdminCoursesTab() {
   };
 
   const handleDeletePublished = async (id: string) => {
-    if (!confirm('Delete this course from the official catalogue? Any linked material stays in the library.')) return;
-    try {
-      const { deleteAdminPublishedCourse } = await import('../lib/adminCourses');
-      await deleteAdminPublishedCourse(id);
-      setPublished((prev) => prev.filter((c) => c.id !== id));
-      toast('Course removed from the catalogue.', 'success');
-    } catch (err: any) {
-      toast(err.message || 'Delete failed.', 'error');
-    }
+    setConfirmDialog({
+      open: true,
+      title: 'Remove course from catalogue',
+      message: 'Delete this course from the official catalogue? Any linked material stays in the library.',
+      confirmLabel: 'Remove course',
+      tone: 'danger',
+      onConfirm: async () => {
+        try {
+          const { deleteAdminPublishedCourse } = await import('../lib/adminCourses');
+          await deleteAdminPublishedCourse(id);
+          setPublished((prev) => prev.filter((c) => c.id !== id));
+          toast('Course removed from the catalogue.', 'success');
+        } catch (err: any) {
+          toast(err.message || 'Delete failed.', 'error');
+        }
+      }
+    });
   };
 
   const displayed = allCourses.filter((c) => {
@@ -2304,6 +2373,7 @@ function AdminCoursesTab() {
         })}
       </div>
       )}
+      <ConfirmDialog {...confirmDialog} onClose={() => setConfirmDialog((c) => ({ ...c, open: false }))} />
     </div>
   );
 }
@@ -2620,6 +2690,7 @@ function AdminCategoriesTab() {
     ends_on: ''
   });
   const [formError, setFormError] = useState('');
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState>({ open: false, title: '', message: '', onConfirm: () => {} });
 
   const loadSessions = async () => {
     setLoading(true);
@@ -2671,15 +2742,23 @@ function AdminCategoriesTab() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this academic session?')) return;
-    try {
-      const { deleteAcademicSession } = await import('../lib/academicSessions');
-      await deleteAcademicSession(id);
-      setSessions((prev) => prev.filter((s) => s.id !== id));
-      toast('Session deleted.', 'success');
-    } catch (err: any) {
-      toast(err.message || 'Delete failed.', 'error');
-    }
+    setConfirmDialog({
+      open: true,
+      title: 'Delete academic session',
+      message: 'Delete this academic session? This cannot be undone.',
+      confirmLabel: 'Delete session',
+      tone: 'danger',
+      onConfirm: async () => {
+        try {
+          const { deleteAcademicSession } = await import('../lib/academicSessions');
+          await deleteAcademicSession(id);
+          setSessions((prev) => prev.filter((s) => s.id !== id));
+          toast('Session deleted.', 'success');
+        } catch (err: any) {
+          toast(err.message || 'Delete failed.', 'error');
+        }
+      }
+    });
   };
 
   const activeSession = sessions.find((s) => s.is_active);
@@ -2813,7 +2892,7 @@ function AdminCategoriesTab() {
 }
 
 // 9. Admin Audit Logs Tab
-function AdminAuditLogsTab({ logs }: { logs: any[] }) {
+function AdminAuditLogsTab({ logs, actors }: { logs: AuditLogItem[]; actors: Record<string, AuditActorProfile> }) {
   const [searchTerm, setSearchTerm] = useState('');
 
   const displayed = logs.filter((log) => {
@@ -2822,6 +2901,8 @@ function AdminAuditLogsTab({ logs }: { logs: any[] }) {
     return (
       (log.action || '').toLowerCase().includes(q) ||
       (log.performedBy || '').toLowerCase().includes(q) ||
+      (actors[log.performedById || '']?.full_name || '').toLowerCase().includes(q) ||
+      (actors[log.performedById || '']?.matric_number || '').toLowerCase().includes(q) ||
       (log.entity || '').toLowerCase().includes(q) ||
       (log.details || '').toLowerCase().includes(q)
     );
@@ -2882,7 +2963,7 @@ function AdminAuditLogsTab({ logs }: { logs: any[] }) {
                 <b>{log.action}</b>
                 <small>{log.details || 'Database record'}</small>
               </span>
-              <span>{log.performedBy}</span>
+              <AuditActor log={log} actors={actors} />
               <span>{log.entity}</span>
               <span>{new Date(log.timestamp).toLocaleString()}</span>
               <span>
@@ -4248,6 +4329,7 @@ function AdminStudentCoursesTab() {
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState({ faculty: '', department: '', level: '', semester: '', status: '' });
   const [page, setPage] = useState(0);
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState>({ open: false, title: '', message: '', onConfirm: () => {} });
   const PAGE_SIZE = 20;
 
   const loadCourses = async () => {
@@ -4288,15 +4370,23 @@ function AdminStudentCoursesTab() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this course record?')) return;
-    try {
-      const { deleteStudentCourse } = await import('../lib/studentCourses');
-      await deleteStudentCourse(id);
-      setCourses((prev) => prev.filter((c) => c.id !== id));
-      toast('Course deleted.', 'success');
-    } catch (err: any) {
-      toast(err.message || 'Delete failed.', 'error');
-    }
+    setConfirmDialog({
+      open: true,
+      title: 'Delete course record',
+      message: 'Delete this course record? This cannot be undone.',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+      onConfirm: async () => {
+        try {
+          const { deleteStudentCourse } = await import('../lib/studentCourses');
+          await deleteStudentCourse(id);
+          setCourses((prev) => prev.filter((c) => c.id !== id));
+          toast('Course deleted.', 'success');
+        } catch (err: any) {
+          toast(err.message || 'Delete failed.', 'error');
+        }
+      }
+    });
   };
 
   const filtered = courses;
@@ -4469,6 +4559,7 @@ function AdminStudentCoursesTab() {
           )}
         </>
       )}
+      <ConfirmDialog {...confirmDialog} onClose={() => setConfirmDialog((c) => ({ ...c, open: false }))} />
     </div>
   );
 }

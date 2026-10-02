@@ -50,6 +50,7 @@ import {
 import { useToast } from '../components/Toast';
 import { MessageText } from '../components/MessageText';
 import { richPasteText, capLength, MESSAGE_MAX_LENGTH } from '../lib/messageFormat';
+import { ConfirmDialog, ConfirmDialogState } from '../components/ConfirmDialog';
 
 export function AdminRepositoryTab() {
   const { toast } = useToast();
@@ -59,6 +60,7 @@ export function AdminRepositoryTab() {
   const [statusFilter, setStatusFilter] = useState<ResearchStatus | 'all'>('submitted');
   const [rejectTarget, setRejectTarget] = useState<ResearchItem | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [confirm, setConfirm] = useState<ConfirmDialogState>({ open: false, title: '', message: '', onConfirm: () => {} });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -118,25 +120,41 @@ export function AdminRepositoryTab() {
   };
 
   const handleArchive = async (item: ResearchItem) => {
-    if (!window.confirm(`Archive "${item.title}"? It will be hidden from the public but preserved.`)) return;
-    try {
-      await archiveResearchItem(item.id, 'Archived by administrator');
-      toast('Publication archived.', 'success');
-      await load();
-    } catch (err: any) {
-      toast(err.message || 'Could not archive.', 'error');
-    }
+    setConfirm({
+      open: true,
+      title: 'Archive publication',
+      message: `Archive "${item.title}"? It will be hidden from the public but preserved.`,
+      confirmLabel: 'Archive',
+      tone: 'default',
+      onConfirm: async () => {
+        try {
+          await archiveResearchItem(item.id, 'Archived by administrator');
+          toast('Publication archived.', 'success');
+          await load();
+        } catch (err: any) {
+          toast(err.message || 'Could not archive.', 'error');
+        }
+      }
+    });
   };
 
   const handleDelete = async (item: ResearchItem) => {
-    if (!window.confirm(`Permanently delete "${item.title}"? This cannot be undone.`)) return;
-    try {
-      await deleteResearchItem(item.id);
-      toast('Publication deleted.', 'success');
-      await load();
-    } catch (err: any) {
-      toast(err.message || 'Could not delete.', 'error');
-    }
+    setConfirm({
+      open: true,
+      title: 'Delete publication',
+      message: `Permanently delete "${item.title}"? This cannot be undone.`,
+      confirmLabel: 'Delete permanently',
+      tone: 'danger',
+      onConfirm: async () => {
+        try {
+          await deleteResearchItem(item.id);
+          toast('Publication deleted.', 'success');
+          await load();
+        } catch (err: any) {
+          toast(err.message || 'Could not delete.', 'error');
+        }
+      }
+    });
   };
 
   const statusBadge = (s: string) => <span className={`status-badge ${s}`}>{s.replace('_', ' ')}</span>;
@@ -239,6 +257,7 @@ export function AdminRepositoryTab() {
           </div>
         </div>
       )}
+      <ConfirmDialog {...confirm} onClose={() => setConfirm((c) => ({ ...c, open: false }))} />
     </div>
   );
 }
@@ -466,6 +485,7 @@ export function AdminHelpTab() {
   const [topicForm, setTopicForm] = useState<{ id: string | null; slug: string; title: string; category: string; body: string; sortOrder: number }>({ id: null, slug: '', title: '', category: 'general', body: '', sortOrder: 0 });
   const [faqForm, setFaqForm] = useState<{ id: string | null; question: string; answer: string; category: string; sortOrder: number }>({ id: null, question: '', answer: '', category: 'general', sortOrder: 0 });
   const [showForm, setShowForm] = useState(false);
+  const [confirm, setConfirm] = useState<ConfirmDialogState>({ open: false, title: '', message: '', onConfirm: () => {} });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -516,25 +536,41 @@ export function AdminHelpTab() {
   };
 
   const handleDeleteTopic = async (id: string) => {
-    if (!window.confirm('Delete this help topic?')) return;
-    try {
-      await deleteHelpTopic(id);
-      toast('Help topic deleted.', 'success');
-      await load();
-    } catch (err: any) {
-      toast(err.message || 'Could not delete help topic.', 'error');
-    }
+    setConfirm({
+      open: true,
+      title: 'Delete help topic',
+      message: 'Delete this help topic? This cannot be undone.',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+      onConfirm: async () => {
+        try {
+          await deleteHelpTopic(id);
+          toast('Help topic deleted.', 'success');
+          await load();
+        } catch (err: any) {
+          toast(err.message || 'Could not delete help topic.', 'error');
+        }
+      }
+    });
   };
 
   const handleDeleteFaq = async (id: string) => {
-    if (!window.confirm('Delete this FAQ?')) return;
-    try {
-      await deleteFaqItem(id);
-      toast('FAQ deleted.', 'success');
-      await load();
-    } catch (err: any) {
-      toast(err.message || 'Could not delete FAQ.', 'error');
-    }
+    setConfirm({
+      open: true,
+      title: 'Delete FAQ',
+      message: 'Delete this FAQ? This cannot be undone.',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+      onConfirm: async () => {
+        try {
+          await deleteFaqItem(id);
+          toast('FAQ deleted.', 'success');
+          await load();
+        } catch (err: any) {
+          toast(err.message || 'Could not delete FAQ.', 'error');
+        }
+      }
+    });
   };
 
   return (
@@ -646,6 +682,7 @@ export function AdminHelpTab() {
           </table>
         </div>
       )}
+      <ConfirmDialog {...confirm} onClose={() => setConfirm((c) => ({ ...c, open: false }))} />
     </div>
   );
 }
@@ -657,6 +694,7 @@ export function AdminAnnouncementsTab() {
   const [showForm, setShowForm] = useState(false);
   const [sending, setSending] = useState(false);
   const [form, setForm] = useState<{ id: string | null; title: string; body: string; audience: string; type: AnnouncementType; isPublished: boolean }>({ id: null, title: '', body: '', audience: 'everyone', type: 'general', isPublished: true });
+  const [confirm, setConfirm] = useState<ConfirmDialogState>({ open: false, title: '', message: '', onConfirm: () => {} });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -694,20 +732,27 @@ export function AdminAnnouncementsTab() {
       toast('Add a title and message before sending.', 'error');
       return;
     }
-    if (!window.confirm('You are about to send this announcement to all registered users. Continue?')) return;
-    if (!window.confirm('Announcements are delivered to every student and staff member. This cannot be undone. Send anyway?')) return;
-    setSending(true);
-    try {
-      await sendAnnouncement({ title: form.title, body: form.body, type: form.type, audience: form.audience });
-      toast('Announcement sent successfully.', 'success');
-      resetForm();
-      setShowForm(false);
-      await load();
-    } catch (err: any) {
-      toast(err.message || 'Could not send the announcement.', 'error');
-    } finally {
-      setSending(false);
-    }
+    setConfirm({
+      open: true,
+      title: 'Send announcement to everyone?',
+      message: 'Announcements are delivered to every student and staff member in their notification feed. This cannot be undone.',
+      confirmLabel: 'Send to everyone',
+      tone: 'default',
+      onConfirm: async () => {
+        setSending(true);
+        try {
+          await sendAnnouncement({ title: form.title, body: form.body, type: form.type, audience: form.audience });
+          toast('Announcement sent successfully.', 'success');
+          resetForm();
+          setShowForm(false);
+          await load();
+        } catch (err: any) {
+          toast(err.message || 'Could not send the announcement.', 'error');
+        } finally {
+          setSending(false);
+        }
+      }
+    });
   };
 
   const handleToggleStatus = async (a: LibraryAnnouncement) => {
@@ -722,14 +767,22 @@ export function AdminAnnouncementsTab() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Delete this announcement?')) return;
-    try {
-      await deleteAnnouncement(id);
-      toast('Announcement deleted.', 'success');
-      await load();
-    } catch (err: any) {
-      toast(err.message || 'Could not delete announcement.', 'error');
-    }
+    setConfirm({
+      open: true,
+      title: 'Delete announcement',
+      message: 'Delete this announcement? Student notifications linked to it will also be removed.',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+      onConfirm: async () => {
+        try {
+          await deleteAnnouncement(id);
+          toast('Announcement deleted.', 'success');
+          await load();
+        } catch (err: any) {
+          toast(err.message || 'Could not delete announcement.', 'error');
+        }
+      }
+    });
   };
 
   const typeLabel = (t?: string) => ANNOUNCEMENT_TYPES.find((x) => x.value === t)?.label ?? 'General';
@@ -762,7 +815,7 @@ export function AdminAnnouncementsTab() {
                 onChange={(e) => setForm({ ...form, body: e.target.value })}
                 placeholder="Write a clear, concise announcement for students and staff…
 Write short paragraphs separated by blank lines.
-Use **bold**, *italics*, `code`, lists (start a line with “- ” or “1. ”), and [links](https://…) where helpful."
+Use #, ## or ### at the start of a line for headings; **bold**, *italics*, `code`, lists (start a line with “- ” or “1. ”), and [links](https://…) where helpful."
                 maxLength={MESSAGE_MAX_LENGTH}
                 onPaste={(e) => {
                   const inserted = richPasteText(e.clipboardData.getData('text/html'), e.clipboardData.getData('text/plain'));
@@ -852,6 +905,7 @@ Use **bold**, *italics*, `code`, lists (start a line with “- ” or “1. ”)
           </table>
         </div>
       )}
+      <ConfirmDialog {...confirm} onClose={() => setConfirm((c) => ({ ...c, open: false }))} />
     </div>
   );
 }

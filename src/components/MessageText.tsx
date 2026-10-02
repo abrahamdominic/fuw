@@ -39,6 +39,10 @@ function renderInlineNodes(nodes: InlineNode[], inlineLink = false): React.React
   });
 }
 
+/**
+ * Render a paragraph text string into React nodes, preserving single-newline
+ * soft breaks as <br /> elements and applying inline formatting.
+ */
 function renderParaText(text: string, inlineLink = false): React.ReactNode[] {
   return text.split('\n').map((line, i) => (
     <React.Fragment key={i}>
@@ -58,37 +62,69 @@ export function MessageText({ body, inline = false }: MessageTextProps) {
   if (!body) return null;
   const blocks = parseBlocks(body);
 
-  const content = blocks.map((block, i) => {
-    if (block.type === 'code') {
-      return (
-        <code key={i} className="msg-inline-code msg-code-inline">
-          {block.text}
-        </code>
-      );
-    }
-    if (block.type === 'list') {
-      return (
-        <React.Fragment key={i}>
-          {block.items.map((it, j) => (
-            <React.Fragment key={j}>
-              {j > 0 && <br />}
-              {it.ordered ? `${j + 1}. ` : '• '}
-              {renderInlineNodes(parseInline(it.text), inline)}
-            </React.Fragment>
-          ))}
-        </React.Fragment>
-      );
-    }
-    return <React.Fragment key={i}>{renderParaText(block.text, inline)}</React.Fragment>;
-  });
-
   if (inline) {
+    // Inline variant: flatten everything into spans and <br>s.
     const inlineContent: React.ReactNode[] = [];
-    content.forEach((node, i) => {
-      inlineContent.push(node);
-      if (i < content.length - 1) inlineContent.push(<br key={`sep-${i}`} />);
+    blocks.forEach((block, bi) => {
+      if (bi > 0) inlineContent.push(<br key={`sep-${bi}`} />);
+      if (block.type === 'code') {
+        inlineContent.push(
+          <code key={bi} className="msg-inline-code msg-code-inline">
+            {block.text}
+          </code>
+        );
+      } else if (block.type === 'list') {
+        block.items.forEach((it, j) => {
+          if (j > 0) inlineContent.push(<br key={`${bi}-${j}-br`} />);
+          inlineContent.push(
+            <span key={`${bi}-${j}`}>
+              {it.ordered ? `${j + 1}. ` : '• '}
+              {renderInlineNodes(parseInline(it.text), true)}
+            </span>
+          );
+        });
+      } else {
+        inlineContent.push(
+          <span key={bi}>{renderParaText(block.text, true)}</span>
+        );
+      }
     });
     return <span className="msg-body msg-body-inline">{inlineContent}</span>;
   }
+
+  // Block variant: proper semantic HTML for rich announcement/message display.
+  const content = blocks.map((block, i) => {
+    if (block.type === 'heading') {
+      const Tag = `h${block.level}` as 'h2' | 'h3' | 'h4';
+      return <Tag key={i} className="msg-heading">{renderInlineNodes(parseInline(block.text))}</Tag>;
+    }
+    if (block.type === 'code') {
+      return (
+        <pre key={i} className="msg-code">
+          <code>{block.text}</code>
+        </pre>
+      );
+    }
+    if (block.type === 'list') {
+      const ordered = block.items.some((it) => it.ordered);
+      const Tag = ordered ? 'ol' : 'ul';
+      return (
+        <Tag key={i} className="msg-list">
+          {block.items.map((it, j) => (
+            <li key={j}>{renderInlineNodes(parseInline(it.text))}</li>
+          ))}
+        </Tag>
+      );
+    }
+    // Paragraph block — honour single-newline soft breaks.
+    return (
+      <p key={i} className="msg-para">
+        {renderParaText(block.text)}
+      </p>
+    );
+  });
+
   return <div className="msg-body">{content}</div>;
 }
+
+export default MessageText;

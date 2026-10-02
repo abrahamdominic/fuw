@@ -197,6 +197,22 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 }
 
 /**
+ * Keep root routing auth-first. Returning null while the persisted Supabase
+ * session initializes prevents the public home page from flashing before the
+ * correct destination is known.
+ */
+function RootRedirect() {
+  const { isLoading, isAuthenticated, profile } = useAuth();
+  if (isLoading) return null;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  const destination =
+    profile?.role === 'super_admin' ? '/super' :
+    profile?.role === 'admin' ? '/admin' :
+    '/student';
+  return <Navigate to={destination} replace />;
+}
+
+/**
  * Route-level transition shell. Keyed by the resolved pathname so every
  * navigation re-mounts the view and eases it in with the shared `.fx-page-in`
  * CSS keyframe.
@@ -346,9 +362,20 @@ function App() {
                 Only approved catalogue data and published repository/collection
                 records are readable here, and every authenticated action
                 (download, read-online, submit, save) is still gated by the
-                session plus the server-side entitlement check. */}
+                session plus the server-side entitlement check.
+
+                NOTE: The root / redirects to login or the user's dashboard.
+                The public homepage remains available at /home. */}
             <Route
               path="/"
+              element={<RootRedirect />}
+            />
+            <Route
+              path="/course-upload"
+              element={<Navigate to="/student/course-upload" replace />}
+            />
+            <Route
+              path="/home"
               element={
                 <PublicLayout onReadOnline={handleReadOnline}>
                   <HomePage onReadOnline={handleReadOnline} />

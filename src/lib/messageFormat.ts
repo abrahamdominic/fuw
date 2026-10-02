@@ -300,6 +300,7 @@ export type InlineNode =
 export type Block =
   | { type: 'code'; text: string }
   | { type: 'list'; items: { ordered: boolean; text: string }[] }
+  | { type: 'heading'; level: 2 | 3 | 4; text: string }
   | { type: 'para'; text: string };
 
 /** Split a message body into code / list / paragraph blocks. */
@@ -319,6 +320,15 @@ export function parseBlocks(body: string): Block[] {
       const para = rawPara.trim();
       if (!para) return;
       const lines = para.split('\n');
+      const heading = lines.length === 1 ? /^(#{1,3})\s+(.+)$/.exec(para) : null;
+      if (heading) {
+        blocks.push({
+          type: 'heading',
+          level: (heading[1].length + 1) as 2 | 3 | 4,
+          text: heading[2].trim()
+        });
+        return;
+      }
       const markers = lines.map((l) => /^\s*([-*•]|\d+[.)])\s+(.*)$/.exec(l));
       if (markers.every(Boolean)) {
         blocks.push({

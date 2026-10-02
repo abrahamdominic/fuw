@@ -450,12 +450,12 @@ export async function submitMaterial(input: {
   const path = `${user.id}/${Date.now()}-${safeName}`;
 
   // 1. Resolve department_id & faculty_id from names so the DB sync trigger fires.
+  const requestedDepartmentIds = [...new Set((input.department_ids ?? []).filter(Boolean))];
   let resolvedDeptId: string | undefined;
   let resolvedFacId: string | undefined;
   try {
-    const deptIds = input.department_ids?.filter(Boolean) ?? [];
-    if (deptIds.length > 0) {
-      resolvedDeptId = deptIds[0];
+    if (requestedDepartmentIds.length > 0) {
+      resolvedDeptId = requestedDepartmentIds[0];
     } else if (input.department) {
       const { data: deptRow } = await client
         .from('departments')
@@ -515,19 +515,21 @@ export async function submitMaterial(input: {
 
   // 2b. Multi-department assignment — skip the primary department (the trigger
   //     already inserted it into material_departments when department_id was set).
-  if (input.department_ids && input.department_ids.length > 0) {
+  if (requestedDepartmentIds.length > 0) {
     const extraIds = resolvedDeptId
-      ? input.department_ids.filter((id) => id !== resolvedDeptId)
-      : input.department_ids;
+      ? requestedDepartmentIds.filter((id) => id !== resolvedDeptId)
+      : requestedDepartmentIds;
     if (extraIds.length > 0) {
-      try {
-        const junctionRows = extraIds.map((deptId) => ({
-          material_id: inserted.id,
-          department_id: deptId
-        }));
-        await client.from('material_departments').upsert(junctionRows, { onConflict: 'material_id, department_id' });
-      } catch {
-        // Non-fatal if junction table not yet applied in DB
+      const junctionRows = extraIds.map((deptId) => ({
+        material_id: inserted.id,
+        department_id: deptId
+      }));
+      const { error: assignmentError } = await client
+        .from('material_departments')
+        .upsert(junctionRows, { onConflict: 'material_id, department_id' });
+      if (assignmentError) {
+        await client.from('materials').delete().eq('id', inserted.id);
+        throw new Error(assignmentError.message || 'Could not assign this material to all selected departments.');
       }
     }
   }
@@ -620,23 +622,27 @@ export async function updateMaterial(
   }
 
   // Sync multi-department assignments if department_ids provided
-  if (input.department_ids && input.department_ids.length > 0) {
+  const departmentIds = input.department_ids ? [...new Set(input.department_ids.filter(Boolean))] : [];
+  if (departmentIds.length > 0) {
     const rpcRes = await callRpc('assign_material_departments', {
       p_material_id: materialId,
-      p_department_ids: input.department_ids
+      p_department_ids: departmentIds
     });
 
     if (!rpcRes.ok) {
       // Fallback to manual table operations
       try {
         await client.from('material_departments').delete().eq('material_id', materialId);
-        const junctionRows = input.department_ids.map((dId) => ({
+        const junctionRows = departmentIds.map((dId) => ({
           material_id: materialId,
           department_id: dId
         }));
-        await client.from('material_departments').insert(junctionRows);
+        const { error } = await client.from('material_departments').upsert(junctionRows, {
+          onConflict: 'material_id, department_id'
+        });
+        if (error) throw error;
       } catch {
-        // Table not yet active
+        throw new Error('Could not update the material department assignments.');
       }
     }
   }

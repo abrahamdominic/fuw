@@ -13,6 +13,7 @@ import {
 } from '../lib/readingLists';
 import { useToast } from './Toast';
 import { CitationModal } from './CitationModal';
+import { ConfirmDialog, ConfirmDialogState } from './ConfirmDialog';
 
 interface ReadingListsTabProps {
   onReadOnline?: (m: any) => void;
@@ -28,6 +29,7 @@ export function ReadingListsTab({ onReadOnline }: ReadingListsTabProps) {
   const [newCategory, setNewCategory] = useState('personal');
   const [creating, setCreating] = useState(false);
   const [beatified, setBeatified] = useState(false);
+  const [confirm, setConfirm] = useState<ConfirmDialogState>({ open: false, title: '', message: '', onConfirm: () => {} });
 
   const load = useCallback(async () => {
     try {
@@ -59,14 +61,22 @@ export function ReadingListsTab({ onReadOnline }: ReadingListsTabProps) {
   };
 
   const handleDelete = async (list: ReadingList) => {
-    if (!window.confirm(`Delete "${list.name}" and all of its items?`)) return;
-    try {
-      await deleteReadingList(list.id);
-      toast('Reading list deleted.', 'success');
-      setLists((prev) => prev.filter((l) => l.id !== list.id));
-    } catch (err: any) {
-      toast(err.message || 'Could not delete the reading list.', 'error');
-    }
+    setConfirm({
+      open: true,
+      title: 'Delete reading list',
+      message: `Delete "${list.name}" and all of its items? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      tone: 'danger',
+      onConfirm: async () => {
+        try {
+          await deleteReadingList(list.id);
+          toast('Reading list deleted.', 'success');
+          setLists((prev) => prev.filter((l) => l.id !== list.id));
+        } catch (err: any) {
+          toast(err.message || 'Could not delete the reading list.', 'error');
+        }
+      }
+    });
   };
 
   return (
@@ -147,6 +157,7 @@ export function ReadingListsTab({ onReadOnline }: ReadingListsTabProps) {
           ))}
         </div>
       )}
+      <ConfirmDialog {...confirm} onClose={() => setConfirm((c) => ({ ...c, open: false }))} />
     </div>
   );
 }

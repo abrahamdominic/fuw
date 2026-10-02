@@ -18,7 +18,7 @@ export function VerificationReminderBanner() {
   }, [user?.id]);
 
   const status = profile?.verificationStatus ?? 'unsubmitted';
-  if (hidden || !profile || profile.role !== 'student') return null;
+  if (hidden || !profile || profile.role !== 'student' || !isProfileComplete) return null;
   if (status === 'verified') return null;
 
   const dismiss = () => {
@@ -28,8 +28,6 @@ export function VerificationReminderBanner() {
 
   // A pending request is doing its job — no nagging while it is being reviewed.
   if (status === 'pending') return null;
-
-  const needsProfile = !isProfileComplete;
 
   return (
     <div
@@ -43,25 +41,21 @@ export function VerificationReminderBanner() {
         <b>
           {status === 'rejected'
             ? 'Your verification was not approved'
-            : needsProfile
-              ? 'Verify your student identity'
-              : 'Verify your student identity'}
+            : 'Verify your student identity'}
         </b>
         <span>
           {status === 'rejected'
             ? profile.verificationReason ||
               'Review the reason and submit again to unlock premium materials.'
-            : needsProfile
-              ? 'Finish your profile, then submit your student ID or admission letter. Downloads stay locked until the library verifies you.'
-              : 'Submit your student ID or admission letter. Downloads stay locked until the library verifies you.'}
+            : 'Submit your student ID or admission letter. Downloads stay locked until the library verifies you.'}
         </span>
       </div>
       <button
         type="button"
         className="primary profile-setup-banner-cta"
-        onClick={() => navigate(needsProfile ? '/student/settings' : '/student/verification')}
+        onClick={() => navigate('/student/verification')}
       >
-        {status === 'rejected' ? 'Submit again' : needsProfile ? 'Complete profile' : 'Verify now'}
+        {status === 'rejected' ? 'Submit again' : 'Verify now'}
         <ArrowRight size={15} />
       </button>
       <button

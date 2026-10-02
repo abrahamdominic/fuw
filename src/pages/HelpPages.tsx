@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { fetchHelpCatalog, HelpCatalog, HelpTopic, FaqItem, LibraryAnnouncement, ANNOUNCEMENT_TYPES } from '../lib/helpCenter';
 import { useToast } from '../components/Toast';
+import { ConfirmDialog, ConfirmDialogState } from '../components/ConfirmDialog';
 import { SEO } from '../components/SEO';
 import { Breadcrumbs } from '../components/Breadcrumbs';
 import { PUBLIC_ROUTES } from '../lib/seo/routes';
@@ -337,6 +338,12 @@ export function ReportProblemPage() {
 
 export function ReportCopyrightPage() {
   const { toast } = useToast();
+  const [confirm, setConfirm] = useState<ConfirmDialogState>({
+    open: false,
+    title: '',
+    message: '',
+    onConfirm: () => {}
+  });
   const [form, setForm] = useState({
     complaintType: 'copyright',
     description: '',
@@ -352,22 +359,31 @@ export function ReportCopyrightPage() {
       toast('Please describe the concern.', 'error');
       return;
     }
-    if (!window.confirm('Submit this report? The library team will review it.')) return;
-    setSubmitting(true);
-    import('../lib/copyrightReports').then(({ submitCopyrightReport }) =>
-      submitCopyrightReport({
-        materialId: form.materialId || null,
-        complaintType: form.complaintType,
-        description: form.description,
-        claimantName: form.claimantName,
-        claimantEmail: form.claimantEmail
-      })
-    ).then(() => {
-      toast('Report submitted. The library will review it.', 'success');
-      setForm({ complaintType: 'copyright', description: '', claimantName: '', claimantEmail: '', materialId: '' });
-    }).catch((err: any) => {
-      toast(err.message || 'Could not submit the report.', 'error');
-    }).finally(() => setSubmitting(false));
+    setConfirm({
+      open: true,
+      title: 'Submit copyright report?',
+      message: 'The library team will review the information in this report.',
+      confirmLabel: 'Submit report',
+      onConfirm: async () => {
+        setSubmitting(true);
+        try {
+          const { submitCopyrightReport } = await import('../lib/copyrightReports');
+          await submitCopyrightReport({
+            materialId: form.materialId || null,
+            complaintType: form.complaintType,
+            description: form.description,
+            claimantName: form.claimantName,
+            claimantEmail: form.claimantEmail
+          });
+          toast('Report submitted. The library will review it.', 'success');
+          setForm({ complaintType: 'copyright', description: '', claimantName: '', claimantEmail: '', materialId: '' });
+        } catch (err: any) {
+          toast(err.message || 'Could not submit the report.', 'error');
+        } finally {
+          setSubmitting(false);
+        }
+      }
+    });
   };
 
   return (
@@ -428,6 +444,7 @@ export function ReportCopyrightPage() {
           <Shield size={14} /> Reports are reviewed by the library's moderation team. Decisions are recorded and, where appropriate, action is taken within a reasonable timeframe.
         </div>
       </form>
+      <ConfirmDialog {...confirm} onClose={() => setConfirm((c) => ({ ...c, open: false }))} />
     </div>
   );
 }

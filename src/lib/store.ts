@@ -215,6 +215,7 @@ export interface AuditLogItem {
   id: string;
   action: string;
   performedBy: string;
+  performedById?: string;
   entity: string;
   entityId?: string;
   timestamp: string;
@@ -1090,6 +1091,7 @@ class MaterialsStore {
       id: 'log-' + Date.now(),
       action,
       performedBy,
+      performedById: this.currentUser.id || undefined,
       entity,
       entityId,
       timestamp: new Date().toISOString(),
@@ -1256,4 +1258,3 @@ class MaterialsStore {
 }
 
 export const store = new MaterialsStore();
-

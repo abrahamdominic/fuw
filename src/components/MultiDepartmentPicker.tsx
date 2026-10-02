@@ -18,7 +18,7 @@ import { catalogue } from '../data/catalogue';
  * Managed state for the multi-department upload question.
  *
  *   enabled           – student answered "Yes, other departments also offer this course"
- *   count             – number of ADDITIONAL departments to choose (1..MAX_EXTRA_DEPARTMENTS)
+ *   count             – number of ADDITIONAL departments to choose (bounded only by the catalogue)
  *   departments       – the selected additional departments (length <= count)
  *   primaryDepartmentId – resolved UUID of the student's own department (empty when the
  *                         database catalogue is unavailable and only the name fallback works)
@@ -35,8 +35,6 @@ export const EMPTY_MULTI_DEPARTMENT: MultiDepartmentState = {
   count: 1,
   departments: []
 };
-
-const MAX_EXTRA_DEPARTMENTS = 6;
 
 interface MultiDepartmentPickerProps {
   /** The uploader's own department (primary) which must never be selectable as an extra. */
@@ -100,6 +98,9 @@ export function MultiDepartmentPicker({
   }, [ownDepartment]);
 
   const ownName = ownDepartment.trim().toLowerCase();
+  const availableDepartmentCount = allDepartments.filter(
+    (d) => d.name.trim().toLowerCase() !== ownName
+  ).length;
   const isUuid = (id?: string) => !!id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
   const deptKey = (d: DepartmentOption) => (d.id || d.name).toLowerCase();
@@ -125,13 +126,18 @@ export function MultiDepartmentPicker({
   };
 
   const handleEnable = (enabled: boolean) => {
-    onChange({ ...value, enabled, departments: enabled ? value.departments : [] });
+    onChange({
+      ...value,
+      enabled: enabled && availableDepartmentCount > 0,
+      count: enabled ? Math.min(Math.max(value.count, 1), availableDepartmentCount || 1) : value.count,
+      departments: enabled && availableDepartmentCount > 0 ? value.departments : []
+    });
     setOpenSlot(null);
     setSlotSearch('');
   };
 
   const handleCountChange = (nextCount: number) => {
-    const clamped = Math.min(MAX_EXTRA_DEPARTMENTS, Math.max(1, nextCount));
+    const clamped = Math.min(availableDepartmentCount, Math.max(1, nextCount));
     onChange({ ...value, count: clamped, departments: value.departments.slice(0, clamped) });
     setOpenSlot(null);
     setSlotSearch('');
@@ -206,7 +212,7 @@ export function MultiDepartmentPicker({
               type="button"
               role="radio"
               aria-checked={value.enabled}
-              disabled={disabled}
+              disabled={disabled || availableDepartmentCount === 0}
               className={`md-option${value.enabled ? ' active' : ''}`}
               onClick={() => handleEnable(true)}
             >
@@ -222,6 +228,10 @@ export function MultiDepartmentPicker({
 
           {value.enabled && (
             <div className="md-body">
+              {availableDepartmentCount === 0 ? (
+                <p className="md-drop-empty">There are no other departments available to select.</p>
+              ) : (
+                <>
               <div className="md-count-row">
                 <label htmlFor="md-count" className="md-count-label">
                   How many other departments offer this course?
@@ -240,7 +250,7 @@ export function MultiDepartmentPicker({
                   <button
                     type="button"
                     className="md-stepper-btn"
-                    disabled={disabled || value.count >= MAX_EXTRA_DEPARTMENTS}
+                    disabled={disabled || value.count >= availableDepartmentCount}
                     onClick={() => handleCountChange(value.count + 1)}
                     aria-label="More additional departments"
                   >
@@ -369,6 +379,8 @@ export function MultiDepartmentPicker({
                 <p className="md-loading">
                   <Loader2 size={14} /> Syncing department list…
                 </p>
+              )}
+                </>
               )}
             </div>
           )}

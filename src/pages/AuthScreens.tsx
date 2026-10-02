@@ -536,6 +536,7 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
   const [otp, setOtp] = useState('');
   const [otpBusy, setOtpBusy] = useState(false);
   const [otpError, setOtpError] = useState<string | null>(null);
+  const lastAutoOtpRef = useRef<string | null>(null);
   const [passkeyBusy, setPasskeyBusy] = useState(false);
 
   // Registration welcome dialog modal
@@ -702,6 +703,13 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
       setOtpBusy(false);
     }
   };
+
+  useEffect(() => {
+    if (step !== 'otp' || otp.length !== 6 || otpBusy || !mfaVerifiedFactor) return;
+    if (lastAutoOtpRef.current === otp) return;
+    lastAutoOtpRef.current = otp;
+    void handleVerifyOtp();
+  }, [otp, otpBusy, step, mfaVerifiedFactor]);
 
   // Passkey sign-in
   const handlePasskeySignIn = async () => {
@@ -1062,7 +1070,9 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
                       placeholder="6-digit code"
                       value={otp}
                       onChange={(e) => {
-                        setOtp(e.target.value.replace(/\D/g, '').slice(0, 6));
+                        const nextOtp = e.target.value.replace(/\D/g, '').slice(0, 6);
+                        if (nextOtp !== otp) lastAutoOtpRef.current = null;
+                        setOtp(nextOtp);
                         if (otpError) setOtpError(null);
                       }}
                       disabled={otpBusy}

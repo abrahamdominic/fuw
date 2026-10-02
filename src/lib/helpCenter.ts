@@ -200,11 +200,13 @@ export async function saveAnnouncement(input: {
   }
 }
 
-/** Admin: delete an announcement. */
+/** Admin: delete an announcement AND remove the student notifications it generated. */
 export async function deleteAnnouncement(id: string): Promise<void> {
   const client = requireSupabase();
-  const { error } = await client.from('library_announcements').delete().eq('id', id);
-  if (error) throw error;
+  const { error } = await client.rpc('delete_announcement', {
+    p_announcement_id: id
+  });
+  if (error) throw friendlyAnnouncementError(error);
 }
 
 /** Admin: sent-announcement metadata (audience + type) display labels. */
