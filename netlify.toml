@@ -5,9 +5,20 @@
 # ----------------------------------------------------------------------------
 # Redirects
 #
-# netlify.toml is the single source of truth. public/_redirects is kept empty
-# on purpose: Netlify merges both files and a SPA catch-all in _redirects would
-# win over everything below and turn genuine 404s into soft 404s.
+# This file owns the *policy* redirects (legacy aliases, hard blocks, headers).
+# The per-route SPA rewrites are generated into dist/_redirects by
+# scripts/generate-seo.ts, from the same source of truth as sitemap.xml, so a
+# URL is indexable and resolvable or it is neither.
+#
+# Do not add a `/*` catch-all here. A `/* -> /404.html  404` rule with
+# `force = true` wins over the file server, which means it also hijacks
+# robots.txt, sitemap.xml, favicon.ico and every hashed asset — the site ends
+# up serving HTML in place of its own CSS and JS. A `/* -> /index.html  200`
+# rule has the opposite problem: it answers HTTP 200 for pages that do not
+# exist, which seo.md §31 and §54 forbid.
+#
+# With no catch-all, Netlify serves real files first and answers everything
+# unmatched with dist/404.html and a genuine HTTP 404.
 # ----------------------------------------------------------------------------
 
 # Legacy alias: /departments was a duplicate of /faculties. One permanent
@@ -19,12 +30,6 @@
   force = true
 
 # Historic .html URLs that may still be linked from outside.
-[[redirects]]
-  from = "/index.html"
-  to = "/"
-  status = 301
-  force = true
-
 [[redirects]]
   from = "/library.html"
   to = "/library"
@@ -92,15 +97,9 @@
   status = 404
   force = true
 
-# SPA fallback. dist/404.html is a byte-for-byte copy of dist/index.html
-# written by scripts/generate-seo.ts, so React Router still renders the correct
-# public page (including its canonical, robots and JSON-LD head) while Netlify
-# answers with a genuine HTTP 404 instead of HTTP 200.
-[[redirects]]
-  from = "/*"
-  to = "/404.html"
-  status = 404
-  force = true
+# No SPA catch-all: see the header comment. dist/_redirects lists every route
+# that exists with a 200 rewrite, and Netlify answers the rest with
+# dist/404.html at HTTP 404.
 
 # ----------------------------------------------------------------------------
 # Headers

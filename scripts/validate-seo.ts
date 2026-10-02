@@ -220,7 +220,77 @@ for (const meta of sampleMetas) {
 }
 
 // ---------------------------------------------------------------------------
-// 5. Social image and icons exist in the build output
+// 5. Routing: every real URL resolves with 200, everything else with 404
+//
+// This is the check that would have caught the production incident where a
+// `/* -> /404.html  404  force = true` catch-all served HTML in place of
+// robots.txt, sitemap.xml, favicon.ico and every hashed asset.
+// ---------------------------------------------------------------------------
+const redirectsPath = resolve(DIST, '_redirects');
+const netlifyToml = resolve(ROOT, 'netlify.toml');
+
+if (!existsSync(redirectsPath)) {
+  fail('dist/_redirects is missing — client-side routes would answer HTTP 404');
+} else {
+  const rules = readFileSync(redirectsPath, 'utf8')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith('#'))
+    .map((line) => {
+      const [from, to, status] = line.split(/\s+/);
+      return { from, to, status };
+    });
+
+  const rewritten = new Set<string>();
+  const reserved = new Set(['/robots.txt', '/sitemap.xml', '/404.html', '/index.html', '/favicon.ico', '/site.webmanifest']);
+
+  for (const rule of rules) {
+    if (rule.status !== '200') fail(`dist/_redirects rule "${rule.from}" must rewrite with status 200, got ${rule.status}`);
+    if (rule.to !== '/index.html') fail(`dist/_redirects rule "${rule.from}" must target /index.html, got "${rule.to}"`);
+    if (rule.from === '/*' || rule.from === '/*/*') {
+      fail('dist/_redirects contains a /* catch-all: it would answer HTTP 200 for nonexistent content (seo.md §54)');
+    }
+    if (reserved.has(rule.from)) fail(`dist/_redirects rewrites the static file ${rule.from}, which would shadow it`);
+    if (/^\/(assets|images)\//.test(rule.from)) fail(`dist/_redirects rewrites build asset ${rule.from}, which would shadow it`);
+    rewritten.add(rule.from);
+  }
+
+  // Everything the sitemap advertises must actually resolve with 200.
+  if (existsSync(sitemapPath)) {
+    const advertised = readFileSync(sitemapPath, 'utf8')
+      .match(/<loc>[^<]+<\/loc>/g)
+      ?.map((tag) => new URL(tag.replace(/<\/?loc>/g, '')).pathname) ?? [];
+
+    for (const path of advertised) {
+      if (!rewritten.has(path)) {
+        fail(`sitemap advertises ${path} but dist/_redirects has no 200 rewrite for it — it would answer HTTP 404`);
+      }
+    }
+  }
+
+  // Real-but-noindex routes must resolve too, or signed-in users hit 404s.
+  for (const path of [
+    ...Object.keys(NOINDEX_ROUTES),
+    ...Object.keys(PRIVATE_ROUTES),
+    ...Object.keys(PORTAL_ROUTES)
+  ]) {
+    if (!rewritten.has(path)) fail(`route ${path} has no 200 rewrite in dist/_redirects`);
+  }
+}
+
+// The catch-all can also be reintroduced in netlify.toml instead of _redirects.
+if (existsSync(netlifyToml)) {
+  const toml = readFileSync(netlifyToml, 'utf8');
+  if (/from\s*=\s*"\/\*"\s*\n\s*to\s*=\s*"\/index\.html"\s*\n\s*status\s*=\s*200/.test(toml)) {
+    fail('netlify.toml has a /* -> /index.html 200 catch-all: nonexistent content would answer HTTP 200 (seo.md §54)');
+  }
+  if (/from\s*=\s*"\/\*"\s*\n\s*to\s*=\s*"\/404\.html"/.test(toml)) {
+    fail('netlify.toml has a /* -> /404.html catch-all: it also hijacks robots.txt, sitemap.xml and every hashed asset');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 6. Social image and icons exist in the build output
 // ---------------------------------------------------------------------------
 for (const asset of [
   '/images/fuw-elibrary-og.png',
