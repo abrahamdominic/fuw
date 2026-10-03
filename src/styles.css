@@ -15512,3 +15512,208 @@ select.form-input {
   line-height: 1.6;
   margin: 0;
 }
+
+/* Premium Admin */
+.premium-admin-page {
+  display: grid;
+  gap: 16px;
+}
+
+.premium-admin-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.premium-admin-control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: clamp(12px, 1.5vw, 18px);
+  padding: clamp(14px, 1.5vw, 20px);
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.premium-admin-control.is-enabled {
+  border-color: rgba(18, 96, 61, 0.4);
+  box-shadow: 0 1px 1px rgba(18, 96, 61, 0.05), 0 20px 60px -40px rgba(18, 96, 61, 0.5);
+}
+
+.premium-admin-control-icon {
+  display: grid;
+  place-items: center;
+  width: clamp(40px, 2vw, 48px);
+  height: clamp(40px, 2vw, 48px);
+  border-radius: 12px;
+  color: #12603d;
+  background: #eef6f0;
+  flex-shrink: 0;
+}
+
+.premium-admin-control-icon.is-gold {
+  color: #975a16;
+  background: #fef3c7;
+}
+
+.premium-admin-control-copy {
+  display: grid;
+  gap: 6px;
+  flex: 1 1 260px;
+}
+
+.premium-admin-control-copy h2 {
+  margin: 0;
+  font-size: clamp(15px, 0.4vw + 13px, 17px);
+  font-weight: 600;
+  color: #22372b;
+}
+
+.premium-admin-control-copy p {
+  margin: 0;
+  line-height: 1.6;
+  color: #617267;
+  font-size: clamp(13px, 0.3vw + 12px, 14px);
+}
+
+.premium-admin-status {
+  justify-self: start;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+  background: #f1f5f2;
+  color: #617267;
+}
+
+.premium-admin-status.is-on {
+  background: rgba(22, 128, 61, 0.12);
+  color: #0f6537;
+  border-color: rgba(22, 128, 61, 0.25);
+}
+
+.premium-admin-status.is-off {
+  background: rgba(180, 35, 24, 0.08);
+  color: #b42318;
+  border-color: rgba(180, 35, 24, 0.2);
+}
+
+.premium-feature-list {
+  display: grid;
+  gap: 8px;
+}
+
+.premium-feature-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: clamp(10px, 1.5vw, 16px);
+  padding: clamp(10px, 1.2vw, 14px) clamp(12px, 1.2vw, 16px);
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: border 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.premium-feature-row:hover {
+  border-color: rgba(18, 96, 61, 0.25);
+  box-shadow: 0 1px 1px rgba(18, 96, 61, 0.05), 0 16px 48px -40px rgba(18, 96, 61, 0.4);
+  transform: translateY(-1px);
+}
+
+.premium-feature-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  color: #12603d;
+  background: #eef6f0;
+  flex-shrink: 0;
+}
+
+.premium-feature-copy {
+  display: grid;
+  gap: 4px;
+  flex: 1 1 240px;
+}
+
+.premium-feature-copy b {
+  font-size: clamp(14px, 0.3vw + 12px, 15px);
+  color: #22372b;
+}
+
+.premium-feature-copy small {
+  line-height: 1.6;
+  color: #617267;
+  font-size: clamp(12.5px, 0.25vw + 11.5px, 13.5px);
+}
+
+.premium-feature-state {
+  align-self: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  background: #f1f5f2;
+  color: #617267;
+  flex-shrink: 0;
+}
+
+.premium-feature-row input[type="checkbox"] {
+  align-self: center;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.premium-audit-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: clamp(14px, 1.5vw, 18px);
+  list-style: none;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.premium-audit-list li {
+  display: grid;
+  gap: 4px;
+  padding: clamp(8px, 1vw, 10px) 0;
+  border-bottom: 1px solid #f0f5f2;
+}
+
+.premium-audit-list li:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.premium-audit-list b {
+  font-size: clamp(14px, 0.3vw + 12px, 15px);
+  color: #22372b;
+  text-transform: capitalize;
+}
+
+.premium-audit-list span {
+  font-size: clamp(12.5px, 0.25vw + 11.5px, 13.5px);
+  color: #617267;
+}
+
+.premium-audit-list small {
+  font-size: clamp(11.5px, 0.2vw + 10.5px, 12.5px);
+  color: #7f8f81;
+  overflow-wrap: anywhere;
+}

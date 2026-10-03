@@ -115,8 +115,8 @@ export function SuperAdminPremiumTab() {
       <div className="page-head">
         <div className="page-head-text">
           <p className="kicker">PLATFORM GOVERNANCE</p>
-          <h1>Premium system</h1>
-          <p>Manage paid access, global grants and Premium feature availability.</p>
+          <h1>Premium Management</h1>
+          <p>This page controls Premium access, global grants, payment access, and Premium feature availability.</p>
         </div>
         <button type="button" className="secondary-btn" onClick={() => void load()} disabled={loading}>
           {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
