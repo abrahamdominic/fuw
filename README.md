@@ -408,3 +408,19 @@ General rule: every script is idempotent — when in doubt, re-run the failing s
 - [ ] A fresh anonymous session sees only approved materials and no private profiles.
 
 The database is ready for the FUW E-Library application once every box is ticked.
+
+## Premium access and Paystack operations
+
+Premium entitlements, feature controls, payment transactions, and atomic AI usage
+limits are managed by the migration in `supabase/migrations/20261003103937_premium_entitlement_foundation.sql`.
+Deploy that migration before deploying the related Edge Functions. The
+`paystack-webhook` function must be deployed without gateway JWT verification;
+it validates Paystack's HMAC signature itself.
+
+Before enabling automatic payments in **Super Admin → Premium payments**,
+configure `PAYSTACK_SECRET_KEY` as a Supabase Edge Function secret. Optionally
+set `PAYSTACK_CALLBACK_URL`; otherwise checkout returns to `APP_ORIGIN` at
+`/student/subscription?payment=return`. Register
+`https://<project-ref>.supabase.co/functions/v1/paystack-webhook` as the
+Paystack webhook URL. Do not put provider secrets in Vite variables or client
+code. Manual transfers remain separate and require Super Admin approval.

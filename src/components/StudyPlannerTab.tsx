@@ -1,6 +1,7 @@
 // StudyPlannerTab — per-user study plan with progress tracking.
 // Backed by the study_planner_tasks table (see 20260917_study_social_security.sql).
 import React, { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   CalendarRange,
   Plus,
@@ -27,6 +28,7 @@ import {
   type PlannerPriority
 } from '../lib/planner';
 import { useToast } from './Toast';
+import { requireSupabase } from '../lib/supabase';
 
 const TASK_TYPES: { value: PlannerTaskType; label: string }[] = [
   { value: 'study', label: 'Study' },
@@ -78,11 +80,25 @@ export function StudyPlannerTab() {
   const [form, setForm] = useState<PlannerTaskInput>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [filter, setFilter] = useState<'all' | 'pending' | 'in_progress' | 'completed'>('all');
+  const [advancedPlansEnabled, setAdvancedPlansEnabled] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const items = await fetchPlannerTasks();
-    setTasks(items);
-    setLoading(false);
+    setLoading(true);
+    try {
+      const [items, featureResult] = await Promise.all([
+        fetchPlannerTasks(),
+        requireSupabase().rpc('has_premium_feature', { p_feature_key: 'advanced_study_plans' })
+      ]);
+      if (featureResult.error) throw new Error(featureResult.error.message);
+      setTasks(items);
+      setAdvancedPlansEnabled(featureResult.data === true);
+      setLoadError(null);
+    } catch (cause) {
+      setLoadError(cause instanceof Error ? cause.message : 'Could not verify study-planner access.');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -115,6 +131,10 @@ export function StudyPlannerTab() {
     e.preventDefault();
     if (!form.title.trim()) {
       toast('Please enter a title for the task.', 'error');
+      return;
+    }
+    if (form.taskType === 'exam_prep' && !advancedPlansEnabled) {
+      toast('Premium access is required for advanced exam-preparation tasks.', 'error');
       return;
     }
     setSaving(true);
@@ -208,6 +228,8 @@ export function StudyPlannerTab() {
 
       {loading ? (
         <div className="portal-empty">Loading your study plan…</div>
+      ) : loadError ? (
+        <p className="inline-notice is-error" role="alert">{loadError}</p>
       ) : !showForm && tasks.length === 0 ? (
         <div className="portal-empty">
           <CalendarRange size={34} className="empty-icon" />
@@ -256,8 +278,8 @@ export function StudyPlannerTab() {
                 onChange={(e) => setForm((f) => ({ ...f, taskType: e.target.value as PlannerTaskType }))}
               >
                 {TASK_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
+                  <option key={t.value} value={t.value} disabled={t.value === 'exam_prep' && !advancedPlansEnabled}>
+                    {t.label}{t.value === 'exam_prep' && !advancedPlansEnabled ? ' (Premium)' : ''}
                   </option>
                 ))}
               </select>
@@ -294,6 +316,11 @@ export function StudyPlannerTab() {
               />
             </label>
           </div>
+          {!advancedPlansEnabled && (
+            <p className="planner-premium-hint">
+              Advanced exam-preparation tasks require <Link to="/student/subscription">Premium access</Link>.
+            </p>
+          )}
           <div className="planner-form-actions">
             <button type="button" className="secondary-btn" onClick={() => setShowForm(false)}>
               Cancel
@@ -326,6 +353,7 @@ export function StudyPlannerTab() {
         <div className="planner-list">
           {visibleTasks.map((task, taskIndex) => {
             const isDone = task.status === 'completed';
+            const requiresPremium = task.taskType === 'exam_prep' && !advancedPlansEnabled;
             const overdue = task.status !== 'completed' && task.status !== 'skipped' && !!task.dueDate && new Date(task.dueDate).getTime() < Date.now();
             return (
               <div
@@ -336,11 +364,12 @@ export function StudyPlannerTab() {
                 <button
                   type="button"
                   className="planner-item-toggle"
+                  disabled={requiresPremium}
                   onClick={() =>
                     handleSetStatus(task.id, isDone ? 'pending' : task.status === 'in_progress' ? 'completed' : 'in_progress')
                   }
                   aria-label={isDone ? 'Mark as not done' : 'Advance status'}
-                  title={isDone ? 'Mark as pending' : 'Advance status'}
+                  title={requiresPremium ? 'Premium access is required to update this exam-prep task' : isDone ? 'Mark as pending' : 'Advance status'}
                 >
                   {isDone ? <CheckCircle2 size={20} /> : task.status === 'in_progress' ? <PlayCircle size={20} /> : <Circle size={20} />}
                 </button>
@@ -353,6 +382,7 @@ export function StudyPlannerTab() {
                       </span>
                     )}
                     <span className="planner-badge neutral">{task.taskType.replace('_', ' ')}</span>
+                    {requiresPremium && <Link className="planner-premium-link" to="/student/subscription">Premium required</Link>}
                     {task.priority !== 'normal' && (
                       <span className={`planner-badge prio-${task.priority}`}>
                         <Flag size={11} /> {task.priority}

@@ -190,21 +190,35 @@ export function PaymentsAdminTab() {
       {tab === 'configuration' ? (
         <form className="card payment-config-form" onSubmit={(event) => void saveConfiguration(event)}>
           <div className="payment-config-intro">
-            <h2>Manual bank transfer</h2>
-            <p>These database-stored instructions are shown to verified students on the premium page.</p>
+            <h2>Payment methods</h2>
+            <p>Configure manual bank transfers and Paystack checkout. Manual instructions are shown to verified students.</p>
           </div>
           <label className="payment-config-toggle">
             <input
               type="checkbox"
-              checked={configuration.active}
-              onChange={(event) => updateConfiguration({ active: event.target.checked })}
+              checked={configuration.manual_enabled}
+              onChange={(event) => updateConfiguration({
+                active: event.target.checked,
+                manual_enabled: event.target.checked
+              })}
             />
             Accept manual payment submissions
           </label>
+          <label className="payment-config-toggle">
+            <input
+              type="checkbox"
+              checked={configuration.automatic_enabled}
+              onChange={(event) => updateConfiguration({ automatic_enabled: event.target.checked })}
+            />
+            Accept automatic Paystack payments
+          </label>
+          <p className="muted-row">
+            Automatic checkout requires the server-side <code>PAYSTACK_SECRET_KEY</code> secret to be configured before enabling it.
+          </p>
           <div className="payment-config-grid">
-            <label>Bank name<input className="form-input" value={configuration.bank_name} onChange={(event) => updateConfiguration({ bank_name: event.target.value })} maxLength={120} required={configuration.active} /></label>
-            <label>Account name<input className="form-input" value={configuration.account_name} onChange={(event) => updateConfiguration({ account_name: event.target.value })} maxLength={160} required={configuration.active} /></label>
-            <label>Account number<input className="form-input" value={configuration.account_number} onChange={(event) => updateConfiguration({ account_number: event.target.value })} maxLength={40} inputMode="numeric" required={configuration.active} /></label>
+            <label>Bank name<input className="form-input" value={configuration.bank_name} onChange={(event) => updateConfiguration({ bank_name: event.target.value })} maxLength={120} required={configuration.manual_enabled} /></label>
+            <label>Account name<input className="form-input" value={configuration.account_name} onChange={(event) => updateConfiguration({ account_name: event.target.value })} maxLength={160} required={configuration.manual_enabled} /></label>
+            <label>Account number<input className="form-input" value={configuration.account_number} onChange={(event) => updateConfiguration({ account_number: event.target.value })} maxLength={40} inputMode="numeric" required={configuration.manual_enabled} /></label>
             <label>Currency
               <select className="form-input" value={configuration.currency} onChange={(event) => updateConfiguration({ currency: event.target.value as PaymentConfiguration['currency'] })}>
                 {PAYMENT_CURRENCIES.map((currency) => <option value={currency} key={currency}>{currency}</option>)}
@@ -270,7 +284,11 @@ export function PaymentsAdminTab() {
                         <span className={`payment-status-pill is-${request.status}`}>{request.status}</span>
                       </div>
                       <span>{request.student_email || 'No email'} · Matric {request.student_matric_number || '—'}</span>
-                      <span>{request.plan_name} · {naira(request.amount_kobo, request.currency)} · {new Date(request.created_at).toLocaleString('en-NG')}</span>
+                      <span>{request.plan_name} · Expected {naira(request.amount_kobo, request.currency)}
+                        {request.submitted_amount_kobo != null && ` · Reported ${naira(request.submitted_amount_kobo, request.currency)}`}
+                        {` · ${new Date(request.created_at).toLocaleString('en-NG')}`}
+                      </span>
+                      {request.payment_date && <span>Transfer date: {new Date(`${request.payment_date}T00:00:00`).toLocaleDateString('en-NG')} · Method: {request.payment_method || 'bank transfer'}</span>}
                       {request.payment_reference && <span>Reference: {request.payment_reference}</span>}
                       {request.rejection_reason && <span className="payment-rejection-reason">Rejection: {request.rejection_reason}</span>}
                     </div>
@@ -303,7 +321,13 @@ export function PaymentsAdminTab() {
           <section className="protected-modal payment-review-modal" role="dialog" aria-modal="true" aria-labelledby="payment-review-title" onClick={(event) => event.stopPropagation()}>
             <h2 id="payment-review-title">Review payment</h2>
             <p><b>{selected.student_name || 'Student'}</b><br />{selected.student_email || 'No email'} · {selected.student_matric_number || 'No matric number'}</p>
-            <p>{selected.plan_name} · {naira(selected.amount_kobo, selected.currency)}<br />Submitted {new Date(selected.created_at).toLocaleString('en-NG')}</p>
+            <p>
+              {selected.plan_name} · Expected {naira(selected.amount_kobo, selected.currency)}
+              {selected.submitted_amount_kobo != null && <> · Reported {naira(selected.submitted_amount_kobo, selected.currency)}</>}
+              <br />Submitted {new Date(selected.created_at).toLocaleString('en-NG')}
+              {selected.payment_date && <><br />Transfer date {new Date(`${selected.payment_date}T00:00:00`).toLocaleDateString('en-NG')}</>}
+              {selected.payment_method && <> · {selected.payment_method.replaceAll('_', ' ')}</>}
+            </p>
             {selected.payment_reference && <p>Reference: {selected.payment_reference}</p>}
             <button type="button" className="secondary-btn" onClick={() => void openReceipt(selected)}>
               <ExternalLink size={15} /> View private receipt

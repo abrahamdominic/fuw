@@ -15,7 +15,8 @@ const ICONS: Record<BlockReason, React.ReactNode> = {
   pending: <ShieldAlert size={30} />,
   rejected: <ShieldAlert size={30} />,
   unverified: <BadgeCheck size={30} />,
-  'no-plan': <Crown size={30} />
+  'no-plan': <Crown size={30} />,
+  'feature-disabled': <ShieldAlert size={30} />
 };
 
 const TITLES: Record<BlockReason, string> = {
@@ -24,7 +25,8 @@ const TITLES: Record<BlockReason, string> = {
   pending: 'Verification in progress',
   rejected: 'Verification not approved',
   unverified: 'Verified students only',
-  'no-plan': 'Premium plan required'
+  'no-plan': 'Premium plan required',
+  'feature-disabled': 'Premium feature unavailable'
 };
 
 interface Props {
@@ -49,6 +51,7 @@ export function PremiumGateModal({ open, reason, message, onClose }: Props) {
       case 'pending':
         return { label: 'View status', target: '/student/verification' };
       case 'no-plan':
+      case 'feature-disabled':
         return { label: 'See plans', target: '/student/subscription' };
       case 'unsubmitted':
       case 'unverified':

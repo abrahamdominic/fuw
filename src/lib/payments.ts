@@ -8,6 +8,8 @@ const ALLOWED_RECEIPT_TYPES = new Set(['image/jpeg', 'image/png', 'application/p
 
 export interface PaymentConfiguration {
   active: boolean;
+  manual_enabled: boolean;
+  automatic_enabled: boolean;
   bank_name: string;
   account_name: string;
   account_number: string;
@@ -26,6 +28,9 @@ export interface PaymentRequest {
   currency: PaymentCurrency;
   receipt_path: string;
   payment_reference: string | null;
+  submitted_amount_kobo?: number | null;
+  payment_date?: string | null;
+  payment_method?: string;
   status: 'pending' | 'approved' | 'rejected';
   rejection_reason: string | null;
   reviewed_by: string | null;
@@ -49,8 +54,33 @@ export interface AdminPaymentRequest extends PaymentRequest {
   total_count: number;
 }
 
+export interface PaymentTransaction {
+  id: string;
+  payment_reference: string;
+  amount_kobo: number;
+  currency: PaymentCurrency;
+  payment_method: 'automatic' | 'manual';
+  provider: string;
+  status: 'pending' | 'verified' | 'failed' | 'expired';
+  verification_status: 'pending' | 'verified' | 'failed';
+  created_at: string;
+  verified_at: string | null;
+  activated_at: string | null;
+  expires_at: string | null;
+  failure_reason: string | null;
+}
+
+export interface PremiumPublicConfiguration {
+  enabled: boolean;
+  manual_payment_enabled: boolean;
+  automatic_payment_enabled: boolean;
+  features: Array<{ feature_key: string; label: string; description: string }>;
+}
+
 export const EMPTY_PAYMENT_CONFIGURATION: PaymentConfiguration = {
   active: false,
+  manual_enabled: false,
+  automatic_enabled: false,
   bank_name: '',
   account_name: '',
   account_number: '',
@@ -64,7 +94,14 @@ export const EMPTY_PAYMENT_CONFIGURATION: PaymentConfiguration = {
 export async function fetchPaymentConfiguration(): Promise<PaymentConfiguration> {
   const { data, error } = await requireSupabase().rpc('get_payment_configuration');
   if (error) throw new Error(error.message);
-  return { ...EMPTY_PAYMENT_CONFIGURATION, ...(data as Partial<PaymentConfiguration>) };
+  const received = (data ?? {}) as Partial<PaymentConfiguration>;
+  const result = { ...EMPTY_PAYMENT_CONFIGURATION, ...received };
+  result.manual_enabled = typeof received.manual_enabled === 'boolean'
+    ? received.manual_enabled
+    : received.active === true;
+  result.automatic_enabled = received.automatic_enabled === true;
+  result.active = result.manual_enabled;
+  return result;
 }
 
 export async function savePaymentConfiguration(
@@ -73,7 +110,7 @@ export async function savePaymentConfiguration(
   priceKobo: number
 ): Promise<void> {
   const { error } = await requireSupabase().rpc('save_payment_configuration', {
-    p_configuration: configuration,
+    p_configuration: { ...configuration, active: configuration.manual_enabled },
     p_plan_slug: premiumPlanSlug,
     p_price_kobo: priceKobo
   });
@@ -90,10 +127,69 @@ export async function fetchMyPaymentRequests(): Promise<PaymentRequest[]> {
   return (data ?? []) as PaymentRequest[];
 }
 
+export async function fetchMyPaymentTransactions(): Promise<PaymentTransaction[]> {
+  const { data, error } = await requireSupabase()
+    .from('payment_transactions')
+    .select('id, payment_reference, amount_kobo, currency, payment_method, provider, status, verification_status, created_at, verified_at, activated_at, expires_at, failure_reason')
+    .order('created_at', { ascending: false })
+    .limit(50);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as PaymentTransaction[];
+}
+
+export async function fetchPremiumPublicConfiguration(): Promise<PremiumPublicConfiguration> {
+  const { data, error } = await requireSupabase().rpc('get_premium_public_configuration');
+  if (error) throw new Error(error.message);
+  return data as PremiumPublicConfiguration;
+}
+
+export async function startAutomaticPayment(planSlug: string): Promise<string> {
+  const client = requireSupabase();
+  const { data, error } = await client.functions.invoke('paystack-initialize', {
+    body: { planSlug }
+  });
+  if (error) {
+    let detail = error.message;
+    try {
+      const body = await (error as { context?: Response }).context?.clone().json();
+      if (typeof body?.message === 'string') detail = body.message;
+    } catch {
+      // Keep the SDK error when the Edge Function returned a non-JSON response.
+    }
+    throw new Error(detail || 'Could not start the automatic payment.');
+  }
+  if (typeof data?.authorization_url !== 'string' || !data.authorization_url.startsWith('https://checkout.paystack.com/')) {
+    throw new Error('The payment provider returned an invalid checkout link.');
+  }
+  return data.authorization_url;
+}
+
+export async function verifyAutomaticPayment(reference: string): Promise<'pending' | 'verified' | 'failed' | 'expired'> {
+  const { data, error } = await requireSupabase().functions.invoke('paystack-verify', {
+    body: { reference }
+  });
+  if (error) {
+    let detail = error.message;
+    try {
+      const body = await (error as { context?: Response }).context?.clone().json();
+      if (typeof body?.error === 'string') detail = body.error;
+    } catch {
+      // Keep the SDK error when the Edge Function returned a non-JSON response.
+    }
+    throw new Error(detail || 'Could not verify this payment.');
+  }
+  if (!['pending', 'verified', 'failed', 'expired'].includes(data?.status)) {
+    throw new Error('The payment provider returned an invalid verification status.');
+  }
+  return data.status;
+}
+
 export async function submitPaymentRequest(input: {
   planSlug: string;
   file: File;
   reference?: string;
+  paymentDate: string;
+  submittedAmountKobo: number;
 }): Promise<PaymentRequest> {
   if (!ALLOWED_RECEIPT_TYPES.has(input.file.type)) {
     throw new Error('Choose a JPG, PNG, or PDF receipt.');
@@ -117,7 +213,10 @@ export async function submitPaymentRequest(input: {
   const { data, error } = await client.rpc('submit_payment_request', {
     p_plan_slug: input.planSlug,
     p_receipt_path: receiptPath,
-    p_payment_reference: input.reference?.trim() || null
+    p_payment_reference: input.reference?.trim() || null,
+    p_payment_date: input.paymentDate,
+    p_submitted_amount_kobo: input.submittedAmountKobo,
+    p_payment_method: 'bank_transfer'
   });
   if (error) {
     const { error: cleanupError } = await client.storage.from(PAYMENT_RECEIPTS_BUCKET).remove([receiptPath]);

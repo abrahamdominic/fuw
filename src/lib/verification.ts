@@ -37,7 +37,7 @@ export interface PlanSummary {
   slug: string;
   name: string;
   status: string;
-  expires_at: string;
+  expires_at: string | null;
   is_premium: boolean;
 }
 
@@ -179,8 +179,22 @@ export async function fetchMyPlan(): Promise<PlanSummary | null> {
   const client = requireSupabase();
   const { data, error } = await client.rpc('my_plan');
   if (error) throw new Error(error.message);
-  const rows = (data as PlanSummary[]) ?? [];
-  return rows[0] ?? null;
+  const rows = (data ?? []) as Array<{
+    plan_slug: string;
+    plan_name: string;
+    status: string;
+    expires_at: string | null;
+    is_premium: boolean;
+  }>;
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    slug: row.plan_slug,
+    name: row.plan_name,
+    status: row.status,
+    expires_at: row.expires_at,
+    is_premium: row.is_premium
+  };
 }
 
 export async function fetchHasPremium(): Promise<boolean> {
@@ -188,6 +202,14 @@ export async function fetchHasPremium(): Promise<boolean> {
   const { data, error } = await client.rpc('has_premium_access');
   if (error) return false;
   return data === true;
+}
+
+export async function fetchMyPremiumSource(): Promise<'PAYMENT' | 'ADMIN_GRANT' | 'GLOBAL_PREMIUM' | null> {
+  const client = requireSupabase();
+  const { data, error } = await client.rpc('my_premium_source');
+  if (error) throw new Error(error.message);
+  if (data === 'PAYMENT' || data === 'ADMIN_GRANT' || data === 'GLOBAL_PREMIUM') return data;
+  return null;
 }
 
 export async function fetchCatalogPlans(): Promise<CatalogPlan[]> {

@@ -15,7 +15,6 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { aiConfig, chatComplete, embedTexts, corsFor, json, ChatMessage } from '../_shared/ai.ts';
 
 const MAX_MESSAGE_LENGTH = 2000;
-const HOURLY_MESSAGE_LIMIT = 40;
 
 const MODE_HINTS: Record<string, string> = {
   explainer:
@@ -67,41 +66,62 @@ Deno.serve(async (req) => {
     return json({ error: `Messages are limited to ${MAX_MESSAGE_LENGTH} characters.` }, 413, req);
   }
 
+  const { data: assistantEnabled, error: assistantFeatureError } = await userClient.rpc('premium_feature_enabled', {
+    p_feature_key: 'ai_assistant'
+  });
+  if (assistantFeatureError) {
+    console.error('ai-chat feature check failed:', assistantFeatureError.message);
+    return json({ error: 'FEATURE_CHECK_FAILED', message: 'AI availability could not be verified.' }, 503, req);
+  }
+  if (assistantEnabled !== true) {
+    return json({ error: 'FEATURE_DISABLED', message: 'The AI Assistant is currently disabled.' }, 403, req);
+  }
+
+  const mode =
+    typeof body.mode === 'string' && MODE_HINTS[body.mode] ? body.mode : null;
+  const premiumFeaturesByMode: Record<string, string[]> = {
+    explainer: ['ai_explanations'],
+    exam: ['advanced_exam_preparation', 'advanced_question_analysis'],
+    quiz: ['advanced_exam_preparation']
+  };
+  if (mode && premiumFeaturesByMode[mode]) {
+    for (const featureKey of premiumFeaturesByMode[mode]) {
+      const { data: modeAllowed, error: modeFeatureError } = await userClient.rpc('has_premium_feature', {
+        p_feature_key: featureKey
+      });
+      if (modeFeatureError) {
+        console.error('ai-chat mode authorization failed:', modeFeatureError.message);
+        return json({ error: 'FEATURE_CHECK_FAILED', message: 'Premium access could not be verified.' }, 503, req);
+      }
+      if (modeAllowed !== true) {
+        return json({ error: 'PREMIUM_FEATURE_REQUIRED', message: 'This AI study mode requires an active Premium entitlement.' }, 403, req);
+      }
+    }
+  }
+
   const cfg = aiConfig();
   if (!cfg.configured) {
     return json({ error: 'AI_NOT_CONFIGURED', message: 'The AI assistant is not configured yet. Please contact the library administrator.' }, 503, req);
   }
 
-  try {
-    // ---- Rate limiting (per user, per hour) ----
-    const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-    const { data: myConversations } = await serviceClient
-      .from('ai_conversations')
-      .select('id')
-      .eq('user_id', user.id);
-    let usedThisHour = 0;
-    const convoIds = (myConversations ?? []).map((c: { id: string }) => c.id);
-    if (convoIds.length) {
-      const { count } = await serviceClient
-        .from('ai_messages')
-        .select('id', { count: 'exact', head: true })
-        .eq('role', 'user')
-        .gte('created_at', hourAgo)
-        .in('conversation_id', convoIds);
-      usedThisHour = count ?? 0;
+  const { data: usage, error: usageError } = await userClient.rpc('consume_ai_message');
+  if (usageError) {
+    console.error('ai-chat rate limit check failed:', usageError.message);
+    return json({ error: 'RATE_LIMIT_CHECK_FAILED', message: 'AI usage could not be verified.' }, 503, req);
+  }
+  if (usage?.allowed !== true) {
+    if (usage?.reason === 'feature_disabled') {
+      return json({ error: 'FEATURE_DISABLED', message: 'The AI Assistant is currently disabled.' }, 403, req);
     }
-    if (usedThisHour >= HOURLY_MESSAGE_LIMIT) {
-      return json({ error: 'RATE_LIMITED', message: 'You have reached your hourly AI limit. Please try again later.' }, 429, req);
-    }
+    return json({ error: 'RATE_LIMITED', message: 'You have reached your hourly AI limit. Please try again later.' }, 429, req);
+  }
 
+  try {
     // ---- Conversation resolution ----
     let conversationId: string | null = body.conversationId ? String(body.conversationId) : null;
     const hasExplicitMaterial = body.materialId !== undefined && body.materialId !== null && body.materialId !== '';
     const explicitMaterialId = hasExplicitMaterial ? String(body.materialId) : null;
     const clearScope = body.clearScope === true;
-    const mode =
-      typeof body.mode === 'string' && MODE_HINTS[body.mode] ? body.mode : null;
-
     let materialId: string | null = explicitMaterialId;
     let existingScopeMaterialId: string | null | undefined;
 

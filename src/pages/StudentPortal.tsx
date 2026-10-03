@@ -107,6 +107,7 @@ import { fetchAcademicSessions, AcademicSession } from '../lib/academicSessions'
 import { analyticsTracker } from '../lib/analyticsTracker';
 import { fx, staggerDelay } from '../lib/motion';
 import { AnimatedModal } from '../components/animations/AnimatedModal';
+import { fetchPremiumPublicConfiguration, type PremiumPublicConfiguration } from '../lib/payments';
 
 
 interface StudentPortalProps {
@@ -1298,7 +1299,7 @@ function StudentAiChatTab({
   focusMaterial?: MaterialItem | null;
   onClearFocus?: () => void;
 }) {
-  const { profile } = useAuth();
+  const { profile, hasPremium } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -1308,7 +1309,8 @@ function StudentAiChatTab({
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notConfigured, setNotConfigured] = useState(false);
-  const [mode, setMode] = useState<'explainer' | 'exam' | 'summary' | 'quiz'>('explainer');
+  const [mode, setMode] = useState<'explainer' | 'exam' | 'summary' | 'quiz'>('summary');
+  const [premiumConfig, setPremiumConfig] = useState<PremiumPublicConfiguration | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
   // Monotonic generation counter: stale in-flight responses (e.g. after a
   // "New conversation" reset) are dropped instead of resurrecting old state.
@@ -1317,6 +1319,34 @@ function StudentAiChatTab({
   const inputRef = useRef<HTMLInputElement>(null);
   // Tracks the most recent question so the "Try Again" action can resend it.
   const lastQuestionRef = useRef('');
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchPremiumPublicConfiguration()
+      .then((config) => {
+        if (!cancelled) setPremiumConfig(config);
+      })
+      .catch((cause) => {
+        if (!cancelled) setError(cause instanceof Error ? cause.message : 'Could not load AI feature availability.');
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (mode === 'explainer' && (!hasPremium || !premiumConfig?.features.some((feature) => feature.feature_key === 'ai_explanations'))) {
+      setMode('summary');
+    }
+    if (mode === 'exam' &&
+      (!hasPremium ||
+        !premiumConfig?.features.some((feature) => feature.feature_key === 'advanced_exam_preparation') ||
+        !premiumConfig?.features.some((feature) => feature.feature_key === 'advanced_question_analysis'))) {
+      setMode('summary');
+    }
+    if (mode === 'quiz' &&
+      (!hasPremium || !premiumConfig?.features.some((feature) => feature.feature_key === 'advanced_exam_preparation'))) {
+      setMode('summary');
+    }
+  }, [hasPremium, mode, premiumConfig]);
 
   const copyAnswer = async (index: number, text: string) => {
     try {
@@ -1610,7 +1640,17 @@ function StudentAiChatTab({
               { key: 'exam', label: 'Exam prep', icon: GraduationCap },
               { key: 'quiz', label: 'Quiz me', icon: HelpCircle }
             ] as const
-          ).map((m) => (
+          ).filter((m) => {
+            if (!premiumConfig?.enabled) return false;
+            if (m.key === 'summary') return premiumConfig.features.some((feature) => feature.feature_key === 'ai_assistant');
+            if (!hasPremium) return false;
+            const requiredFeatures = m.key === 'explainer'
+              ? ['ai_explanations']
+              : m.key === 'exam'
+                ? ['advanced_exam_preparation', 'advanced_question_analysis']
+                : ['advanced_exam_preparation'];
+            return requiredFeatures.every((key) => premiumConfig.features.some((feature) => feature.feature_key === key));
+          }).map((m) => (
             <button
               key={m.key}
               type="button"
@@ -1622,6 +1662,11 @@ function StudentAiChatTab({
             </button>
           ))}
         </div>
+        {!hasPremium && premiumConfig?.enabled && (
+          <p className="ai-premium-hint">
+            Basic summaries are available on Free. <Link to="/student/subscription">Premium access</Link> unlocks explanation, exam-prep and quiz modes.
+          </p>
+        )}
 
         {/* One-tap study actions for the focused material / whole library */}
         <div className="ai-quick-actions">

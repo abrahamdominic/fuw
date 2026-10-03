@@ -5,8 +5,16 @@
 // asks the server and caches the answer briefly, so the UI never has to
 // re-derive the rule and never disagrees with storage RLS.
 import { fetchHasPremium } from './verification';
+import { requireSupabase } from './supabase';
 
-export type BlockReason = 'unverified' | 'unsubmitted' | 'pending' | 'rejected' | 'no-plan' | 'signed-out';
+export type BlockReason =
+  | 'unverified'
+  | 'unsubmitted'
+  | 'pending'
+  | 'rejected'
+  | 'no-plan'
+  | 'signed-out'
+  | 'feature-disabled';
 
 export interface AccessDecision {
   allowed: boolean;
@@ -43,7 +51,8 @@ const MESSAGES: Record<BlockReason, string> = {
   pending: 'Your verification is still being reviewed by the library.',
   rejected: 'Your verification was not approved. Submit it again to continue.',
   unverified: 'Only verified students can download this material.',
-  'no-plan': 'Downloading needs an active premium plan. Ask the library to activate one.'
+  'no-plan': 'Downloading needs an active premium plan. Ask the library to activate one.',
+  'feature-disabled': 'This Premium feature is temporarily unavailable.'
 };
 
 /**
@@ -71,7 +80,15 @@ export async function checkDocumentAccess(input: {
     return { allowed: false, reason: 'signed-out', message: MESSAGES['signed-out'] };
   }
 
-  if (await allowedNow()) return { allowed: true, reason: null, message: '' };
+  if (await allowedNow()) {
+    const { data, error } = await requireSupabase().rpc('has_premium_feature', {
+      p_feature_key: 'premium_academic_tools'
+    });
+    if (error || data !== true) {
+      return { allowed: false, reason: 'feature-disabled', message: MESSAGES['feature-disabled'] };
+    }
+    return { allowed: true, reason: null, message: '' };
+  }
 
   const key: BlockReason =
     input.verificationStatus === 'pending'

@@ -37,6 +37,7 @@ interface StudentRow {
   faculty: string | null;
   department: string | null;
   verification_status: string;
+  total_count?: number;
 }
 
 export function AdminPlansTab() {
@@ -45,6 +46,7 @@ export function AdminPlansTab() {
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [studentsLoaded, setStudentsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<StudentRow | null>(null);
   const [subs, setSubs] = useState<ManagedSubscription[]>([]);
@@ -57,8 +59,12 @@ export function AdminPlansTab() {
   const searchRequestId = useRef(0);
   const searchOffset = useRef(0);
 
-  const loadStudents = useCallback(async (searchTerm: string, append = false) => {
-    const requestId = ++searchRequestId.current;
+  const loadStudents = useCallback(async (
+    searchTerm: string,
+    append = false,
+    requestToken?: number
+  ) => {
+    const requestId = requestToken ?? ++searchRequestId.current;
     setSearchLoading(true);
     try {
       const offset = append ? searchOffset.current : 0;
@@ -72,7 +78,8 @@ export function AdminPlansTab() {
       const rows = (data ?? []) as StudentRow[];
       searchOffset.current = offset + rows.length;
       setStudents((current) => append ? [...current, ...rows] : rows);
-      setHasMore(rows.length === 40);
+      setHasMore(offset + rows.length < Number(rows[0]?.total_count ?? 0));
+      setStudentsLoaded(true);
       setError(null);
     } catch (e) {
       if (requestId === searchRequestId.current) {
@@ -82,6 +89,7 @@ export function AdminPlansTab() {
           setStudents([]);
         }
         setHasMore(false);
+        setStudentsLoaded(true);
       }
     } finally {
       if (requestId === searchRequestId.current) setSearchLoading(false);
@@ -107,8 +115,13 @@ export function AdminPlansTab() {
   }, [load]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => void loadStudents(query), 250);
-    return () => window.clearTimeout(timer);
+    const requestId = ++searchRequestId.current;
+    setSearchLoading(true);
+    const timer = window.setTimeout(() => void loadStudents(query, false, requestId), 250);
+    return () => {
+      window.clearTimeout(timer);
+      if (searchRequestId.current === requestId) searchRequestId.current += 1;
+    };
   }, [loadStudents, query]);
 
   const openStudent = async (s: StudentRow) => {
@@ -204,15 +217,15 @@ export function AdminPlansTab() {
         ))}
       </div>
 
-      <div className="verify-admin-row" style={{ gridTemplateColumns: 'minmax(0, 1fr)' }}>
+      <div className="plans-search-section">
         <div>
-          <div className="plans-student-search" role="search">
+          <div className="plans-student-search" role="search" aria-busy={searchLoading}>
             <Search size={18} aria-hidden="true" />
             <input
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search name, username, email, matric number, or department"
+              placeholder="Search name, username, email, matric, faculty, or department"
               aria-label="Search students"
               aria-controls="plan-student-results"
               aria-describedby="plan-search-status"
@@ -226,54 +239,66 @@ export function AdminPlansTab() {
             )}
           </div>
 
-          {loading ? (
-            <p className="muted-row" role="status">
-              <Loader2 size={15} className="animate-spin" aria-hidden="true" /> Loading students…
-            </p>
-          ) : error && students.length === 0 ? (
-            <p id="plan-search-status" className="inline-notice is-error" role="alert">{error}</p>
-          ) : students.length === 0 ? (
-            <p id="plan-search-status" className="muted-row" role="status">
-              {query.trim() ? 'No students match that search.' : 'No students are available.'}
-            </p>
-          ) : (
-            <ul className="verify-admin-list" id="plan-student-results" aria-live="polite">
-              {students.map((s) => (
-                <li key={s.id} className="verify-admin-row" style={{ gridTemplateColumns: 'minmax(0,1fr)' }}>
-                  <div className="verify-admin-main">
-                    <div className="verify-admin-title">
-                      <UserRound size={15} aria-hidden="true" />
-                      <b>{s.full_name || s.username || s.email || 'Student'}</b>
-                      <span className={`verify-pill is-${s.verification_status}`}>
-                        {s.verification_status}
-                      </span>
+          <p id="plan-search-status" className="sr-only" role="status" aria-live="polite">
+            {searchLoading
+              ? 'Searching students…'
+              : students.length > 0
+                ? `${students.length} student${students.length === 1 ? '' : 's'} shown${hasMore ? '. More results are available.' : '.'}`
+                : query.trim()
+                  ? 'No students match that search.'
+                  : 'No students are available.'}
+          </p>
+
+          <div id="plan-student-results" aria-live="polite" aria-busy={searchLoading}>
+            {!studentsLoaded || searchLoading && students.length === 0 ? (
+              <p className="muted-row" role="status">
+                <Loader2 size={15} className="animate-spin" aria-hidden="true" /> Searching students…
+              </p>
+            ) : error && students.length === 0 ? (
+              <p className="inline-notice is-error" role="alert">{error}</p>
+            ) : students.length === 0 ? (
+              <p className="muted-row" role="status">
+                {query.trim() ? 'No students match that search.' : 'No students are available.'}
+              </p>
+            ) : (
+              <ul className="verify-admin-list">
+                {students.map((s) => (
+                  <li key={s.id} className="verify-admin-row" style={{ gridTemplateColumns: 'minmax(0,1fr)' }}>
+                    <div className="verify-admin-main">
+                      <div className="verify-admin-title">
+                        <UserRound size={15} aria-hidden="true" />
+                        <b>{s.full_name || s.username || s.email || 'Student'}</b>
+                        <span className={`verify-pill is-${s.verification_status}`}>
+                          {s.verification_status}
+                        </span>
+                      </div>
+                      <dl className="verify-admin-facts">
+                        <div>
+                          <dt>Matric</dt>
+                          <dd>{s.matric_number || '—'}</dd>
+                        </div>
+                        <div>
+                          <dt>Department</dt>
+                          <dd>{s.department || '—'}</dd>
+                        </div>
+                      </dl>
                     </div>
-                    <dl className="verify-admin-facts">
-                      <div>
-                        <dt>Matric</dt>
-                        <dd>{s.matric_number || '—'}</dd>
-                      </div>
-                      <div>
-                        <dt>Department</dt>
-                        <dd>{s.department || '—'}</dd>
-                      </div>
-                    </dl>
-                  </div>
-                  <div className="verify-admin-actions">
-                    <button type="button" className="secondary-btn" onClick={() => void openStudent(s)}>
-                      <Crown size={14} aria-hidden="true" /> Manage plan
-                    </button>
-                    {s.verification_status !== 'verified' && (
-                      <p className="verify-hint">
-                        <ShieldAlert size={12} aria-hidden="true" /> Verify this student before the
-                        plan can unlock anything.
-                      </p>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
+                    <div className="verify-admin-actions">
+                      <button type="button" className="secondary-btn" onClick={() => void openStudent(s)}>
+                        <Crown size={14} aria-hidden="true" /> Manage plan
+                      </button>
+                      {s.verification_status !== 'verified' && (
+                        <p className="verify-hint">
+                          <ShieldAlert size={12} aria-hidden="true" /> Verify this student before the
+                          plan can unlock anything.
+                        </p>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
           {error && students.length > 0 && <p className="inline-notice is-error" role="alert">{error}</p>}
           {!loading && hasMore && (
             <button

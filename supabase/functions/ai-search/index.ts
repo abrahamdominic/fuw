@@ -26,6 +26,17 @@ Deno.serve(async (req) => {
   } = await userClient.auth.getUser();
   if (userError || !user) return json({ error: 'Authentication required' }, 401, req);
 
+  const { data: featureEnabled, error: featureError } = await userClient.rpc('premium_feature_enabled', {
+    p_feature_key: 'ai_assistant'
+  });
+  if (featureError) {
+    console.error('ai-search feature check failed:', featureError.message);
+    return json({ error: 'FEATURE_CHECK_FAILED', message: 'AI search availability could not be verified.' }, 503, req);
+  }
+  if (featureEnabled !== true) {
+    return json({ error: 'FEATURE_DISABLED', message: 'AI search is currently disabled.' }, 403, req);
+  }
+
   let body: any;
   try {
     body = await req.json();

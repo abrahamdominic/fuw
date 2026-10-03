@@ -33,7 +33,7 @@ const STEPS = [
 ];
 
 export function StudentVerificationTab() {
-  const { profile, isProfileComplete, refreshProfile, refreshEntitlement, plan } = useAuth();
+  const { profile, isProfileComplete, refreshProfile, refreshEntitlement, plan, hasPremium } = useAuth();
   const [state, setState] = useState<VerificationState | null>(null);
   const [history, setHistory] = useState<VerificationRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -332,8 +332,12 @@ export function StudentVerificationTab() {
 
         {status === 'verified' && (
           <p className="verify-footnote">
-            {plan
-              ? `Premium plan ${plan.name} is active until ${new Date(plan.expires_at).toLocaleDateString('en-NG')}.`
+            {plan && hasPremium
+              ? plan.expires_at
+                ? `Premium plan ${plan.name} is active until ${new Date(plan.expires_at).toLocaleDateString('en-NG')}.`
+                : `Premium plan ${plan.name} is active with no scheduled expiration.`
+              : plan
+                ? 'Your entitlement is saved, but Premium access is temporarily paused.'
               : 'You are verified but do not have an active plan yet. Ask the library about premium access.'}
           </p>
           )}
