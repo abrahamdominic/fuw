@@ -336,7 +336,6 @@ function renderRobots(): string {
  * reason, while looking perfectly healthy under `vite dev`.
  */
 const PORTAL_ALIASES = [
-  '/home',
   '/dashboard',
   '/profile',
   '/settings',
