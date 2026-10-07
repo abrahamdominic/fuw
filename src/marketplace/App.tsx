@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Navbar } from './components/Navbar';
+import { MarketplaceSplash } from './components/MarketplaceSplash';
 import { mpPath, MARKETPLACE_BASE, PLATFORM_PATHS } from './lib/routes';
 
 // Pages
@@ -25,7 +26,7 @@ import { AdminPortalPage } from './pages/AdminPortalPage';
  * The Marketplace shell, mounted by `src/main.tsx` under `/marketplace/*`.
  *
  * Because this component renders inside a `<Route path="/marketplace/*">`, the
- * `<Routes>` below match the path that REMAINS after `/marketplace` — so
+ * `<Routes>` below match the path that REMAINS after `/marketplace` - so
  * `path="/browse"` here resolves to `/marketplace/browse`. The `mpPath()`
  * prefix on every outbound link keeps the two halves in agreement.
  *
@@ -47,6 +48,7 @@ export const App: React.FC = () => {
 
   return (
     <div className="mp-root" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      <MarketplaceSplash />
       <Navbar />
 
       <main style={{ flex: 1, maxWidth: 'var(--shell-max, 1240px)', width: '100%', margin: '0 auto', padding: '24px 16px' }}>

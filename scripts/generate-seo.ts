@@ -574,8 +574,16 @@ async function main(): Promise<void> {
     return true;
   });
 
-  writeFileSync(resolve(DIST, 'sitemap.xml'), renderSitemap(deduped));
-  writeFileSync(resolve(DIST, 'robots.txt'), renderRobots());
+  const sitemapXml = renderSitemap(deduped);
+  const robotsTxt = renderRobots();
+
+  writeFileSync(resolve(DIST, 'sitemap.xml'), sitemapXml);
+  writeFileSync(resolve(DIST, 'robots.txt'), robotsTxt);
+  const publicDir = resolve(ROOT, 'public');
+  if (existsSync(publicDir)) {
+    writeFileSync(resolve(publicDir, 'sitemap.xml'), sitemapXml);
+    writeFileSync(resolve(publicDir, 'robots.txt'), robotsTxt);
+  }
 
   // Same source of truth as the sitemap, so a URL is indexable and resolvable
   // or it is neither.

@@ -11,6 +11,7 @@ import { Footer } from './components/Footer';
 import { ToastProvider } from './components/Toast';
 import { DocumentReaderModal } from './components/DocumentReaderModal';
 import { AppSplash } from './components/AppSplash';
+import { FirstVisitWelcome } from './components/FirstVisitWelcome';
 
 import { AuthProvider, useAuth } from './lib/AuthContext';
 import { ThemeProvider } from './lib/ThemeContext';
@@ -290,6 +291,7 @@ export function App() {
         <AnalyticsLayer />
         <CrawlPolicyGuard />
         <AppSplashBoundary />
+        <FirstVisitWelcome />
         <ToastProvider>
           <MaintenanceGate>
             <ErrorBoundary>
@@ -415,35 +417,34 @@ export function App() {
                 records are readable here, and every authenticated action
                 (download, read-online, submit, save) is still gated by the
                 session plus the server-side entitlement check. */}
+            {/* Authenticated entry point - routes unauthenticated visitors to login */}
             <Route
               path="/"
-              element={
-                <PublicLayout onReadOnline={handleReadOnline}>
-                  <HomePage onReadOnline={handleReadOnline} />
-                </PublicLayout>
-              }
+              element={<RootRedirect />}
             />
             {/* FUW Campus Hub Gateway */}
             <Route
               path="/hub"
               element={
-                <PublicLayout onReadOnline={handleReadOnline}>
-                  <CampusHubPage />
-                </PublicLayout>
+                <RequireAuth>
+                  <PublicLayout onReadOnline={handleReadOnline}>
+                    <CampusHubPage />
+                  </PublicLayout>
+                </RequireAuth>
               }
             />
             <Route path="/campus-hub" element={<Navigate to="/hub" replace />} />
             <Route path="/campus" element={<Navigate to="/hub" replace />} />
 
-            {/* FUW Student Marketplace: integrated in-app section inside the unified platform shell */}
+            {/* FUW Student Marketplace: integrated in-app section inside unified platform shell */}
             <Route
               path="/marketplace/*"
               element={
-                <PublicLayout onReadOnline={handleReadOnline}>
+                <RequireAuth>
                   <ErrorBoundary>
                     <MarketplaceRoutes />
                   </ErrorBoundary>
-                </PublicLayout>
+                </RequireAuth>
               }
             />
 
@@ -451,17 +452,21 @@ export function App() {
             <Route
               path="/accommodation"
               element={
-                <PublicLayout onReadOnline={handleReadOnline}>
-                  <AccommodationPage />
-                </PublicLayout>
+                <RequireAuth>
+                  <PublicLayout onReadOnline={handleReadOnline}>
+                    <AccommodationPage />
+                  </PublicLayout>
+                </RequireAuth>
               }
             />
             <Route
               path="/accommodation/roommates"
               element={
-                <PublicLayout onReadOnline={handleReadOnline}>
-                  <RoommateFinderPage />
-                </PublicLayout>
+                <RequireAuth>
+                  <PublicLayout onReadOnline={handleReadOnline}>
+                    <RoommateFinderPage />
+                  </PublicLayout>
+                </RequireAuth>
               }
             />
             <Route
@@ -475,9 +480,11 @@ export function App() {
             <Route
               path="/accommodation/:slug"
               element={
-                <PublicLayout onReadOnline={handleReadOnline}>
-                  <AccommodationDetailPage />
-                </PublicLayout>
+                <RequireAuth>
+                  <PublicLayout onReadOnline={handleReadOnline}>
+                    <AccommodationDetailPage />
+                  </PublicLayout>
+                </RequireAuth>
               }
             />
 
@@ -487,14 +494,16 @@ export function App() {
             />
             <Route
               path="/home"
-              element={<Navigate to="/" replace />}
+              element={<RootRedirect />}
             />
             <Route
               path="/library"
               element={
-                <PublicLayout onReadOnline={handleReadOnline}>
-                  <LibraryPage onReadOnline={handleReadOnline} />
-                </PublicLayout>
+                <RequireAuth>
+                  <PublicLayout onReadOnline={handleReadOnline}>
+                    <LibraryPage onReadOnline={handleReadOnline} />
+                  </PublicLayout>
+                </RequireAuth>
               }
             />
             <Route

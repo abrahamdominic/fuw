@@ -31,6 +31,9 @@ import { cleanup, render, waitFor } from '@testing-library/react';
  * public routes render their empty states. Unknown methods resolve rather than
  * throw so an unrelated call cannot fail this spec for the wrong reason.
  */
+let mockSession: any = null;
+let mockUser: any = null;
+
 function fakeSupabase() {
   const empty = Promise.resolve({ data: null, error: null, count: null });
 
@@ -48,8 +51,8 @@ function fakeSupabase() {
 
   return {
     auth: {
-      getSession: async () => ({ data: { session: null }, error: null }),
-      getUser: async () => ({ data: { user: null }, error: null }),
+      getSession: async () => ({ data: { session: mockSession }, error: null }),
+      getUser: async () => ({ data: { user: mockUser }, error: null }),
       onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
       signOut: async () => ({ error: null }),
       setSession: async () => ({ error: null }),
@@ -209,6 +212,8 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
+  mockSession = null;
+  mockUser = null;
   window.localStorage.clear();
   // Any rejection escaping a route is a failure of that route, not noise.
   vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
@@ -221,6 +226,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  mockSession = null;
+  mockUser = null;
   // Unmounting between routes matters: a leaked tree keeps its timers and
   // effects alive and re-renders into a container the next test replaced.
   cleanup();
@@ -291,6 +298,12 @@ describe('Every route in the application mounts without crashing', () => {
   });
 
   it.each(MARKETPLACE_ROUTES)('renders %s', { timeout: ROUTE_TIMEOUT }, async (path) => {
+    mockSession = {
+      access_token: 'fake-jwt',
+      refresh_token: 'fake-refresh',
+      user: { id: 'test-student-id', email: 'student@fuw.edu.ng' }
+    };
+    mockUser = { id: 'test-student-id', email: 'student@fuw.edu.ng' };
     const view = await mountAt(path, () => Boolean(document.querySelector('.mp-root')));
     const text = view.container.textContent || '';
     assertNoCrashBoundary(text, path);

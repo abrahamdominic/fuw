@@ -40,6 +40,8 @@ export const BrowsePage: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    let active = true;
+
     async function loadProducts() {
       setLoading(true);
       setLoadError(false);
@@ -55,25 +57,39 @@ export const BrowsePage: React.FC = () => {
         };
 
         const res = await fetchProducts(filters, page, limit);
-        setProducts(res.products);
-        setTotalCount(res.totalCount);
+        if (active) {
+          setProducts(res.products);
+          setTotalCount(res.totalCount);
+        }
       } catch (err) {
-        console.error('Error fetching products:', err);
-        setLoadError(true);
+        if (active) {
+          console.error('Error fetching products:', err);
+          setLoadError(true);
+        }
       } finally {
-        setLoading(false);
+        if (active) {
+          setLoading(false);
+        }
       }
     }
 
     loadProducts();
     // Placements are supplementary; failing to load them must not break search.
     fetchVisibleAdverts(undefined, 8)
-      .then((r) => setAdverts(r.adverts ?? []))
+      .then((r) => {
+        if (active) setAdverts(r.adverts ?? []);
+      })
       .catch((err) => {
-        console.error('Failed to load adverts:', err);
-        setAdverts([]);
+        if (active) {
+          console.error('Failed to load adverts:', err);
+          setAdverts([]);
+        }
       });
     scrollToTop();
+
+    return () => {
+      active = false;
+    };
   }, [search, categorySlug, listingType, condition, sortBy, page, searchParams, retryKey]);
 
   const updateParam = (key: string, val: string | null) => {

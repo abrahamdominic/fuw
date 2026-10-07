@@ -121,7 +121,7 @@ export interface AuthContextType {
   refreshEntitlement: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 /** Canonical username rules shared by the UI and the auth layer. */
 export const USERNAME_PATTERN = /^[a-z0-9._-]{3,20}$/;

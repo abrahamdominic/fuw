@@ -26,6 +26,12 @@ export function FirstVisitWelcome() {
     if (timerRef.current) window.clearTimeout(timerRef.current);
     if (progressIntervalRef.current) window.clearInterval(progressIntervalRef.current);
 
+    const isJsdom = typeof navigator !== 'undefined' && /jsdom/i.test(navigator.userAgent);
+    if (isJsdom) {
+      setShouldRender(false);
+      return;
+    }
+
     timerRef.current = window.setTimeout(() => {
       setShouldRender(false);
     }, WELCOME_EXIT_TRANSITION_MS);

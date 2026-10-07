@@ -37,6 +37,8 @@ export const HomePage: React.FC = () => {
   const [featuredAdverts, setFeaturedAdverts] = useState<VisibleAdvert[]>([]);
 
   useEffect(() => {
+    let active = true;
+
     async function load() {
       try {
         const [cats, prods, servs] = await Promise.all([
@@ -44,26 +46,36 @@ export const HomePage: React.FC = () => {
           fetchProducts({ listingType: 'product' }, 1, 8),
           fetchProducts({ listingType: 'service' }, 1, 8),
         ]);
-        setCategories(cats);
-        setFeaturedProducts(prods.products);
-        setFeaturedServices(servs.products);
+        if (active) {
+          setCategories(cats);
+          setFeaturedProducts(prods.products);
+          setFeaturedServices(servs.products);
+        }
 
         // Placements are supplementary: a failure here must not empty the page.
         const placements = await fetchVisibleAdverts(undefined, 12).catch((err) => {
           console.error('Failed to load adverts:', err);
           return null;
         });
-        if (placements) {
+        if (placements && active) {
           setSponsoredAdverts(placements.adverts.filter((a) => a.advert_type === 'sponsored'));
           setFeaturedAdverts(placements.adverts.filter((a) => a.advert_type === 'featured'));
         }
       } catch (err) {
-        console.error('Failed to load home page data:', err);
+        if (active) {
+          console.error('Failed to load home page data:', err);
+        }
       } finally {
-        setLoading(false);
+        if (active) {
+          setLoading(false);
+        }
       }
     }
     load();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const handleHeroSearch = (e: React.FormEvent) => {
