@@ -1,6 +1,7 @@
 // StudentSubscriptionTab — premium plan status and what is (or is not) unlocked.
 import React, { useEffect, useState } from 'react';
-import { BadgeCheck, Check, Clipboard, Copy, FileUp, Loader2, RefreshCw, ShieldAlert, Sparkles, X } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { BadgeCheck, Check, Clipboard, Copy, FileUp, Loader2, RefreshCw, ShieldAlert, Sparkles, Wallet, X } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { fetchCatalogPlans, fetchMyPremiumSource, naira, type CatalogPlan } from '../lib/verification';
 import {
@@ -8,13 +9,16 @@ import {
   fetchMyPaymentTransactions,
   fetchPaymentConfiguration,
   fetchPremiumPublicConfiguration,
+  fetchMyWalletBalance,
+  payPremiumPlanFromWallet,
   startAutomaticPayment,
   submitPaymentRequest,
   verifyAutomaticPayment,
   type PaymentConfiguration,
   type PaymentRequest,
   type PaymentTransaction,
-  type PremiumPublicConfiguration
+  type PremiumPublicConfiguration,
+  type UserWalletBalance
 } from '../lib/payments';
 
 export function StudentSubscriptionTab() {
@@ -26,6 +30,8 @@ export function StudentSubscriptionTab() {
   const [premiumConfig, setPremiumConfig] = useState<PremiumPublicConfiguration | null>(null);
   const [paymentRequests, setPaymentRequests] = useState<PaymentRequest[]>([]);
   const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
+  const [wallet, setWallet] = useState<UserWalletBalance | null>(null);
+  const [walletPaying, setWalletPaying] = useState(false);
   const [premiumSource, setPremiumSource] = useState<string | null>(null);
   const [selectedPlan, setSelectedPlan] = useState('');
   const [receipt, setReceipt] = useState<File | null>(null);
@@ -46,9 +52,10 @@ export function StudentSubscriptionTab() {
       fetchPremiumPublicConfiguration(),
       fetchMyPaymentRequests(),
       fetchMyPaymentTransactions(),
-      fetchMyPremiumSource()
+      fetchMyPremiumSource(),
+      fetchMyWalletBalance()
     ])
-      .then(([plansResult, configResult, premiumResult, requestsResult, transactionsResult, sourceResult]) => {
+      .then(([plansResult, configResult, premiumResult, requestsResult, transactionsResult, sourceResult, walletResult]) => {
         if (cancelled) return;
         if (plansResult.status === 'fulfilled') {
           setPlans(plansResult.value);
@@ -67,6 +74,7 @@ export function StudentSubscriptionTab() {
         else setPaymentError(transactionsResult.reason instanceof Error ? transactionsResult.reason.message : 'Could not load transaction history.');
         if (sourceResult.status === 'fulfilled') setPremiumSource(sourceResult.value);
         else setPaymentError(sourceResult.reason instanceof Error ? sourceResult.reason.message : 'Could not load entitlement source.');
+        if (walletResult.status === 'fulfilled') setWallet(walletResult.value);
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
@@ -103,6 +111,22 @@ export function StudentSubscriptionTab() {
       setPaymentError(cause instanceof Error ? cause.message : 'Could not submit the payment request.');
     } finally {
       setPaymentLoading(false);
+    }
+  };
+
+  const handleWalletPayment = async (planSlug: string) => {
+    setWalletPaying(true);
+    setPaymentError(null);
+    try {
+      await payPremiumPlanFromWallet(planSlug);
+      await refreshEntitlement();
+      setTransactions(await fetchMyPaymentTransactions());
+      setPremiumSource(await fetchMyPremiumSource());
+      setWallet(await fetchMyWalletBalance().catch(() => null));
+    } catch (cause) {
+      setPaymentError(cause instanceof Error ? cause.message : 'Could not complete payment from wallet.');
+    } finally {
+      setWalletPaying(false);
     }
   };
 
@@ -162,7 +186,8 @@ export function StudentSubscriptionTab() {
             refreshEntitlement(),
             fetchMyPaymentRequests().then(setPaymentRequests),
             fetchMyPaymentTransactions().then(setTransactions),
-            fetchMyPremiumSource().then(setPremiumSource)
+            fetchMyPremiumSource().then(setPremiumSource),
+            fetchMyWalletBalance().then(setWallet)
           ]).catch((cause) => setPaymentError(cause instanceof Error ? cause.message : 'Could not refresh payment status.'))}
         >
           <RefreshCw size={14} aria-hidden="true" /> Refresh
@@ -177,7 +202,7 @@ export function StudentSubscriptionTab() {
           {hasPremium ? <BadgeCheck size={24} /> : verified ? <Sparkles size={24} /> : <ShieldAlert size={24} />}
         </span>
         <div className="verify-status-body">
-          <b>{hasPremium ? 'Premium is active' : !premiumEnabled ? 'Premium purchases are paused' : verified ? 'Verified — plan needed' : 'Verification needed first'}</b>
+          <b>{hasPremium ? 'Premium is active' : !premiumEnabled ? 'Premium purchases are paused' : verified ? 'Verified: plan needed' : 'Verification needed first'}</b>
           <span>
             {hasPremium &&
               plan &&
@@ -271,12 +296,12 @@ export function StudentSubscriptionTab() {
         </div>
       )}
 
-      {verified && !hasPremium && premiumEnabled && selectedPlanInfo && (automaticEnabled || manualEnabled) && (
+      {verified && !hasPremium && premiumEnabled && selectedPlanInfo && (
         <section className="card payment-student-card" aria-labelledby="manual-payment-title">
           <div className="payment-section-heading">
             <div>
               <h3 id="manual-payment-title">Choose a payment method</h3>
-              <p>Automatic payments are verified by the provider. Bank transfer receipts require library approval.</p>
+              <p>Pay instantly from your FUW wallet, or use Paystack card checkout, or bank transfer.</p>
             </div>
             <span className={`payment-status-pill is-${pendingRequest ? 'pending' : 'required'}`}>
               {pendingRequest ? 'Payment under review' : 'Payment required'}
@@ -284,6 +309,87 @@ export function StudentSubscriptionTab() {
           </div>
 
           {paymentError && <p className="inline-notice is-error" role="alert">{paymentError}</p>}
+
+          {/* FUW Wallet Payment Option (Section 20, 22) */}
+          {(() => {
+            const walletAvailable = wallet?.available_kobo ?? 0;
+            const canPayFromWallet = !wallet?.is_frozen && walletAvailable >= selectedPlanInfo.price_kobo;
+            const walletNeeded = Math.max(0, selectedPlanInfo.price_kobo - walletAvailable);
+
+            return (
+              <div
+                className="payment-method-option"
+                style={{
+                  flexDirection: 'column',
+                  alignItems: 'stretch',
+                  gap: 12,
+                  background: canPayFromWallet ? 'var(--primary-bg, #e8f5ec)' : 'var(--surface-alt, #f8faf9)',
+                  borderColor: canPayFromWallet ? 'var(--primary, #12603d)' : 'var(--border, #dcebe0)',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                  <div>
+                    <strong style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14 }}>
+                      <Wallet size={16} color="var(--primary, #12603d)" />
+                      Pay with FUW Wallet
+                    </strong>
+                    <span style={{ fontSize: 12, color: 'var(--text-secondary, #55675b)' }}>
+                      {canPayFromWallet
+                        ? `Wallet balance: ${naira(walletAvailable, paymentConfig?.currency)} · Activates immediately`
+                        : `Wallet balance: ${naira(walletAvailable, paymentConfig?.currency)} · Insufficient funds`}
+                    </span>
+                  </div>
+
+                  {canPayFromWallet && (
+                    <button
+                      type="button"
+                      className="primary"
+                      onClick={() => void handleWalletPayment(selectedPlanInfo.slug)}
+                      disabled={walletPaying || automaticLoading || paymentLoading}
+                      style={{ padding: '8px 16px', fontSize: 13, fontWeight: 700 }}
+                    >
+                      {walletPaying ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
+                      {walletPaying ? 'Activating plan…' : `Pay ${naira(selectedPlanInfo.price_kobo, paymentConfig?.currency)} from Wallet`}
+                    </button>
+                  )}
+                </div>
+
+                {!canPayFromWallet && !wallet?.is_frozen && (
+                  <div
+                    style={{
+                      background: 'var(--surface, #ffffff)',
+                      border: '1px solid var(--border, #dcebe0)',
+                      borderRadius: 8,
+                      padding: '10px 12px',
+                      fontSize: 12,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 6,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
+                      <strong style={{ color: '#b91c1c' }}>Insufficient wallet balance.</strong>
+                      <Link
+                        to="/marketplace/wallet"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="secondary-btn"
+                        style={{ padding: '4px 10px', fontSize: 12, fontWeight: 700 }}
+                      >
+                        Fund Wallet
+                      </Link>
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, color: 'var(--text-secondary, #55675b)' }}>
+                      <span>Wallet balance: <strong>{naira(walletAvailable, paymentConfig?.currency)}</strong></span>
+                      <span>Required: <strong>{naira(selectedPlanInfo.price_kobo, paymentConfig?.currency)}</strong></span>
+                      <span>You need: <strong style={{ color: '#b91c1c' }}>{naira(walletNeeded, paymentConfig?.currency)} more</strong></span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           {automaticEnabled && (
             <div className="payment-method-option">
               <div><b>Automatic payment</b><span>Secure checkout with Paystack. Access activates after server verification.</span></div>
@@ -291,7 +397,7 @@ export function StudentSubscriptionTab() {
                 type="button"
                 className="primary"
                 onClick={() => void handleAutomaticPayment(selectedPlanInfo.slug)}
-                disabled={automaticLoading || paymentLoading}
+                disabled={automaticLoading || paymentLoading || walletPaying}
               >
                 {automaticLoading ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
                 {automaticLoading ? 'Opening secure checkout…' : `Pay ${naira(selectedPlanInfo.price_kobo, paymentConfig?.currency)}`}

@@ -56,7 +56,7 @@ export function libraryOrganization(): Record<string, unknown> {
     name: SITE_LONG_NAME,
     alternateName: SITE_NAME,
     url: `${SITE_URL}/`,
-    description: `The digital library of ${UNIVERSITY_NAME} — verified lecture notes, test and exam past questions, handouts, projects and research materials for the university community.`,
+    description: `The digital library of ${UNIVERSITY_NAME}: verified lecture notes, test and exam past questions, handouts, projects and research materials for the university community.`,
     logo: {
       '@type': 'ImageObject',
       url: absoluteUrl('/images/fuw-logo.png'),

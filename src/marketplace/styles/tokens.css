@@ -1,0 +1,59 @@
+/* =============================================================================
+   FUW MARKETPLACE — MARKETPLACE-SCOPED DESIGN TOKENS
+   -----------------------------------------------------------------------------
+   The colour palette, surfaces, radii and semantic aliases are NOT declared
+   here. The platform owns one design system in `src/styles.css` (`:root` and
+   `[data-theme='dark']`), and this file used to duplicate 32 of those tokens
+   verbatim. Duplicated tokens are a drift hazard: one side gets edited and the
+   two surfaces silently diverge.
+
+   Only the tokens the platform does not define are declared below, scoped to
+   `.mp-root` so they are visible to the Marketplace subtree and invisible
+   everywhere else.
+
+   Re-run `node scripts/scope-marketplace-css.mjs --write` after editing any
+   stylesheet in this directory; it enforces the `.mp-root` prefix.
+   ========================================================================== */
+.mp-root {
+  /* ── Typography ── */
+  --font-serif: 'Playfair Display', Georgia, serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+
+  /* ── Radii ── */
+  --radius-full: 9999px;
+
+  /* ── Elevation ── */
+  --shadow-pop: 0 10px 25px rgba(0, 0, 0, 0.06);
+
+  /* ── Spacing scale (4px base) ── */
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+  --sp-16: 64px;
+
+  /* ── Motion ── */
+  --t-fast: 0.15s ease;
+  --t-base: 0.22s ease;
+
+  /* ── Layout ── */
+  --shell-max: 1240px;
+  --header-h: 64px;
+  --tabbar-h: 62px;
+
+  /* ── Stacking order ── */
+  --z-header: 100;
+  --z-drawer: 190;
+  --z-modal: 200;
+  --z-toast: 300;
+}
+
+/* Dark theme: only the tokens whose dark value differs from the platform's. */
+[data-theme='dark'] .mp-root {
+  --shadow-pop: 0 10px 25px rgba(0, 0, 0, 0.5);
+  --text: var(--text-primary);
+}

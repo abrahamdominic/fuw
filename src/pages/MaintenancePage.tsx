@@ -64,7 +64,7 @@ export function MaintenancePage() {
 
         <p className="maintenance-copy">
           Our librarians are performing scheduled upgrades to the digital repository. All academic
-          materials are safe — the library will be back online shortly. Please check again in a few
+          materials are safe, and the library will be back online shortly. Please check again in a few
           minutes.
         </p>
 

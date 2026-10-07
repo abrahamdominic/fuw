@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -45,15 +46,34 @@ function manualChunks(id: string): string | undefined {
 
 export default defineConfig({
   plugins: [react()],
+  esbuild: {
+    target: 'es2022',
+  },
+  optimizeDeps: {
+    esbuildOptions: {
+      target: 'es2022',
+    },
+  },
   server: {
-  host: '0.0.0.0',
-  port: 5173,
-},
+    host: '0.0.0.0',
+    port: 5173,
+  },
   build: {
+    target: 'es2022',
     rollupOptions: {
       output: {
         manualChunks,
       },
     },
+  },
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    fileParallelism: false,
+    testTimeout: 20000,
+    // The FUW Student Marketplace brought its Vitest suite with it when it was
+    // folded into this SPA (must.md Phase 10). These specs guard money,
+    // authorization and RLS contracts, so they run as part of `npm test`.
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
   },
 });

@@ -194,7 +194,7 @@ export function AdminVerificationTab() {
                   </div>
                   <div>
                     <dt>Level</dt>
-                    <dd>{row.level || '—'}</dd>
+                    <dd>{row.level || 'N/A'}</dd>
                   </div>
                   <div>
                     <dt>Submitted</dt>

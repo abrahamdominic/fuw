@@ -50,6 +50,66 @@ export const ALL_PERMISSIONS: PermissionDef[] = [
     key: 'manage_ai',
     label: 'Manage AI features',
     description: 'Trigger AI processing on materials and monitor indexing jobs.'
+  },
+  {
+    key: 'manage_events',
+    label: 'Manage events',
+    description: 'Create, publish, update, and moderate campus events.'
+  },
+  {
+    key: 'manage_organizations',
+    label: 'Manage organizations',
+    description: 'Approve and manage campus organizations and memberships.'
+  },
+  {
+    key: 'moderate_jobs',
+    label: 'Moderate jobs',
+    description: 'Review job listings and skill profiles for policy compliance.'
+  },
+  {
+    key: 'moderate_services',
+    label: 'Moderate services',
+    description: 'Review student service listings for policy compliance.'
+  },
+  {
+    key: 'moderate_lost_found',
+    label: 'Moderate lost & found',
+    description: 'Resolve item claims and moderate lost-and-found reports.'
+  },
+  {
+    key: 'manage_study_groups',
+    label: 'Manage study groups',
+    description: 'Review and moderate campus study groups.'
+  },
+  {
+    key: 'moderate_reports',
+    label: 'Moderate platform reports',
+    description: 'Review user reports and record moderation outcomes.'
+  },
+  {
+    key: 'manage_academics',
+    label: 'Manage academics',
+    description: 'Manage the academic calendar, courses and student records.'
+  },
+  {
+    key: 'manage_lecturers',
+    label: 'Manage lecturers',
+    description: 'Create and edit lecturer records and course allocations.'
+  },
+  {
+    key: 'manage_calendar',
+    label: 'Manage academic calendar',
+    description: 'Publish and edit the institution-wide academic calendar.'
+  },
+  {
+    key: 'manage_grading',
+    label: 'Manage grading',
+    description: 'Define grading scales and record or publish student grades.'
+  },
+  {
+    key: 'manage_learning',
+    label: 'Manage learning content',
+    description: 'Create, publish and moderate Skills & Learning content.'
   }
 ];
 

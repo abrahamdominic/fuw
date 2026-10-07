@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, NavLink, useLocation, useNavigate, Routes, Route } from 'react-router-dom';
 import {
   LayoutDashboard,
+  LayoutGrid,
   Home,
   Upload,
   FileText,
@@ -44,6 +45,7 @@ import {
   ArrowLeft,
   Pencil,
   MessageSquare,
+  Briefcase,
   Send,
   FileWarning,
   UserCog,
@@ -57,9 +59,13 @@ import {
   CalendarRange,
   StickyNote,
   HelpCircle,
-  Smartphone as SmartphoneIcon
+  Smartphone as SmartphoneIcon,
+  ShoppingBag,
+  ExternalLink,
+  Wallet
 } from 'lucide-react';
 import { useStore } from '../lib/useStore';
+import { getMarketplaceUrl } from '../lib/hub';
 import { MaterialItem, getTimeGreeting, getUserTimeZone, formatUserTime } from '../lib/store';
 import { Logo } from '../components/Logo';
 import { MaterialCard } from '../components/MaterialCard';
@@ -85,6 +91,7 @@ import { aiAsk, AiCitation, aiConfiguredHint } from '../lib/ai';
 import { friendlyError } from '../lib/friendlyError';
 import { requireSupabase } from '../lib/supabase';
 import { ConfirmDialog, ConfirmDialogState } from '../components/ConfirmDialog';
+import { EditMaterialModal } from '../components/EditMaterialModal';
 import ProtectedActionModal from '../components/ProtectedActionModal';
 import { AuthenticatorAppCard } from '../components/AuthenticatorAppCard';
 import { PasskeysManager } from '../components/PasskeysManager';
@@ -108,34 +115,80 @@ import { analyticsTracker } from '../lib/analyticsTracker';
 import { fx, staggerDelay } from '../lib/motion';
 import { AnimatedModal } from '../components/animations/AnimatedModal';
 import { fetchPremiumPublicConfiguration, type PremiumPublicConfiguration } from '../lib/payments';
+import { CampusAcademicsModule, CampusListingsModule } from '../components/CampusModules';
+import {
+  fetchNotificationPreferences,
+  upsertNotificationPreference,
+  NOTIFICATION_CATEGORIES,
+  type NotificationPreference
+} from '../lib/campus';
 
 
 interface StudentPortalProps {
   onReadOnline: (material: MaterialItem) => void;
 }
 
-const studentNavItems = [
-  { label: 'Home', path: '/home', icon: Home, exact: true },
-  { label: 'Dashboard', path: '/student', icon: LayoutDashboard, exact: true },
-  { label: 'Upload material', path: '/student/upload', icon: Upload },
-  { label: 'My uploads', path: '/student/uploads', icon: FileText },
-  { label: 'Upload Course Code & Title', path: '/student/course-upload', icon: GraduationCap },
-  { label: 'My courses', path: '/student/courses', icon: List },
-  { label: 'Study planner', path: '/student/planner', icon: CalendarRange },
-  { label: 'My notes', path: '/student/notes', icon: StickyNote },
-  { label: 'AI study assistant', path: '/student/assistant', icon: Sparkles },
-  { label: 'Reading lists', path: '/student/reading-lists', icon: Bookmark },
-  { label: 'Saved materials', path: '/student/saved', icon: Heart },
-  { label: 'Recently viewed', path: '/student/recent', icon: Clock },
-  { label: 'Downloads', path: '/student/downloads', icon: Download },
-  { label: 'Reading history', path: '/student/reading', icon: BookOpen },
-  { label: 'Messages', path: '/student/messages', icon: MessageSquare },
-  { label: 'Academic verification', path: '/student/verification', icon: BadgeCheck },
-  { label: 'Premium access', path: '/student/subscription', icon: Crown },
-  { label: 'Request deletion', path: '/student/request-deletion', icon: FileWarning },
-  { label: 'Profile change requests', path: '/student/change-requests', icon: UserCog },
-  { label: 'My profile', path: '/student/profile', icon: Users },
-  { label: 'Settings', path: '/student/settings', icon: Settings }
+const studentNavGroups = [
+  {
+    label: 'Platform',
+    items: [
+      { label: 'Campus Hub', path: '/hub', icon: LayoutGrid },
+      { label: 'Dashboard', path: '/student', icon: LayoutDashboard, exact: true },
+      {
+        label: 'Marketplace',
+        path: '/marketplace',
+        icon: ShoppingBag,
+      },
+      { label: 'Accommodation', path: '/accommodation', icon: Home },
+      { label: 'Academics', path: '/student/academics', icon: GraduationCap },
+      { label: 'Events', path: '/student/events', icon: CalendarRange },
+      { label: 'Organizations', path: '/student/organizations', icon: Users },
+      { label: 'Jobs & Gigs', path: '/student/jobs', icon: Briefcase },
+      { label: 'Skills & Learning', path: '/student/learning', icon: BookOpen },
+      { label: 'Lost & Found', path: '/student/lost-found', icon: AlertCircle },
+      { label: 'Study Groups', path: '/student/study-groups', icon: MessageSquare },
+      {
+        label: 'Services',
+        path: '/marketplace/browse?listingType=service',
+        icon: ShieldCheck,
+      },
+    ]
+  },
+  {
+    label: 'E-Library',
+    items: [
+      { label: 'Upload material', path: '/student/upload', icon: Upload },
+      { label: 'My uploads', path: '/student/uploads', icon: FileText },
+      { label: 'AI study assistant', path: '/student/assistant', icon: Sparkles },
+      { label: 'Saved materials', path: '/student/saved', icon: Heart },
+      { label: 'Recently viewed', path: '/student/recent', icon: Clock },
+      { label: 'Downloads', path: '/student/downloads', icon: Download },
+      { label: 'Reading lists', path: '/student/reading-lists', icon: Bookmark },
+    ]
+  },
+  {
+    label: 'Tools',
+    items: [
+      { label: 'My courses', path: '/student/courses', icon: List },
+      { label: 'Study planner', path: '/student/planner', icon: CalendarRange },
+      { label: 'My notes', path: '/student/notes', icon: StickyNote },
+      { label: 'Messages', path: '/student/messages', icon: MessageSquare },
+    ]
+  },
+  {
+    label: 'Account',
+    items: [
+      { label: 'My profile', path: '/student/profile', icon: Users },
+      { label: 'Premium access', path: '/student/subscription', icon: Crown },
+      {
+        label: 'FUW Wallet',
+        path: '/marketplace/wallet',
+        icon: Wallet,
+      },
+      { label: 'Academic verification', path: '/student/verification', icon: BadgeCheck },
+      { label: 'Settings', path: '/student/settings', icon: Settings },
+    ]
+  }
 ];
 
 export function StudentPortal({ onReadOnline }: StudentPortalProps) {
@@ -157,6 +210,7 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
   const [uploadsSearch, setUploadsSearch] = useState('');
   const [uploadsLoading, setUploadsLoading] = useState(true);
   const [pendingDelete, setPendingDelete] = useState<MaterialItem | null>(null);
+  const [editingMaterial, setEditingMaterial] = useState<MaterialItem | null>(null);
   // Material the student chose to "Ask AI" about
   const [aiFocusMaterial, setAiFocusMaterial] = useState<MaterialItem | null>(null);
   const UPLOADS_PAGE_SIZE = 8;
@@ -324,30 +378,57 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
         <p className="side-nav-heading">STUDENT PORTAL</p>
 
         <nav className="side-nav-list">
-          {studentNavItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = item.exact
-              ? currentPath === item.path || currentPath === item.path + '/'
-              : currentPath.startsWith(item.path);
+          {studentNavGroups.map((group) => (
+            <div key={group.label} className="student-nav-group">
+              <span className="student-nav-group-label">{group.label}</span>
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                const isExternal = (item as any).externalUrl;
+                if (isExternal) {
+                  return (
+                    <a
+                      key={item.label}
+                      href={(item as any).externalUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="side-link"
+                      onClick={() => setMobileMenuOpen(false)}
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <Icon size={17} />
+                        <span>{item.label}</span>
+                      </div>
+                      <span className="side-badge" style={{ background: '#12603d', color: '#ffffff', fontSize: 10, fontWeight: 700 }}>
+                        LIVE
+                      </span>
+                    </a>
+                  );
+                }
 
-            return (
-              <NavLink
-                key={item.label}
-                to={item.path}
-                className={`side-link ${isActive ? 'active' : ''}`}
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                <Icon size={17} />
-                <span>{item.label}</span>
-                {item.label === 'My uploads' && studentUploads.length > 0 && (
-                  <span className="side-badge">{studentUploads.length}</span>
-                )}
-                {item.label === 'Saved materials' && savedMaterials.length > 0 && (
-                  <span className="side-badge">{savedMaterials.length}</span>
-                )}
-              </NavLink>
-            );
-          })}
+                const isActive = 'exact' in item && item.exact
+                  ? currentPath === item.path || currentPath === item.path + '/'
+                  : currentPath.startsWith(item.path);
+                return (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    className={`side-link ${isActive ? 'active' : ''}`}
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    <Icon size={17} />
+                    <span>{item.label}</span>
+                    {item.label === 'My uploads' && studentUploads.length > 0 && (
+                      <span className="side-badge">{studentUploads.length}</span>
+                    )}
+                    {item.label === 'Saved materials' && savedMaterials.length > 0 && (
+                      <span className="side-badge">{savedMaterials.length}</span>
+                    )}
+                  </NavLink>
+                );
+              })}
+            </div>
+          ))}
         </nav>
 
         <div className="side-footer-actions">
@@ -430,7 +511,7 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
               <div className="notif-list">
                   {notifications.length === 0 ? (
                     <p className={`notif-empty ${fx.fadeUp}`}>
-                      You're all caught up — no notifications yet.
+                      You're all caught up: no notifications yet.
                     </p>
                   ) : visibleNotifications.length === 0 ? (
                     <p className={`notif-empty ${fx.fadeUp}`}>
@@ -529,6 +610,44 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
             onAskAi={handleAskAi}
             onSignOut={handleLogout}
           />
+        ) : currentPath.startsWith('/student/academics') ? (
+          <CampusAcademicsModule department={currentUser.department} />
+        ) : currentPath.startsWith('/student/events') ? (
+          <CampusListingsModule module="events" />
+        ) : currentPath.startsWith('/student/organizations') ? (
+          <CampusListingsModule module="organizations" />
+        ) : currentPath.startsWith('/student/jobs') ? (
+          <CampusListingsModule module="jobs" />
+        ) : currentPath.startsWith('/student/learning') ? (
+          <SkillsLearningModule />
+        ) : currentPath.startsWith('/student/lost-found') ? (
+          <CampusListingsModule module="lost-found" />
+        ) : currentPath.startsWith('/student/study-groups') ? (
+          <CampusListingsModule module="study-groups" />
+        ) : currentPath.startsWith('/student/services') ? (
+          <div className="portal-card" style={{ maxWidth: '680px', margin: '2rem auto', textAlign: 'center', padding: '2.5rem 1.5rem' }}>
+            <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'var(--green-50, #ebf5ee)', color: 'var(--brand-green, #12603d)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.25rem' }}>
+              <ShoppingBag size={32} />
+            </div>
+            <h2 style={{ fontSize: '1.35rem', fontWeight: 700, marginBottom: '0.75rem', color: 'var(--text-primary)' }}>
+              Campus Services are in FUW Marketplace
+            </h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: 1.6, maxWidth: '520px', margin: '0 auto 1.5rem' }}>
+              All student service providers (tech repairs, typing & printing, laundry, graphic design, tutoring, tailoring) are organized on FUW Marketplace with escrow buyer protection, student ratings, and direct vendor chat.
+            </p>
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+              <Link
+                to="/marketplace/browse?listingType=service"
+                className="btn-primary"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none' }}
+              >
+                Browse Campus Services <ArrowRight size={16} />
+              </Link>
+              <Link to="/hub" className="btn-secondary" style={{ textDecoration: 'none' }}>
+                Campus Hub
+              </Link>
+            </div>
+          </div>
         ) : currentPath.startsWith('/student/uploads') ? (
           <StudentMyUploadsTab
             uploads={pagedUploads}
@@ -548,6 +667,7 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
             }}
             onRequestDelete={setPendingDelete}
             onReadOnline={onReadOnline}
+            onEditMaterial={setEditingMaterial}
           />
         ) : currentPath.startsWith('/student/upload') ? (
           <StudentUploadTab
@@ -641,7 +761,55 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
           onConfirm={handleConfirmDelete}
           onClose={() => setPendingDelete(null)}
         />
+
+        <EditMaterialModal
+          material={editingMaterial}
+          isOpen={!!editingMaterial}
+          onClose={() => setEditingMaterial(null)}
+          onSaved={() => {
+            setUploadsVersion((v) => v + 1);
+            void store.syncMaterialsFromSupabase();
+          }}
+        />
       </main>
+    </div>
+  );
+}
+
+function SkillsLearningModule() {
+  return (
+    <div className="portal-view-fade platform-shell">
+      <header className="platform-header">
+        <div>
+          <p className="kicker">SKILLS &amp; LEARNING</p>
+          <h2>Learning &amp; skill development</h2>
+          <p className="subtitle">
+            Build new skills through learning paths, structured modules and
+            lesson-level progress tracking.
+          </p>
+        </div>
+      </header>
+      <div className="portal-empty" style={{ minHeight: 260 }}>
+        <BookOpen className="empty-icon" size={36} />
+        <strong>Learning paths are coming soon</strong>
+        <p>
+          This section will let you enrol in skill-focused learning paths,
+          track lesson-level progress and earn verifiable micro-credentials.
+        </p>
+        <p>
+          In the meantime, use the{' '}
+          <Link to="/library">E-Library</Link> to find
+          lecture notes, handouts and past questions for your courses, and the{' '}
+          <Link to="/student/assistant">AI study assistant</Link>{' '}
+          to get personalised study support.
+        </p>
+      </div>
+      <p className="platform-disclaimer">
+        Skills &amp; Learning is listed in the FUW Campus Platform roadmap
+        (Phase 6). The system foundations are in place;
+        full course authoring, lesson tracking and progress certificates will
+        be released in a future update.
+      </p>
     </div>
   );
 }
@@ -729,6 +897,63 @@ function StudentOverviewTab({
           <b>{readingCount}</b>
           <span>Reading history</span>
         </section>
+      </div>
+
+      {/* FUW Student Marketplace Feature Card */}
+      <div
+        className="portal-marketplace-card"
+        style={{
+          margin: '22px 0',
+          padding: '24px 28px',
+          borderRadius: 16,
+          background: 'linear-gradient(135deg, #0d4a2f 0%, #12603d 60%, #17734a 100%)',
+          color: '#ffffff',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 20,
+          boxShadow: '0 8px 24px rgba(13, 74, 47, 0.16)',
+          position: 'relative',
+          overflow: 'hidden',
+        }}
+      >
+        <div style={{ position: 'relative', zIndex: 1, maxWidth: 640 }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 20, background: 'rgba(255, 255, 255, 0.16)', backdropFilter: 'blur(4px)', fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', marginBottom: 12 }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#4ade80' }} />
+            <span>FUW CAMPUS COMMERCE · LIVE NOW</span>
+          </div>
+          <h3 style={{ margin: '0 0 8px', fontSize: 22, fontWeight: 800, color: '#ffffff', letterSpacing: '-0.02em' }}>
+            FUW Student Marketplace
+          </h3>
+          <p style={{ margin: 0, fontSize: 14, color: 'rgba(255, 255, 255, 0.92)', lineHeight: 1.5 }}>
+            Discover campus vendors, buy and sell textbooks, electronics, gadgets, hostel food, laundry, and student services with protected campus escrow. Uses your verified FUW student identity.
+          </p>
+        </div>
+
+        <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <Link
+            to="/marketplace"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '12px 22px',
+              borderRadius: 10,
+              background: '#ffffff',
+              color: '#0d4a2f',
+              fontWeight: 700,
+              fontSize: 14,
+              textDecoration: 'none',
+              boxShadow: '0 4px 14px rgba(0,0,0,0.15)',
+              transition: 'transform 0.15s ease',
+            }}
+          >
+            <ShoppingBag size={18} />
+            <span>Open Marketplace</span>
+            <ArrowRight size={16} />
+          </Link>
+        </div>
       </div>
 
       {/* Status Notice if student has uploads */}
@@ -975,7 +1200,7 @@ function StudentUploadTab({ onUploaded }: { onUploaded: () => void }) {
           </div>
 
           <div className="form-section">
-            <h3>Optional — Share with Other Departments</h3>
+            <h3>Optional: Share with Other Departments</h3>
             <MultiDepartmentPicker
               ownDepartment={filters.department}
               value={multiDept}
@@ -990,7 +1215,7 @@ function StudentUploadTab({ onUploaded }: { onUploaded: () => void }) {
             <div className="drop file-dropzone">
               <Upload size={32} />
               <b>{file ? file.name : 'Drag & drop your course document here, or browse'}</b>
-              <span>Supported: PDF, Word (DOC/DOCX), PowerPoint (PPT/PPTX), Excel (XLS/XLSX) — Max 25 MB</span>
+              <span>Supported: PDF, Word (DOC/DOCX), PowerPoint (PPT/PPTX), Excel (XLS/XLSX) (Max 25 MB)</span>
               {file && (
                 <div className="file-ready-tag">
                   <CheckCircle2 size={14} /> Ready for upload ({(file.size / (1024 * 1024)).toFixed(2)} MB)
@@ -1037,7 +1262,8 @@ function StudentMyUploadsTab({
   loading,
   stats,
   onRequestDelete,
-  onReadOnline
+  onReadOnline,
+  onEditMaterial
 }: {
   uploads: MaterialItem[];
   total: number;
@@ -1050,6 +1276,7 @@ function StudentMyUploadsTab({
   stats: { total: number; approved: number; pending: number; rejected: number; downloads: number };
   onRequestDelete: (m: MaterialItem) => void;
   onReadOnline: (m: MaterialItem) => void;
+  onEditMaterial: (m: MaterialItem) => void;
 }) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const hasQuery = search.trim().length > 0;
@@ -1123,7 +1350,7 @@ function StudentMyUploadsTab({
         <div className="empty-state card-empty">
           <Loader2 size={30} className="spin-icon" />
           <b>Loading your uploads…</b>
-          <span>Fetching the latest submission statuses from the library database.</span>
+          <span>Fetching the latest submission statuses from the library.</span>
         </div>
       ) : uploads.length === 0 ? (
         <div className="empty-state card-empty">
@@ -1193,6 +1420,16 @@ function StudentMyUploadsTab({
                     >
                       <Eye size={15} />
                     </button>
+                    {(m.status === 'pending' || m.status === 'rejected') && (
+                      <button
+                        className="action-icon-btn"
+                        onClick={() => onEditMaterial(m)}
+                        title="Edit and resubmit material"
+                        aria-label="Edit and resubmit material"
+                      >
+                        <Pencil size={15} />
+                      </button>
+                    )}
                     <button
                       className="action-icon-btn delete"
                       onClick={() => onRequestDelete(m)}
@@ -1494,7 +1731,7 @@ function StudentAiChatTab({
           <p className="kicker">POWERED BY THE E-LIBRARY COLLECTION</p>
           <h1>AI study assistant</h1>
           <p className="subtitle">
-            Ask questions about your courses — answers are grounded in the approved materials in this library, with links to sources.
+            Ask questions about your courses. Answers are grounded in the approved materials in this library, with links to sources.
           </p>
         </div>
         {(conversationId || messages.length > 0) && (
@@ -2002,7 +2239,7 @@ function StudentProfileTab({ currentUser }: { currentUser: any }) {
     if (res.error) {
       toast(res.error.message, 'error');
     } else {
-      toast('Profile updated successfully in database!', 'success');
+      toast('Profile updated successfully!', 'success');
     }
   };
 
@@ -2196,6 +2433,82 @@ function StudentProfileTab({ currentUser }: { currentUser: any }) {
   );
 }
 
+// Notification Preferences Card (campus platform notification categories)
+function NotificationPreferencesCard() {
+  const { toast } = useToast();
+  const [prefs, setPrefs] = useState<NotificationPreference[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchNotificationPreferences()
+      .then((data) => { if (!cancelled) setPrefs(data); })
+      .catch((err: unknown) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load preferences.');
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const getPref = (key: string): boolean => {
+    const p = prefs.find((x) => x.category === key);
+    return p ? p.in_app_enabled : true;
+  };
+
+  const handleToggle = async (key: string, value: boolean) => {
+    // Optimistic update
+    setPrefs((prev) => {
+      const existing = prev.find((x) => x.category === key);
+      if (existing) {
+        return prev.map((x) => x.category === key ? { ...x, in_app_enabled: value } : x);
+      }
+      return [...prev, { category: key, in_app_enabled: value, email_enabled: true, push_enabled: false }];
+    });
+    try {
+      await upsertNotificationPreference(key, 'in_app_enabled', value);
+      toast('Notification preference saved.', 'success');
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : 'Could not save preference.', 'error');
+      // Revert
+      setPrefs((prev) => prev.map((x) => x.category === key ? { ...x, in_app_enabled: !value } : x));
+    }
+  };
+
+  return (
+    <div className="platform-card" style={{ marginTop: 24 }}>
+      <div className="platform-card-head">
+        <h3>Campus notification categories</h3>
+        <span style={{ fontSize: '0.78rem', color: '#8ba898' }}>In-app only</span>
+      </div>
+      <p style={{ fontSize: '0.85rem', color: '#6b8f7a', marginBottom: 12 }}>
+        Control which campus platform categories show in-app notifications. Email and push preferences are saved for future use.
+      </p>
+      {loading && <p style={{ fontSize: '0.85rem', color: '#8ba898' }}>Loading preferences…</p>}
+      {error && <p style={{ fontSize: '0.85rem', color: '#c0392b' }}>{error}</p>}
+      {!loading && !error && (
+        <div className="platform-list">
+          {NOTIFICATION_CATEGORIES.map((cat) => (
+            <div key={cat.key} className="platform-list-item">
+              <div>
+                <strong>{cat.label}</strong>
+                <small style={{ display: 'block', color: '#8ba898' }}>{cat.description}</small>
+              </div>
+              <label className="switch-row" style={{ margin: 0, gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={getPref(cat.key)}
+                  onChange={(e) => void handleToggle(cat.key, e.target.checked)}
+                  aria-label={`Toggle ${cat.label} in-app notifications`}
+                />
+              </label>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // 9. Student Settings Tab
 function StudentSettingsTab({ currentUser }: { currentUser: any }) {
@@ -2273,7 +2586,7 @@ function StudentSettingsTab({ currentUser }: { currentUser: any }) {
     if (res.error) {
       toast(res.error.message, 'error');
     } else {
-      toast('Account details updated successfully in database!', 'success');
+      toast('Account details updated successfully!', 'success');
     }
   };
 
@@ -2803,6 +3116,8 @@ function StudentSettingsTab({ currentUser }: { currentUser: any }) {
                   </button>
                 </div>
               </form>
+
+              <NotificationPreferencesCard />
             </div>
           )}
 
@@ -3820,7 +4135,7 @@ function StudentMessagesTab() {
       <div className="request-page-header">
         <div>
           <h2 className="page-title"><MessageSquare size={22} />Messages</h2>
-          <p className="page-subtitle">Message administrators about your uploads, requests, and account — or chat directly with other students.</p>
+          <p className="page-subtitle">Message administrators about your uploads, requests, and account, or chat directly with other students.</p>
         </div>
         <div className="msg-actions">
           <button className="secondary-btn" onClick={() => { setShowMsgAdmin(true); setAdminSubject(''); setAdminBody(''); }}>
@@ -4274,10 +4589,10 @@ function StudentDeletionRequestsTab() {
                     <td className="cell-secondary">{timeSince(r.created_at)}</td>
                     <td><span className="field-tag">{r.request_type}</span></td>
                     <td className="cell-bold">{r.item_name}</td>
-                    <td className="cell-code">{r.item_code || '—'}</td>
+                    <td className="cell-code">{r.item_code || '-'}</td>
                     <td className="cell-reason">{r.reason}</td>
                     <td>{statusBadge(r.status)}</td>
-                    <td className="cell-note">{r.admin_note || '—'}</td>
+                    <td className="cell-note">{r.admin_note || '-'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -4475,10 +4790,10 @@ function StudentChangeRequestsTab() {
               <input className="form-input input-readonly" value={currentValue || 'Not set yet'} disabled />
               {fieldLocked ? (
                 <div className="change-limit-alert">
-                  <Lock size={14} /> Locked — admin approval required
+                  <Lock size={14} /> Locked: admin approval required
                 </div>
               ) : (
-                <div className="field-hint">Set this now — once saved it becomes locked and requires admin approval to change.</div>
+                <div className="field-hint">Set this now (once saved it becomes locked and requires admin approval to change).</div>
               )}
             </div>
           </div>
@@ -4549,7 +4864,7 @@ function StudentChangeRequestsTab() {
                     <td className="cell-bold">{r.requested_value}</td>
                     <td className="cell-reason">{r.reason}</td>
                     <td>{statusBadge(r.status)}</td>
-                    <td className="cell-note">{r.admin_note || '—'}</td>
+                    <td className="cell-note">{r.admin_note || '-'}</td>
                   </tr>
                 ))}
               </tbody>

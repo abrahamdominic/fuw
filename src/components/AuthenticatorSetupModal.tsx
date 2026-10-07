@@ -71,7 +71,7 @@ export const AuthenticatorSetupModal: React.FC<AuthenticatorSetupModalProps> = (
       setStatus('error');
       setError(
         e?.message?.includes('server') || e?.message?.includes('enabled')
-          ? 'Two-factor authentication is not enabled on this server yet. Contact the library administrator to enable MFA in Supabase (Auth → MFA).'
+          ? 'Two-factor authentication is not enabled on this server yet. Contact the library administrator to enable it.'
           : e?.message || 'Could not start enrollment. Please try again.'
       );
     }

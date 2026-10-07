@@ -30,6 +30,7 @@ import {
   X
 } from 'lucide-react';
 import { SEO } from '../components/SEO';
+import { BootFallback } from '../components/BootFallback';
 import { Logo } from '../components/Logo';
 import { useToast } from '../components/Toast';
 import { useAuth, USERNAME_PATTERN, normalizeUsername, validatePasswordPolicy, PASSWORD_REQUIREMENTS_TEXT } from '../lib/AuthContext';
@@ -43,7 +44,7 @@ import {
 } from '../lib/security';
 import { passkeyErrorMessage } from '../lib/authErrors';
 import { fx, staggerDelay } from '../lib/motion';
-import { usePrefersStaticBackdrop } from '../lib/backdrop';
+import { safeMediaPlay, usePrefersStaticBackdrop } from '../lib/backdrop';
 
 type AuthMode = 'login' | 'register' | 'forgot';
 
@@ -84,12 +85,12 @@ export function AuthShowcase() {
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    if (isPlaying) void video.play().catch(() => undefined);
+    if (isPlaying) safeMediaPlay(video);
     else video.pause();
   }, [isPlaying, shouldLoadVideo]);
 
   return (
-    <aside className="mac-showcase" aria-label="FUW E-Library Institutional Showcase">
+    <aside className="mac-showcase" aria-label="FUW Campus Hub Institutional Showcase">
       {/* The layer is opacity:0 until it has something painted, and the still
           frame counts — otherwise the reduced-motion fallback would be blank. */}
       <div className={`mac-showcase-video-box ${showStaticPoster || shouldLoadVideo ? 'loaded' : ''}`}>
@@ -233,9 +234,9 @@ export function MacPage({
               <School size={12} />
               <span>{pill}</span>
             </span>
-            <h1 className={`mac-title ${fx.fadeUp}`} style={staggerDelay(2, 70)}>FUW E-Library</h1>
+            <h1 className={`mac-title ${fx.fadeUp}`} style={staggerDelay(2, 70)}>FUW Campus Hub</h1>
             <p className={`mac-subtitle ${fx.fadeUp}`} style={staggerDelay(3, 70)}>
-              {subtitle ?? 'Institutional Academic Repository & Study Portal'}
+              {subtitle ?? 'Official Student Portal & Campus Services'}
             </p>
           </div>
 
@@ -520,6 +521,7 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
 
   // Recovery
   const [forgotEmail, setForgotEmail] = useState('');
+  const [accountNotFound, setAccountNotFound] = useState(false);
 
   // Academic profile (register step 2)
   const [profileData, setProfileData] = useState({
@@ -597,6 +599,7 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
     setRegisterStep(1);
     setErrorMsg(null);
     setSuccessMsg(null);
+    setAccountNotFound(false);
     setOtp('');
   };
 
@@ -610,7 +613,7 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
     const role = roleOverride || profile?.role;
     if (role === 'super_admin') navigate('/super', { replace: true });
     else if (role === 'admin') navigate('/admin', { replace: true });
-    else navigate('/student', { replace: true });
+    else navigate('/hub', { replace: true });
   };
 
   // Check passkey support on mount
@@ -630,20 +633,10 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
       } else if (profile?.role === 'admin') {
         navigate('/admin', { replace: true });
       } else {
-        navigate('/student', { replace: true });
+        navigate('/hub', { replace: true });
       }
     }
   }, [isAuthenticated, isProfileComplete, profile, navigate, step, mfaRequired, fromPath]);
-
-  // Prevent flash of login screen if already authenticated or while loading
-  if (isLoading) {
-    return null;
-  }
-  if (isAuthenticated && isProfileComplete && step !== 'otp' && !mfaRequired) {
-    const defaultTarget = profile?.role === 'super_admin' ? '/super' : profile?.role === 'admin' ? '/admin' : '/student';
-    const dest = fromPath && fromPath !== '/login' && fromPath !== '/register' && fromPath !== '/' ? fromPath : defaultTarget;
-    return <Navigate to={dest} replace />;
-  }
 
   // Login handler
   const handleLogin = async (e: React.FormEvent) => {
@@ -652,7 +645,7 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
     setSuccessMsg(null);
 
     if (!username.trim() || !password) {
-      setErrorMsg('Please enter your username or email and your password.');
+      setErrorMsg('Please enter your email or username and password.');
       return;
     }
 
@@ -672,7 +665,7 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
       return;
     }
 
-    toast('Welcome back to FUW E-Library!', 'success');
+    toast('Welcome back to FUW Campus Hub!', 'success');
     goToPortal(res.role);
   };
 
@@ -731,8 +724,9 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
     e.preventDefault();
     setErrorMsg(null);
     setSuccessMsg(null);
+    setAccountNotFound(false);
 
-    const identifier = forgotEmail.trim().toLowerCase();
+    const identifier = forgotEmail.trim();
     if (!identifier) {
       setErrorMsg('Please enter your registered email address or username.');
       return;
@@ -751,13 +745,17 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
     setBusy(false);
 
     if (res.error) {
+      if (res.notFound) {
+        setAccountNotFound(true);
+      }
       setErrorMsg(res.error.message);
       return;
     }
 
+    setAccountNotFound(false);
     setForgotEmail('');
     setSuccessMsg(
-      'If an account exists for that email, a password reset link has been sent. Check your inbox (and spam folder) for instructions.'
+      'A password reset link has been sent to your email address. Please check your inbox and spam folder.'
     );
   };
 
@@ -887,7 +885,7 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
     setPasskeyFailMsg(null);
     setPasskeyRegistering(true);
     try {
-      await registerPasskey('FUW E-Library Account');
+      await registerPasskey('FUW Campus Hub Account');
       setPasskeySuccess(true);
       setPasskeyPromptShown(true);
       toast('Passkey registered successfully!', 'success');
@@ -930,6 +928,25 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
 
   const title = mode === 'register' ? 'Create Student Account' : mode === 'forgot' ? 'Reset your Password' : 'Sign In';
   const seoPath = mode === 'register' ? '/register' : mode === 'forgot' ? '/forgot-password' : '/login';
+  // If the URL contains recovery token or hash, redirect immediately to /reset-password
+  if (
+    typeof window !== 'undefined' &&
+    (window.location.hash.includes('type=recovery') ||
+      new URLSearchParams(window.location.search).get('type') === 'recovery')
+  ) {
+    return <Navigate to="/reset-password" replace />;
+  }
+
+  // Prevent flash of login screen if already authenticated or while loading
+  if (isLoading) {
+    return <BootFallback label="Restoring your session" />;
+  }
+  if (isAuthenticated && isProfileComplete && step !== 'otp' && !mfaRequired) {
+    const defaultTarget =
+      profile?.role === 'super_admin' ? '/super' : profile?.role === 'admin' ? '/admin' : '/hub';
+    const dest = fromPath && fromPath !== '/login' && fromPath !== '/register' && fromPath !== '/' ? fromPath : defaultTarget;
+    return <Navigate to={dest} replace />;
+  }
 
   return (
     <MacPage
@@ -944,10 +961,10 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
         title={title}
         description={
           mode === 'register'
-            ? 'Create a student account on the FUW E-Library to access and share academic materials.'
+            ? 'Create a student account on the FUW Campus Hub to access university services, academic materials, and campus marketplace.'
             : mode === 'forgot'
-              ? 'Reset your FUW E-Library password and regain access to your account.'
-              : 'Sign in to the FUW E-Library to access verified academic materials.'
+              ? 'Reset your FUW Campus Hub password and regain access to your account.'
+              : 'Sign in to the FUW Campus Hub to access student services, marketplace and verified materials.'
         }
         path={seoPath}
         noindex
@@ -977,14 +994,14 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
                       <UserRound size={18} className="mac-icon" aria-hidden />
                     )
                   }
-                  label="Username or Email"
+                  label="Email or username"
                   value={username}
                   onChange={(v) => {
                     setUsername(v);
                     if (errorMsg) setErrorMsg(null);
                   }}
                   onClear={() => setUsername('')}
-                  placeholder="e.g. cis.student or user@fuwukari.edu.ng"
+                  placeholder="Enter your email or username"
                   autoComplete="username"
                   disabled={busy}
                 />
@@ -1016,7 +1033,7 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
               </form>
 
               <div className="mac-divider">
-                <span>NEW TO FUW E-LIBRARY?</span>
+                <span>NEW TO FUW CAMPUS HUB?</span>
               </div>
 
               <button type="button" className="mac-btn mac-btn-register" onClick={() => switchMode('register')}>
@@ -1348,7 +1365,43 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
               </p>
             </div>
 
-            {errorMsg && <MacBanner type="error">{errorMsg}</MacBanner>}
+            {accountNotFound && errorMsg ? (
+              <div
+                className="mac-banner mac-banner-error"
+                role="alert"
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                  padding: '14px 16px',
+                  borderRadius: '10px'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <AlertCircle size={18} aria-hidden />
+                  <span style={{ fontWeight: 500 }}>{errorMsg}</span>
+                </div>
+                <button
+                  type="button"
+                  className="mac-btn mac-btn-register"
+                  style={{ alignSelf: 'flex-start', margin: 0, padding: '9px 16px', fontSize: '13px' }}
+                  onClick={() => {
+                    if (forgotEmail.includes('@')) {
+                      setEmail(forgotEmail);
+                    } else {
+                      setUsername(forgotEmail);
+                    }
+                    setAccountNotFound(false);
+                    setErrorMsg(null);
+                    switchMode('register');
+                  }}
+                >
+                  <UserPlus size={16} aria-hidden /> Create Account
+                </button>
+              </div>
+            ) : (
+              errorMsg && <MacBanner type="error">{errorMsg}</MacBanner>
+            )}
             {successMsg && <MacBanner type="success">{successMsg}</MacBanner>}
 
             <form onSubmit={handleForgotPassword} noValidate>
@@ -1393,7 +1446,7 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
             <div className="mac-welcome-icon-circle">
               <Sparkles size={34} color="#0B6B3A" />
             </div>
-            <span className="mac-welcome-eyebrow">WELCOME TO FUW E-LIBRARY</span>
+            <span className="mac-welcome-eyebrow">WELCOME TO FUW CAMPUS HUB</span>
             <h2 className="mac-welcome-title">
               You&apos;re all set, {welcome.fullName.split(/\s+/)[0] || 'student'}!
             </h2>
@@ -1511,7 +1564,7 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
                 <h3 className="mac-passkey-result-title">Passkey successfully created</h3>
                 <p className="mac-passkey-result-desc">
                   Your account is now protected with secure biometric sign-in. You can sign in on this device using your
-                  fingerprint, Face ID, or Windows Hello — no password needed.
+                  fingerprint, Face ID, or Windows Hello (no password needed).
                 </p>
                 <div className="mac-passkey-success">
                   <CheckCircle2 size={18} color="#15803D" />
@@ -1583,7 +1636,7 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
                   {welcome.needsEmailConfirmation
                     ? 'Continue to Sign In'
                     : passkeySuccess
-                      ? 'Continue to E-Library'
+                      ? 'Continue to Campus Hub'
                       : 'Start Learning'}
                 </span>
                 <ArrowRight size={17} aria-hidden />

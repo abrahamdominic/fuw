@@ -170,7 +170,7 @@ async function collectDatabaseUrls(): Promise<{ urls: DbUrl[]; warnings: string[
     return { urls, warnings };
   }
 
-  const [materials, research, collections] = await Promise.all([
+  const [materials, research, collections, accommodations] = await Promise.all([
     // Only approved material is listed — the same rule
     // store.getApprovedMaterials() applies in the browser.
     restGet(config, 'materials', {
@@ -190,6 +190,11 @@ async function collectDatabaseUrls(): Promise<{ urls: DbUrl[]; warnings: string[
       select: 'slug,updated_at',
       is_published: 'eq.true',
       limit: '1000'
+    }),
+    restGet(config, 'accommodation_properties', {
+      select: 'slug,updated_at',
+      is_published: 'eq.true',
+      limit: '1000'
     })
   ]);
 
@@ -201,6 +206,9 @@ async function collectDatabaseUrls(): Promise<{ urls: DbUrl[]; warnings: string[
 
   if (!collections) warnings.push('collection_groups table unavailable: collection URLs omitted from the sitemap.');
   else for (const row of collections) if (row.slug) urls.push({ path: `/collections/${row.slug}`, lastmod: isoDate(row.updated_at) });
+
+  if (!accommodations) warnings.push('accommodation_properties table unavailable: accommodation URLs omitted from the sitemap.');
+  else for (const row of accommodations) if (row.slug) urls.push({ path: `/accommodation/${row.slug}`, lastmod: isoDate(row.updated_at) });
 
   return { urls, warnings };
 }
@@ -229,8 +237,16 @@ function renderSitemap(entries: SitemapEntry[]): string {
  */
 const PRIVATE_PREFIXES = [
   '/student',
+  '/student/',
   '/admin',
+  '/admin/',
+  '/super',
+  '/super/',
   '/super-admin',
+  '/superadmin',
+  '/hub',
+  '/campus-hub',
+  '/campus',
   '/login',
   '/register',
   '/forgot-password',
@@ -244,18 +260,27 @@ const PRIVATE_PREFIXES = [
   '/report-copyright',
   '/repository/submit',
   '/verify-email',
-  '/maintenance'
+  '/maintenance',
+  '/checkout',
+  '/cart',
+  '/orders',
+  '/orders/',
+  '/payments',
+  '/api/',
+  '/api'
 ];
 
 function renderRobots(): string {
   const lines: string[] = [
-    '# robots.txt for the FUW E-Library',
-    '# Public academic content is open to search engines. Accounts, dashboards,',
-    '# administrative areas and every authenticated surface are not.',
+    '# robots.txt for Federal University Wukari Ecosystem',
+    '# Public content and verified accommodations are open to search engines.',
+    '# Dashboards, administrative tools, accounts and authenticated areas are strictly protected.',
     '',
     'User-agent: *',
     'Allow: /',
     'Allow: /library',
+    'Allow: /accommodation',
+    'Allow: /accommodation/',
     'Allow: /faculties/',
     'Allow: /departments/',
     'Allow: /courses/',
@@ -301,14 +326,53 @@ function renderRobots(): string {
  * Routes that exist but are not part of the indexable surface. They still have
  * to answer with HTTP 200 — a signed-in user following `/student/upload` is on
  * a real page, and a 404 there is a bug, not a policy.
+ *
+ * Every entry must correspond to a `path=` declared in `src/main.tsx`.
+ * `assertRouteCoverage()` fails the build if a declared static route has no
+ * rewrite: `/wallet`, `/course-upload`, `/campus` and `/campus-hub` were all
+ * real client routes that answered HTTP 404 in production for exactly that
+ * reason, while looking perfectly healthy under `vite dev`.
  */
-const PORTAL_ALIASES = ['/dashboard', '/profile', '/settings', '/super-admin', '/superadmin'];
+const PORTAL_ALIASES = [
+  '/dashboard',
+  '/profile',
+  '/settings',
+  '/super-admin',
+  '/superadmin',
+  '/wallet',
+  '/course-upload',
+  '/campus',
+  '/campus-hub',
+  '/accommodation/roommates/post',
+  '/accommodation/roommates/create'
+];
 
 /**
  * Client-routed subtrees of the authenticated portals. Wildcards are safe here
  * because every one of them sits behind `RequireAuth` and `noindex`.
  */
 const PORTAL_WILDCARDS = ['/student/*', '/admin/*', '/super/*'];
+
+/**
+ * The FUW Student Marketplace, mounted at /marketplace/* in this SPA
+ * (must.md Phase 10).
+ *
+ * `/marketplace` is an exact route and belongs in the indexable set with the
+ * rest of the entry points. Everything under it is covered by a wildcard for
+ * one reason: the Marketplace's URLs are keyed on ids from the Marketplace
+ * tables (products, storefronts, orders, conversations), which this build does
+ * not read, so they cannot be enumerated here the way `/accommodation/<slug>`
+ * can.
+ *
+ * The wildcard is therefore the documented exception to the rule above. It is
+ * bounded to this one subtree, and an unknown path inside it still renders a
+ * real not-found page — it just answers HTTP 200 rather than 404. The subtree
+ * is deliberately left out of sitemap.xml; the Marketplace ships its own
+ * document titles and descriptions, and duplicating it into the platform's
+ * sitemap would put two canonical surfaces on the same origin.
+ */
+const MARKETPLACE_ROUTES = ['/marketplace'];
+const MARKETPLACE_WILDCARDS = ['/marketplace/*'];
 
 /**
  * Netlify rewrite rules for every route that actually exists.
@@ -338,13 +402,14 @@ function buildRedirectRules(indexablePaths: string[]): string[] {
     ...Object.keys(NOINDEX_ROUTES),
     ...Object.keys(PRIVATE_ROUTES),
     ...Object.keys(PORTAL_ROUTES),
-    ...PORTAL_ALIASES
+    ...PORTAL_ALIASES,
+    ...MARKETPLACE_ROUTES
   ]) {
     paths.add(key);
   }
 
   const exact = [...paths].filter((path) => !path.includes('*')).sort();
-  const rules = [...exact, ...PORTAL_WILDCARDS];
+  const rules = [...exact, ...PORTAL_WILDCARDS, ...MARKETPLACE_WILDCARDS];
 
   // A rewrite aimed at a real file would shadow it, and a catch-all would
   // undo the 404 behaviour this file exists to preserve.
@@ -360,8 +425,66 @@ function buildRedirectRules(indexablePaths: string[]): string[] {
   return rules;
 }
 
+/**
+ * Fails the build when a statically-declared client route has no rewrite.
+ *
+ * This is the guard for a whole class of production-only bug: the route exists
+ * in `src/main.tsx`, the app renders it fine under `vite dev`/`vite preview`
+ * (both fall back to `index.html` for unknown paths), but Netlify has no rule
+ * for it and answers HTTP 404. Nothing else notices until a user clicks the
+ * link on the live site.
+ *
+ * Scope: routes with no `:param` segment. Parameterised record routes
+ * (`/materials/:id`, `/collections/:slug`, …) are enumerated from the database
+ * into the rules instead, and a table that is legitimately empty must not fail
+ * the build, so those are checked by enumeration, not by pattern.
+ */
+function assertRouteCoverage(rules: string[]): void {
+  const routerFiles = ['src/main.tsx', 'src/App.tsx']
+    .map((rel) => resolve(ROOT, rel))
+    .filter((file) => existsSync(file));
+
+  if (routerFiles.length === 0) return;
+
+  const declared = new Set<string>();
+  for (const file of routerFiles) {
+    const source = readFileSync(file, 'utf8');
+    for (const match of source.matchAll(/\bpath\s*=\s*["']([^"']+)["']/g)) {
+      declared.add(match[1]);
+    }
+  }
+
+  // Redirects declared in netlify.toml resolve these before _redirects is ever
+  // consulted, so they need no rewrite of their own.
+  const tomlPath = resolve(ROOT, 'netlify.toml');
+  const tomlRedirects = existsSync(tomlPath)
+    ? new Set([...readFileSync(tomlPath, 'utf8').matchAll(/^\s*from\s*=\s*"([^"]+)"/gm)].map((m) => m[1]))
+    : new Set<string>();
+
+  const ruleSet = new Set(rules);
+  const wildcardParents = rules.filter((rule) => rule.endsWith('/*')).map((rule) => rule.slice(0, -2));
+
+  const missing = [...declared]
+    .filter((route) => route !== '*' && !route.includes(':'))
+    .filter((route) => !ruleSet.has(route))
+    .filter((route) => !wildcardParents.some((parent) => route === parent || route.startsWith(`${parent}/`)))
+    .filter((route) => !tomlRedirects.has(route))
+    .sort();
+
+  if (missing.length > 0) {
+    throw new Error(
+      `[seo] ${missing.length} client route(s) have no rewrite and would 404 in production:\n` +
+        missing.map((route) => `      ${route}`).join('\n') +
+        `\n  Add them to PORTAL_ALIASES/PORTAL_WILDCARDS/MARKETPLACE_WILDCARDS in ` +
+        `scripts/generate-seo.ts, or declare a redirect for them in netlify.toml.`
+    );
+  }
+}
+
 function writeRedirects(indexablePaths: string[]): string {
   const rules = buildRedirectRules(indexablePaths);
+
+  assertRouteCoverage(rules);
 
   const header = [
     '# Generated by scripts/generate-seo.ts — do not edit by hand.',

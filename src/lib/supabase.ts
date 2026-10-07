@@ -5,25 +5,43 @@ import { createClient } from '@supabase/supabase-js';
 const url = (import.meta as any).env?.VITE_SUPABASE_URL as string | undefined;
 const key = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY as string | undefined;
 
-// In-memory auth token storage (FL-1 hardening).
+// Session persistence.
 //
-// This is a pure static SPA (Netlify) talking to Supabase edge functions that
-// authenticate via the Authorization header — there is NO server to set
-// httpOnly cookies, so any cookie the SPA could use is JS-readable and offers
-// no real advantage over localStorage. Instead we hold the session ONLY in JS
-// memory: tokens are never written to localStorage/sessionStorage, so a
-// cross-site scripting bug cannot exfiltrate a persisted refresh token.
+// The session IS persisted, to `window.localStorage` under the `fuw-auth-token`
+// key. This was previously documented here and in RUNBOOK_DEPLOYMENTS.md as an
+// "FL-1 hardening" measure that kept tokens in memory only. That description was
+// wrong: the storage below has been `window.localStorage`, so no in-memory-only
+// hardening has ever been in effect, and an incident responder reading the
+// runbook would have believed there was no persisted refresh token to steal.
 //
-// Trade-off: the session does not survive a full page reload or another tab.
-// Within the page lifetime, supabase-js still auto-refreshes the access token.
-const inMemoryStore = new Map<string, string>();
+// In-memory-only storage was the right instinct and is still the stronger
+// posture, but it is not compatible with the product requirement that refreshing
+// the page must not sign the user out (`must.md`, "Session requirements":
+// "Refreshing the page does not unnecessarily log the user out", exercised by
+// "Create account -> Login -> Refresh -> Navigate -> ..."). In a pure static SPA
+// on Netlify talking to Supabase edge functions there is no server to set an
+// httpOnly cookie, so the session has to live somewhere the page can read back.
+//
+// The compensating control for holding a refresh token in JS-readable storage is
+// that an injected script must not be able to read it in the first place. That
+// is enforced by the Content-Security-Policy in netlify.toml: `script-src 'self'`
+// with no `unsafe-inline` and no `unsafe-eval`, plus `object-src 'none'` and
+// `base-uri 'self'`. A string-concatenation XSS cannot execute, so it cannot
+// reach localStorage. Any change that weakens that CSP must revisit this
+// decision in the same commit.
+const memoryStore = new Map<string, string>();
+/**
+ * Storage adapter used only when there is no `window` (server render and
+ * build-time prerender), where touching `localStorage` would throw. It is not
+ * the primary browser store -- see the note above on session persistence.
+ */
 export const memoryStorage = {
-  getItem: (k: string) => inMemoryStore.get(k) ?? null,
+  getItem: (k: string) => memoryStore.get(k) ?? null,
   setItem: (k: string, v: string) => {
-    inMemoryStore.set(k, v);
+    memoryStore.set(k, v);
   },
   removeItem: (k: string) => {
-    inMemoryStore.delete(k);
+    memoryStore.delete(k);
   },
   isServer: false
 };
@@ -43,7 +61,12 @@ export const supabase =
           persistSession: true,
           autoRefreshToken: true,
           detectSessionInUrl: true,
-          storage: memoryStorage,
+          // Shared deliberately with the Marketplace client: one key, one
+          // session, so signing in on either surface signs in on both.
+          storageKey: 'fuw-auth-token',
+          // `memoryStorage` is the no-`window` fallback (server render and
+          // build-time prerender), not the primary browser store.
+          storage: typeof window !== 'undefined' ? window.localStorage : memoryStorage,
           experimental: experimentalOptions
         }
       })

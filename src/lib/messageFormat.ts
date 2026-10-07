@@ -256,9 +256,21 @@ function elementToMarkdown(node: Node): string {
 }
 
 function decodeEntities(text: string): string {
-  const holder = document.createElement('textarea');
-  holder.innerHTML = text;
-  return holder.value;
+  if (typeof DOMParser !== 'undefined') {
+    try {
+      const doc = new DOMParser().parseFromString(text || '', 'text/html');
+      return doc.documentElement.textContent || text;
+    } catch {
+      // Fall through to entity replacement fallback
+    }
+  }
+  return (text || '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'");
 }
 
 /**

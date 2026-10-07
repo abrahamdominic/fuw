@@ -41,7 +41,7 @@ export const UNIVERSITY_OFFICIAL_SITE = 'https://fuwukari.edu.ng';
 export const LOGO_PATH = '/images/fuw-logo.png';
 export const OG_IMAGE_PATH = '/images/fuw-elibrary-og.png';
 export const OG_IMAGE_ALT =
-  'FUW E-Library — Federal University Wukari digital library of lecture notes, past questions and academic resources';
+  'FUW E-Library: Federal University Wukari digital library of lecture notes, past questions and academic resources';
 export const OG_IMAGE_WIDTH = 1200;
 export const OG_IMAGE_HEIGHT = 630;
 

@@ -26,10 +26,10 @@ function describeError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error ?? '');
   const msg = raw.toLowerCase();
   if (msg.includes('not supported') || msg.includes('notenabled') || msg.includes('not enabled')) {
-    return 'This browser or connection does not support passkeys. Use HTTPS (or localhost) in a browser that supports WebAuthn.';
+    return 'This browser or connection does not support passkeys. Use HTTPS (or localhost) in a supported browser.';
   }
   if (msg.includes('experimental')) {
-    return 'Passkeys are not enabled on this server yet. Contact the library administrator to turn on the Passkeys experimental feature in Supabase.';
+    return 'Passkeys are not enabled on this server yet. Contact the library administrator to turn them on.';
   }
   if (msg.includes('cancel') || msg.includes('abort')) {
     return 'Passkey setup was cancelled. You can try again whenever you are ready.';
@@ -148,7 +148,7 @@ export const PasskeysManager: React.FC = () => {
         <div className="security-tool-info">
           <b id="passkeys-heading">Passkeys (passwordless sign-in)</b>
           <p>
-            Register this device to sign in with your fingerprint, face, or a security key —
+            Register this device to sign in with your fingerprint, face, or a security key:
             no password required.
           </p>
         </div>

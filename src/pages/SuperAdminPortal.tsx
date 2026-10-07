@@ -26,6 +26,7 @@ import {
   Wrench,
   CreditCard,
   Crown,
+  Banknote,
   Loader2
 } from 'lucide-react';
 import { requireSupabase } from '../lib/supabase';
@@ -44,6 +45,7 @@ import {
 } from '../lib/maintenance';
 import { PaymentsAdminTab } from './PaymentsAdminTab';
 import { SuperAdminPremiumTab } from './SuperAdminPremiumTab';
+import { SuperAdminWalletWithdrawalsTab } from './SuperAdminWalletWithdrawalsTab';
 
 interface AdminRow {
   id: string;
@@ -71,6 +73,7 @@ const superNavItems = [
   { label: 'Admin invites', path: '/super/invites', icon: MailPlus },
   { label: 'Premium system', path: '/super/premium', icon: Crown },
   { label: 'Premium payments', path: '/super/payments', icon: CreditCard },
+  { label: 'Wallet withdrawals', path: '/super/withdrawals', icon: Banknote },
   { label: 'System & maintenance', path: '/super/system', icon: Wrench }
 ];
 
@@ -274,6 +277,8 @@ export function SuperAdminPortal() {
           <MaintenanceControlTab />
         ) : currentPath.startsWith('/super/payments') ? (
           <PaymentsAdminTab />
+        ) : currentPath.startsWith('/super/withdrawals') ? (
+          <SuperAdminWalletWithdrawalsTab />
         ) : currentPath.startsWith('/super/admins') ? (
           <AdminManagementTab
             admins={admins}
@@ -758,7 +763,7 @@ function PermissionEditorModal({
         <div className="confirm-dialog-icon">
           <KeyRound size={26} />
         </div>
-        <h3 id="perm-dialog-title">Edit permissions — {admin.full_name || admin.email}</h3>
+        <h3 id="perm-dialog-title">Edit permissions: {admin.full_name || admin.email}</h3>
         <p className="confirm-dialog-message">
           Tick exactly what this administrator may do. They can never manage other administrators.
         </p>
@@ -937,7 +942,7 @@ function InviteManagementTab() {
           <div className="empty-state card-empty">
             <MailPlus size={36} />
             <b>No invites yet.</b>
-            <span>Create your first invite above — it activates when the person signs up.</span>
+            <span>Create your first invite above (it activates when the person signs up).</span>
           </div>
         ) : filteredInvites.length === 0 ? (
           <div className="empty-state card-empty">
@@ -956,7 +961,7 @@ function InviteManagementTab() {
             {filteredInvites.map((i) => (
               <div className="tr super-invite-grid" key={i.id}>
                 <span><b>{i.email}</b></span>
-                <span>{i.full_name || '—'}</span>
+                <span>{i.full_name || '-'}</span>
                 <span>
                   {i.accepted ? (
                     <span className="status-badge approved"><CheckCircle2 size={12} /> Accepted</span>
@@ -1025,8 +1030,8 @@ function MaintenanceControlTab() {
       await setMaintenanceMode(enabling, messageDraft.trim() || undefined);
       toast(
         enabling
-          ? 'Maintenance mode enabled — students and visitors now see the maintenance page.'
-          : 'Maintenance mode disabled — everyone has full access again.',
+          ? 'Maintenance mode enabled: students and visitors now see the maintenance page.'
+          : 'Maintenance mode disabled: everyone has full access again.',
         'success'
       );
       setConfirmToggle(null);
@@ -1138,7 +1143,7 @@ function MaintenanceControlTab() {
               </div>
             </div>
             <ul className="super-help-list">
-              <li><b>Persisted:</b> stored in the <code>system_settings</code> table — survives refreshes, browsers, devices and deployments.</li>
+              <li><b>Persisted:</b> stored in the <code>system_settings</code> table (survives refreshes, browsers, devices and deployments).</li>
               <li><b>Global redirect:</b> every route except <code>/maintenance</code> sends normal users there automatically.</li>
               <li><b>Super Admin bypass:</b> you always keep full access to this dashboard and can disable the mode instantly.</li>
               <li><b>Instant recovery:</b> disabling restores access immediately; clients re-check within seconds.</li>

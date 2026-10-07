@@ -267,3 +267,47 @@ export async function reviewPaymentRequest(
   });
   if (error) throw new Error(error.message);
 }
+
+export interface UserWalletBalance {
+  wallet_id: string | null;
+  currency: string;
+  available_kobo: number;
+  pending_kobo: number;
+  total_kobo: number;
+  is_frozen: boolean;
+  frozen_reason?: string | null;
+}
+
+export async function fetchMyWalletBalance(): Promise<UserWalletBalance> {
+  const { data, error } = await requireSupabase().rpc('mp_wallet_get');
+  if (error) throw new Error(error.message);
+  return data as UserWalletBalance;
+}
+
+export async function payPremiumPlanFromWallet(planSlug: string): Promise<{
+  success: boolean;
+  plan_name: string;
+  amount_kobo: number;
+  balance_after_kobo: number;
+  expires_at: string;
+  reference: string;
+}> {
+  const { data, error } = await requireSupabase().rpc('pay_premium_plan_from_wallet', {
+    p_plan_slug: planSlug
+  });
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+export async function refundPaymentTransactionToWallet(
+  transactionId: string,
+  reason: string
+): Promise<{ success: boolean; refunded_amount_kobo: number; balance_after_kobo: number }> {
+  const { data, error } = await requireSupabase().rpc('refund_payment_transaction_to_wallet', {
+    p_transaction_id: transactionId,
+    p_reason: reason
+  });
+  if (error) throw new Error(error.message);
+  return data;
+}
+

@@ -20,6 +20,26 @@ interface DeviceNavigator extends Navigator {
   deviceMemory?: number;
 }
 
+/**
+ * Safely start playback on a `<video>` element.
+ *
+ * `HTMLMediaElement.play()` returns a promise in modern browsers, but older
+ * webviews and some environments return `undefined` (or throw synchronously)
+ * when autoplay is unsupported. Calling `.catch()` on an undefined return is
+ * itself an unhandled error that takes down the surrounding page, so guard it:
+ */
+export function safeMediaPlay(video: HTMLVideoElement): void {
+  let result: unknown;
+  try {
+    result = video.play?.();
+  } catch {
+    return;
+  }
+  if (result && typeof (result as Promise<void>).catch === 'function') {
+    (result as Promise<void>).catch(() => undefined);
+  }
+}
+
 export function usePrefersStaticBackdrop(): boolean {
   const [staticBackdrop, setStaticBackdrop] = useState(true);
 

@@ -275,11 +275,11 @@ export function AdminPlansTab() {
                       <dl className="verify-admin-facts">
                         <div>
                           <dt>Matric</dt>
-                          <dd>{s.matric_number || '—'}</dd>
+                          <dd>{s.matric_number || 'N/A'}</dd>
                         </div>
                         <div>
                           <dt>Department</dt>
-                          <dd>{s.department || '—'}</dd>
+                          <dd>{s.department || 'N/A'}</dd>
                         </div>
                       </dl>
                     </div>
@@ -325,7 +325,7 @@ export function AdminPlansTab() {
                 <span className="muted">
                   Verification: {selected.verification_status}
                   {selected.verification_status !== 'verified' &&
-                    ' — downloads stay locked until this is verified.'}
+                    ': downloads stay locked until this is verified.'}
                 </span>
               </p>
 

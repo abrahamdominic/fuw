@@ -1,0 +1,63 @@
+# robots.txt for Federal University Wukari Ecosystem
+# Public content and verified accommodations are open to search engines.
+# Dashboards, administrative tools, accounts and authenticated areas are strictly protected.
+
+User-agent: *
+Allow: /
+Allow: /library
+Allow: /accommodation
+Allow: /accommodation/
+Allow: /faculties/
+Allow: /departments/
+Allow: /courses/
+Allow: /materials/
+Allow: /repository
+Allow: /repository/
+Allow: /collections
+Allow: /collections/
+Allow: /about
+Allow: /help
+Allow: /contact
+
+Disallow: /student
+Disallow: /student/
+Disallow: /admin
+Disallow: /admin/
+Disallow: /super
+Disallow: /super/
+Disallow: /super-admin
+Disallow: /superadmin
+Disallow: /hub
+Disallow: /campus-hub
+Disallow: /campus
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /logout
+Disallow: /profile
+Disallow: /settings
+Disallow: /messages
+Disallow: /messages/
+Disallow: /report-problem
+Disallow: /report-copyright
+Disallow: /repository/submit
+Disallow: /verify-email
+Disallow: /maintenance
+Disallow: /checkout
+Disallow: /cart
+Disallow: /orders
+Disallow: /orders/
+Disallow: /payments
+Disallow: /api/
+Disallow: /api
+
+# Filtered and searched views of the catalogue are thin duplicates of
+# the canonical listing pages; they are noindex in the page head, so they
+# are disallowed here to keep crawl budget on the canonical URLs.
+Disallow: /*?*
+
+# This is a static site served from a CDN, so no crawl throttling is
+# required.
+
+Sitemap: https://fuwtest.netlify.app/sitemap.xml

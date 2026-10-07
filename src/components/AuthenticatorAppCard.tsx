@@ -26,7 +26,7 @@ export const AuthenticatorAppCard: React.FC = () => {
     } catch (e: any) {
       setError(
         e?.message?.includes('enabled')
-          ? 'Two-factor authentication is not available yet. Contact the library administrator to enable MFA in Supabase (Auth → MFA).'
+          ? 'Two-factor authentication is not available yet. Contact the library administrator to enable it.'
           : 'Could not load your security settings.'
       );
     } finally {

@@ -12,10 +12,10 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, adminOnly = false, superAdminOnly = false }: ProtectedRouteProps) {
-  const { user, profile, isLoading, isAuthenticated, isAdmin, isSuperAdmin, signOut } = useAuth();
+  const { user, profile, isLoading, isAuthenticated, isAdmin, isSuperAdmin, refreshProfile, signOut } = useAuth();
   const location = useLocation();
 
-  if (isLoading) {
+  if (isLoading || (user && !profile)) {
     return (
       <div className="auth-loading-screen">
         <div className="auth-loading-card">
@@ -34,8 +34,7 @@ export function ProtectedRoute({ children, adminOnly = false, superAdminOnly = f
     return <Navigate to={loginTarget} state={{ from: location }} replace />;
   }
 
-  // Session exists but the profile/role could not be loaded. Show a clear
-  // authorization error instead of silently treating the user as a student.
+  // Session exists but the profile/role could not be loaded.
   if (!profile) {
     return (
       <div className="auth-loading-screen">
@@ -43,12 +42,17 @@ export function ProtectedRoute({ children, adminOnly = false, superAdminOnly = f
           <Logo size={48} />
           <h2>Unable to verify your account</h2>
           <p>
-            Your session is active but we could not load your account role. Please try signing in
-            again, or contact the library administrator if this keeps happening.
+            Your session is active but we could not load your account role. Please try refreshing verification
+            or sign in again.
           </p>
-          <button type="button" className="primary" onClick={() => void signOut()}>
-            Sign out
-          </button>
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginTop: 16 }}>
+            <button type="button" className="primary" onClick={() => void refreshProfile()}>
+              Retry verification
+            </button>
+            <button type="button" className="secondary" onClick={() => void signOut()}>
+              Sign out
+            </button>
+          </div>
         </div>
       </div>
     );

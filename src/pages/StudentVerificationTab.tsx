@@ -213,15 +213,15 @@ export function StudentVerificationTab() {
             <dl className="verify-summary">
               <div>
                 <dt>Matriculation number</dt>
-                <dd>{profile?.matricNumber || '—'}</dd>
+                <dd>{profile?.matricNumber || 'Not set'}</dd>
               </div>
               <div>
                 <dt>Faculty</dt>
-                <dd>{profile?.faculty || '—'}</dd>
+                <dd>{profile?.faculty || 'Not set'}</dd>
               </div>
               <div>
                 <dt>Department</dt>
-                <dd>{profile?.department || '—'}</dd>
+                <dd>{profile?.department || 'Not set'}</dd>
               </div>
               <div>
                 <dt>Level</dt>

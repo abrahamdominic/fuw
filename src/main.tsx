@@ -13,6 +13,7 @@ import { DocumentReaderModal } from './components/DocumentReaderModal';
 import { AppSplash } from './components/AppSplash';
 
 import { AuthProvider, useAuth } from './lib/AuthContext';
+import { ThemeProvider } from './lib/ThemeContext';
 
 // Route-level code splitting. Each portal/page bundle loads on demand so the
 // initial shell stays small and the vendor cache stays warm across deploys.
@@ -71,6 +72,23 @@ const CourseDetailPage = lazy(() =>
 const NotFoundPage = lazy(() =>
   import('./pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage }))
 );
+const CampusHubPage = lazy(() =>
+  import('./pages/CampusHubPage').then((m) => ({ default: m.CampusHubPage }))
+);
+const AccommodationPage = lazy(() =>
+  import('./pages/AccommodationPage').then((m) => ({ default: m.AccommodationPage }))
+);
+const AccommodationDetailPage = lazy(() =>
+  import('./pages/AccommodationDetailPage').then((m) => ({ default: m.AccommodationDetailPage }))
+);
+const RoommateFinderPage = lazy(() =>
+  import('./pages/RoommateFinderPage').then((m) => ({ default: m.RoommateFinderPage }))
+);
+// FUW Student Marketplace. Mounted under /marketplace/* so the whole platform
+// ships as one SPA with one dev server and one session (must.md Phase 10).
+const MarketplaceRoutes = lazy(() => import('./marketplace/MarketplaceRoutes'));
+import { BootFallback } from './components/BootFallback';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { MaintenanceGate } from './components/MaintenanceGate';
 import { CrawlPolicyGuard } from './components/CrawlPolicyGuard';
@@ -169,9 +187,16 @@ function PublicLayout({
  * branded welcome screen. The splash is for people returning to an
  * existing session, where it covers the brief moment while Supabase
  * restores that session.
+ *
+ * The client is configured with `storageKey: 'fuw-auth-token'`
+ * (src/lib/supabase.ts), so that is the primary key to look for. The
+ * `sb-<ref>-auth-token` shape is Supabase's default and is still matched so a
+ * session written before the key was customised is not mistaken for a
+ * first-time visitor.
  */
 function hasStoredSupabaseSession(): boolean {
   try {
+    if (window.localStorage.getItem('fuw-auth-token')) return true;
     for (let i = 0; i < window.localStorage.length; i += 1) {
       const key = window.localStorage.key(i);
       if (key && /^sb-.*-auth-token$/.test(key)) return true;
@@ -189,7 +214,7 @@ function hasStoredSupabaseSession(): boolean {
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { isLoading, isAuthenticated } = useAuth();
   const location = useLocation();
-  if (isLoading) return null;
+  if (isLoading) return <BootFallback label="Restoring your session" />;
   if (!isAuthenticated) return <Navigate to="/login" state={{ from: location }} replace />;
   return <>{children}</>;
 }
@@ -201,12 +226,12 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
  */
 function RootRedirect() {
   const { isLoading, isAuthenticated, profile } = useAuth();
-  if (isLoading) return null;
+  if (isLoading) return <BootFallback label="Restoring your session" />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   const destination =
     profile?.role === 'super_admin' ? '/super' :
     profile?.role === 'admin' ? '/admin' :
-    '/student';
+    '/hub';
   return <Navigate to={destination} replace />;
 }
 
@@ -232,7 +257,25 @@ function AppSplashBoundary() {
   return <AppSplash visible={isLoading && hasStoredSupabaseSession()} />;
 }
 
-function App() {
+/**
+ * The whole application, minus the router and the React root.
+ *
+ * Exported so tests can mount the real route table (see
+ * `src/test/route_smoke.test.tsx`) instead of a hand-copied list of routes that
+ * would drift. Importing this module still mounts the app to `#root`; tests
+ * render `<App/>` themselves so they can unmount it again.
+ */
+function ScrollToTop() {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior });
+  }, [pathname]);
+
+  return null;
+}
+
+export function App() {
   const [readingMaterial, setReadingMaterial] = useState<MaterialItem | null>(null);
 
   const handleReadOnline = (material: MaterialItem) => {
@@ -240,13 +283,16 @@ function App() {
   };
 
   return (
-    <AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
       <>
+        <ScrollToTop />
         <AnalyticsLayer />
         <CrawlPolicyGuard />
         <AppSplashBoundary />
         <ToastProvider>
           <MaintenanceGate>
+            <ErrorBoundary>
             <Suspense
               fallback={
                 <div className="route-fallback" role="status" aria-label="Loading">
@@ -339,6 +385,14 @@ function App() {
               }
             />
             <Route
+              path="/wallet"
+              element={
+                <RequireAuth>
+                  <Navigate to="/marketplace/wallet" replace />
+                </RequireAuth>
+              }
+            />
+            <Route
               path="/super-admin"
               element={
                 <RequireAuth>
@@ -368,6 +422,66 @@ function App() {
               path="/"
               element={<RootRedirect />}
             />
+            {/* FUW Campus Hub Gateway */}
+            <Route
+              path="/hub"
+              element={
+                <RequireAuth>
+                  <PublicLayout onReadOnline={handleReadOnline}>
+                    <CampusHubPage />
+                  </PublicLayout>
+                </RequireAuth>
+              }
+            />
+            <Route path="/campus-hub" element={<Navigate to="/hub" replace />} />
+            <Route path="/campus" element={<Navigate to="/hub" replace />} />
+
+            {/* FUW Student Marketplace: integrated in-app section inside the unified platform shell */}
+            <Route
+              path="/marketplace/*"
+              element={
+                <PublicLayout onReadOnline={handleReadOnline}>
+                  <ErrorBoundary>
+                    <MarketplaceRoutes />
+                  </ErrorBoundary>
+                </PublicLayout>
+              }
+            />
+
+            {/* FUW Accommodation Service */}
+            <Route
+              path="/accommodation"
+              element={
+                <PublicLayout onReadOnline={handleReadOnline}>
+                  <AccommodationPage />
+                </PublicLayout>
+              }
+            />
+            <Route
+              path="/accommodation/roommates"
+              element={
+                <PublicLayout onReadOnline={handleReadOnline}>
+                  <RoommateFinderPage />
+                </PublicLayout>
+              }
+            />
+            <Route
+              path="/accommodation/roommates/post"
+              element={<Navigate to="/accommodation/roommates?create=1" replace />}
+            />
+            <Route
+              path="/accommodation/roommates/create"
+              element={<Navigate to="/accommodation/roommates?create=1" replace />}
+            />
+            <Route
+              path="/accommodation/:slug"
+              element={
+                <PublicLayout onReadOnline={handleReadOnline}>
+                  <AccommodationDetailPage />
+                </PublicLayout>
+              }
+            />
+
             <Route
               path="/course-upload"
               element={<Navigate to="/student/course-upload" replace />}
@@ -555,10 +669,12 @@ function App() {
               onClose={() => setReadingMaterial(null)}
             />
           )}
+            </ErrorBoundary>
         </MaintenanceGate>
       </ToastProvider>
       </>
     </AuthProvider>
+    </ThemeProvider>
   );
 }
 

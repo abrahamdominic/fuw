@@ -78,6 +78,7 @@ button {
   font-size: 17px;
   font-weight: 600;
   color: #17231d;
+  flex: 0 0 auto;
 }
 
 .fuw-logo {
@@ -130,6 +131,56 @@ button {
   align-items: center;
   gap: 14px;
   font-size: 13.5px;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+/* Responsive header guard (Phase 24 audit)
+   The 11 desktop links + brand + actions need ~1330px. Below that the nav
+   pushed .nav-actions past the right edge and html{overflow-x:hidden} simply
+   cut "Log in"/"Create account" off. Let the nav shrink and scroll inside its
+   own box (never the page), tighten it while it still fits, and fold it into
+   the existing drawer below 1180px (the drawer carries every link plus the
+   theme/auth/portal buttons, so nothing becomes unreachable). */
+.desktop-nav {
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.desktop-nav::-webkit-scrollbar {
+  display: none;
+}
+
+@media (max-width: 1360px) {
+  .desktop-nav {
+    gap: 16px;
+    font-size: 13.5px;
+  }
+  .nav-actions {
+    gap: 10px;
+  }
+  .portal-pill-link {
+    padding: 7px 11px;
+  }
+  .portal-pill-link span {
+    max-width: 18ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 1180px) {
+  .desktop-nav {
+    display: none;
+  }
+  .mobile-menu-toggle {
+    display: block;
+    padding: 10px;
+  }
 }
 
 .portal-pill-link {
@@ -898,7 +949,7 @@ button {
 }
 
 .materials {
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 /* Material Card Component */
@@ -975,6 +1026,10 @@ button {
   margin: 0 0 6px;
   line-height: 1.35;
   color: #17291f;
+  /* material titles are uploaded filenames (_PHY_102_FUW_._Electrostatics_)
+     with no break opportunities; without this they forced the card (and the
+     page) wider than the viewport. */
+  overflow-wrap: anywhere;
 }
 
 .card-title a:hover {
@@ -1262,6 +1317,9 @@ button {
   border: 0;
   outline: 0;
   flex: 1;
+  /* flex items default to min-width:auto — without this the input's
+     min-content pushed the submit button out of the 320px viewport. */
+  min-width: 0;
   font: 14.5px inherit;
 }
 
@@ -1274,6 +1332,7 @@ button {
   padding: 0 20px;
   font: 600 13.5px inherit;
   cursor: pointer;
+  flex: none;
 }
 
 .clear-btn {
@@ -1418,7 +1477,7 @@ button {
 }
 
 .library-cards-grid {
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 /* Faculties Page */
@@ -1574,7 +1633,7 @@ button {
   min-height: 100vh;
   background: #f7f9f7;
   display: grid;
-  grid-template-columns: 260px 1fr;
+  grid-template-columns: 260px minmax(0, 1fr);
 }
 
 .side {
@@ -3432,6 +3491,58 @@ select.form-input {
 }
 select.form-input:disabled { background-color: var(--surface-alt); }
 
+/* ── Selects ─────────────────────────────────────────────────
+   `.form-select` had only a dark-theme rule, so in the light theme every
+   select fell back to the unstyled native control (no border, no white
+   background, default arrow). It now shares the `.form-input` treatment
+   instead of duplicating it. */
+.form-select {
+  width: 100%;
+  max-width: 100%;
+  font: inherit;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: var(--text-primary, #1a2e1a);
+  background: #fff;
+  border: 1px solid #cfdfd3;
+  border-radius: 9px;
+  padding: 0.55rem 0.8rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.form-select:hover:not(:disabled) { border-color: #b3cdbe; }
+.form-select:focus,
+.form-select:focus-visible {
+  outline: none;
+  border-color: var(--primary, #12603d);
+  box-shadow: 0 0 0 3px rgba(18, 96, 61, 0.13);
+  background: #fff;
+}
+.form-select:disabled {
+  background: var(--surface-alt, #f4f8f5);
+  color: var(--text-secondary, #55675b);
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+select.form-select {
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  padding-right: 2.2rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7c6b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.7rem center;
+  background-size: 14px;
+}
+select.form-select:disabled { cursor: not-allowed; opacity: 1; }
+
+/* Keep the native option list readable regardless of theme. */
+select.form-select option,
+select.form-input option {
+  background: #fff;
+  color: #1a2e1a;
+}
+
 .form-input:disabled {
   background: var(--surface-alt, #f4f8f5);
   color: var(--text-secondary, #55675b);
@@ -4396,7 +4507,7 @@ select.form-input:disabled { background-color: var(--surface-alt); }
 
 .analytics-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
   gap: 18px;
 }
 
@@ -6509,7 +6620,7 @@ select.form-input:disabled { background-color: var(--surface-alt); }
     gap: 36px;
   }
   .materials {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .portal-stats, .portal-stats.admin-stats-grid {
     grid-template-columns: repeat(2, 1fr);
@@ -6546,14 +6657,14 @@ select.form-input:disabled { background-color: var(--surface-alt); }
     display: block;
   }
   .library-cards-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 16px;
   }
   .detail-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .portal {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .side {
     position: fixed;
@@ -6632,7 +6743,7 @@ select.form-input:disabled { background-color: var(--surface-alt); }
     border-bottom: 1px solid rgba(255, 255, 255, 0.12);
   }
   .materials {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .card-actions-bar {
     grid-template-columns: 1fr 1fr;
@@ -6772,11 +6883,15 @@ select.form-input:disabled { background-color: var(--surface-alt); }
 :root {
   --green-900: #0d4a2f;
   --green-800: #12603d;
+  --green-700: #0f6b41;
+  --green-600: #17854f;
   --green-100: #e8f5ec;
+  --green-050: #f4f8f5;
   --ink: #17231d;
   --muted: #55675b;
   --surface: #ffffff;
   --surface-alt: #f4f8f5;
+  --card-bg: #ffffff;
   --line: #dcebe0;
   --amber-700: #b45309;
   --red-700: #b91c1c;
@@ -6784,22 +6899,67 @@ select.form-input:disabled { background-color: var(--surface-alt); }
   --radius-lg: 14px;
   --shadow-sm: 0 1px 3px rgba(18, 96, 61, 0.08);
   --shadow-md: 0 6px 18px rgba(18, 41, 28, 0.1);
+  --shadow-lg: 0 20px 60px rgba(6, 26, 15, 0.16);
 
   /* Semantic aliases for new pages */
   --primary: var(--green-800);
+  --primary-hover: var(--green-700);
   --primary-bg: var(--green-100);
   --border: var(--line);
   --text-primary: var(--ink);
   --text-secondary: var(--muted);
+  --text-soft: #6f8076;
   --bg: #f7f9f7;
   --bg-secondary: var(--surface-alt);
   --error: var(--red-700);
   --success: #10b981;
   --warning: var(--amber-700);
+  --info: #0369a1;
   --error-bg: #fee2e2;
   --success-bg: #d1fae5;
   --warning-bg: #fef3c7;
   --info-bg: #e0f2fe;
+}
+
+[data-theme='dark'] {
+  --green-900: #1a4d35;
+  --green-800: #22c55e;
+  --green-700: #16a34a;
+  --green-600: #15803d;
+  --green-100: #133825;
+  --green-050: #0f2619;
+
+  --ink: #f0f7f2;
+  --muted: #9cb5a6;
+  --surface: #15241c;
+  --surface-alt: #1a2c22;
+  --card-bg: #15241c;
+  --line: #223b2c;
+  --border: #223b2c;
+
+  --primary: #22c55e;
+  --primary-hover: #16a34a;
+  --primary-bg: #133825;
+  --text-primary: #f0f7f2;
+  --text-secondary: #9cb5a6;
+  --text-soft: #799484;
+  --bg: #0d1512;
+  --bg-secondary: #132019;
+
+  --amber-700: #fbbf24;
+  --red-700: #f87171;
+  --error: #f87171;
+  --success: #34d399;
+  --warning: #fbbf24;
+  --info: #38bdf8;
+  --error-bg: #2e1212;
+  --success-bg: #0f2d1e;
+  --warning-bg: #2d2107;
+  --info-bg: #0c2637;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.6);
 }
 
 /* ==========================================================================
@@ -7990,7 +8150,7 @@ select.form-input:disabled { background-color: var(--surface-alt); }
 
   /* Material cards keep a readable rhythm when stacked */
   .grid.materials {
-    grid-template-columns: 1fr !important;
+    grid-template-columns: minmax(0, 1fr) !important;
   }
 
   /* Modals never exceed the viewport */
@@ -10196,6 +10356,24 @@ select.form-input:disabled { background-color: var(--surface-alt); }
 }
 .profile-setup-banner-close:hover {
   background: rgba(146, 64, 14, 0.1);
+}
+
+/* Narrow phones: icon + body + nowrap CTA + close need ~270px of content
+   while a 320px viewport only offers ~216px inside the banner. The row used
+   to overflow the page (close button 2px past the edge) and squeeze the text
+   column to 0px wide. Wrap onto a second row instead. */
+@media (max-width: 560px) {
+  .profile-setup-banner {
+    flex-wrap: wrap;
+    margin: 0 14px 18px;
+  }
+  .profile-setup-banner-cta {
+    white-space: normal;
+    justify-content: center;
+  }
+  .profile-setup-banner-close {
+    margin-left: auto;
+  }
 }
 
 /* ==========================================================================
@@ -12740,7 +12918,7 @@ button.form-submit-btn:disabled:hover {
   gap: 6px;
   background: rgba(255, 255, 255, 0.12);
   border: 1px solid rgba(255, 255, 255, 0.22);
-  color: #B8EFCB;
+  color: var(--splash-accent-soft, #B8EFCB);
   padding: 6px 14px;
   border-radius: 999px;
   font-size: 13px;
@@ -12763,7 +12941,7 @@ button.form-submit-btn:disabled:hover {
 .app-splash-orb-large {
   width: 360px;
   height: 360px;
-  background: #0B6B3A;
+  background: var(--splash-orb-large, #0B6B3A);
   opacity: 0.22;
   top: -150px;
   right: -130px;
@@ -12771,7 +12949,7 @@ button.form-submit-btn:disabled:hover {
 .app-splash-orb-small {
   width: 240px;
   height: 240px;
-  background: #57C785;
+  background: var(--splash-orb-small, #57C785);
   opacity: 0.1;
   bottom: -110px;
   left: -100px;
@@ -12841,7 +13019,7 @@ button.form-submit-btn:disabled:hover {
   display: flex;
   align-items: center;
   gap: 7px;
-  color: #B8EFCB;
+  color: var(--splash-accent-soft, #B8EFCB);
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 1.1px;
@@ -12851,7 +13029,7 @@ button.form-submit-btn:disabled:hover {
   width: 7px;
   height: 7px;
   border-radius: 4px;
-  background: #8CE6AD;
+  background: var(--splash-accent, #8CE6AD);
 }
 .app-splash-title {
   color: #ffffff;
@@ -12862,7 +13040,7 @@ button.form-submit-btn:disabled:hover {
   margin: 0;
 }
 .app-splash-subtitle {
-  color: #8CE6AD;
+  color: var(--splash-accent, #8CE6AD);
   font-size: 18px;
   font-weight: 700;
   margin: 8px 0 0;
@@ -12899,7 +13077,7 @@ button.form-submit-btn:disabled:hover {
 .app-splash-fill {
   height: 100%;
   border-radius: 4px;
-  background: #8CE6AD;
+  background: var(--splash-accent, #8CE6AD);
   animation: splashFill 4.4s cubic-bezier(0.1, 0.9, 0.2, 1) both;
 }
 .app-splash-loading {
@@ -12909,7 +13087,7 @@ button.form-submit-btn:disabled:hover {
   margin-top: 12px;
 }
 .app-splash-loading span:first-child {
-  color: #B8EFCB;
+  color: var(--splash-accent-soft, #B8EFCB);
   font-size: 12px;
   font-weight: 600;
 }
@@ -12921,7 +13099,7 @@ button.form-submit-btn:disabled:hover {
   width: 5px;
   height: 5px;
   border-radius: 3px;
-  background: #8CE6AD;
+  background: var(--splash-accent, #8CE6AD);
   animation: splashDot 1.2s ease-in-out infinite;
 }
 .app-splash-dots i:nth-child(2) { animation-delay: 0.2s; }
@@ -13453,7 +13631,7 @@ button.form-submit-btn:disabled:hover {
 
 .suggested-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(268px, 100%), 1fr));
   gap: 18px;
 }
 
@@ -13581,6 +13759,40 @@ button.form-submit-btn:disabled:hover {
 
 @media (prefers-reduced-motion: reduce) {
   .route-fallback-spinner { animation-duration: 1.6s; }
+}
+
+/* ── Boot / error fallback ────────────────────────────────────
+   Shown while the persisted session is restored, and reused as the
+   layout shell by the error boundary. */
+.boot-fallback {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 32px 20px;
+  text-align: center;
+  background: var(--bg, #f6faf7);
+}
+
+.boot-fallback-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 2px;
+}
+
+.boot-fallback-label {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary, #55675b);
+  letter-spacing: 0.01em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boot-fallback .route-fallback-spinner { animation-duration: 1.6s; }
 }
 
 /* ==============================================================================
@@ -13800,6 +14012,314 @@ button.form-submit-btn:disabled:hover {
 .planner-icon-btn:hover { background: var(--green-050); color: var(--green-800); }
 .planner-icon-btn.danger:hover { background: #FEF2F2; color: #B91C1C; border-color: #FECACA; }
 
+.platform-shell {
+  display: grid;
+  gap: 22px;
+}
+
+.platform-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+}
+
+.platform-header h2 {
+  margin: 4px 0 0;
+  color: #10291c;
+  font-size: clamp(1.8rem, 2.6vw, 2.4rem);
+}
+
+.platform-help,
+.platform-disclaimer {
+  color: #61766a;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.platform-disclaimer {
+  margin: 0;
+  padding: 12px 14px;
+  border-left: 3px solid #b8d6c1;
+  background: #f1f7f2;
+}
+
+.platform-card {
+  background: #ffffff;
+  border: 1px solid #e2ece4;
+  border-radius: 14px;
+  box-shadow: 0 8px 20px rgba(18, 48, 41, 0.04);
+  padding: 18px 20px;
+}
+
+.platform-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.platform-card-head h3 {
+  margin: 0;
+  color: #123c29;
+  font-size: 1.05rem;
+}
+
+.platform-card-head p {
+  margin: 6px 0 0;
+}
+
+.platform-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.platform-grid.three-up {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.platform-tile {
+  background: linear-gradient(180deg, #f8fbf8 0%, #f1f7f2 100%);
+  border: 1px solid #dfeae1;
+  border-radius: 12px;
+  padding: 16px;
+  display: grid;
+  gap: 10px;
+}
+
+.platform-tile-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.platform-tile strong {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #1f6a45;
+}
+
+.platform-tile h4 {
+  margin: 0;
+  color: #153822;
+  font-size: 1.05rem;
+}
+
+.platform-tile p,
+.platform-tile small {
+  margin: 0;
+  color: #5b7167;
+}
+
+.platform-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 5px 10px;
+  background: #edf7f0;
+  color: #1f6a45;
+  font-size: 11px;
+  font-weight: 700;
+  border: 1px solid #d7eade;
+}
+
+.priority-pill {
+  background: #fff7ed;
+  color: #b45309;
+  border-color: #fed7aa;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 5px 10px;
+  background: #e8f5ec;
+  color: #19653d;
+  font-size: 11px;
+  font-weight: 700;
+  border: 1px solid #cfe8d5;
+}
+
+.platform-list {
+  display: grid;
+  gap: 12px;
+}
+
+.platform-list-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  background: #f9faf9;
+  border: 1px solid #ebf0eb;
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.platform-list-item strong,
+.platform-list-item small {
+  display: block;
+}
+
+.platform-list-item small {
+  color: #64786d;
+  margin-top: 4px;
+}
+
+.platform-course-copy {
+  min-width: 0;
+}
+
+.platform-list-meta select {
+  min-height: 36px;
+  border: 1px solid #d3e2d6;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #173f2b;
+  padding: 6px 9px;
+}
+
+.platform-icon-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #12603d;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.platform-form {
+  padding: 20px;
+  border: 1px solid #dfeae1;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 8px 20px rgba(18, 48, 41, 0.04);
+}
+
+.platform-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.platform-field {
+  display: grid;
+  gap: 6px;
+  color: #315443;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.platform-field-wide {
+  grid-column: 1 / -1;
+}
+
+.platform-field input,
+.platform-field select,
+.platform-field textarea,
+.campus-inline-form textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #ccdacf;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #183d2a;
+  padding: 10px 11px;
+  font: inherit;
+}
+
+.platform-field textarea,
+.campus-inline-form textarea {
+  resize: vertical;
+}
+
+.platform-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 42px;
+}
+
+.platform-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.campus-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: min(100%, 460px);
+  min-height: 42px;
+  padding: 0 12px;
+  color: #708378;
+  border: 1px solid #d7e3da;
+  border-radius: 9px;
+  background: #ffffff;
+}
+
+.campus-search input {
+  width: 100%;
+  min-width: 0;
+  padding: 9px 0;
+  border: 0;
+  outline: 0;
+  color: #173f2b;
+  background: transparent;
+}
+
+.campus-listing {
+  align-content: start;
+}
+
+.campus-listing-description {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.campus-report-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  justify-self: start;
+  border: 0;
+  background: transparent;
+  color: #667970;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.campus-inline-form {
+  display: grid;
+  gap: 9px;
+  padding-top: 12px;
+  border-top: 1px solid #e4ece5;
+}
+
+.campus-inline-form label {
+  display: grid;
+  gap: 6px;
+  color: #315443;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.platform-list-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .portal-empty {
   display: flex;
   flex-direction: column;
@@ -13817,6 +14337,87 @@ button.form-submit-btn:disabled:hover {
 .portal-empty p { margin: 0; }
 
 .empty-icon { color: #b4ccc0; }
+
+/* ── Student nav groups ─────────────────────────────────── */
+.student-nav-group {
+  margin-bottom: 4px;
+}
+
+.student-nav-group-label {
+  display: block;
+  padding: 10px 16px 4px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #8ba898;
+  user-select: none;
+}
+
+@media (max-width: 640px) {
+  .platform-card {
+    padding: 15px;
+  }
+
+  .platform-grid,
+  .platform-grid.three-up {
+    grid-template-columns: 1fr;
+  }
+
+  .platform-tile {
+    padding: 14px;
+  }
+
+  .platform-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .platform-header > * {
+    width: 100%;
+  }
+
+  .campus-search {
+    width: 100%;
+  }
+
+  .platform-card-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .platform-list-item {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .platform-list-meta {
+    width: 100%;
+  }
+
+  .platform-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .platform-field-wide {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 360px) {
+  .platform-tile h4 {
+    font-size: 0.95rem;
+  }
+
+  .platform-shell {
+    gap: 14px;
+  }
+
+  .status-badge {
+    font-size: 10px;
+    padding: 4px 8px;
+  }
+}
 
 /* ==============================================================================
    Student Notes
@@ -13933,7 +14534,7 @@ button.form-submit-btn:disabled:hover {
 
 .notes-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
   gap: 14px;
 }
 
@@ -14173,7 +14774,7 @@ button.form-submit-btn:disabled:hover {
 .repo-search-row .form-input { flex: 1; min-width: 220px; }
 .repo-filters-row { display: flex; gap: 0.5rem; margin: 0 1rem 1rem; flex-wrap: wrap; }
 .repo-filters-row select { max-width: 180px; }
-.repo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; padding: 0 1rem 2rem; }
+.repo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 1rem; padding: 0 1rem 2rem; }
 .repo-card { background: var(--card-bg, #fff); border: 1px solid var(--border, #e5e9ef); border-radius: 12px; padding: 1.1rem; display: flex; flex-direction: column; gap: 0.5rem; transition: box-shadow 0.15s ease, transform 0.15s ease; }
 .repo-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); transform: translateY(-1px); }
 .repo-card-type { display: inline-flex; align-items: center; gap: 5px; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; color: var(--primary, #0B6B3A); background: #e9f5ee; border-radius: 999px; padding: 0.22rem 0.7rem; align-self: flex-start; }
@@ -14229,7 +14830,7 @@ button.form-submit-btn:disabled:hover {
 .help-hero { background: linear-gradient(135deg, #0B6B3A 0%, #064A27 100%); color: #fff; padding: 2.5rem 1.5rem; border-radius: 16px; margin: 1.5rem 1rem; text-align: center; }
 .help-hero h1 { font-size: 1.7rem; margin-bottom: 0.4rem; }
 .help-hero p { opacity: 0.9; max-width: 520px; margin: 0 auto; font-size: 0.95rem; }
-.help-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1rem; padding: 0 1rem 1.5rem; }
+.help-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 1rem; padding: 0 1rem 1.5rem; }
 .help-card { background: var(--card-bg, #fff); border: 1px solid var(--border, #e5e9ef); border-radius: 12px; padding: 1.3rem; }
 .help-card h3 { font-size: 1rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 7px; }
 .help-card p { font-size: 0.88rem; line-height: 1.6; color: var(--text-soft); }
@@ -15040,7 +15641,7 @@ button.form-submit-btn:disabled:hover {
 /* ── Plans ───────────────────────────────────────────────────────────── */
 .plan-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
   gap: 16px;
   margin: 0 0 20px;
 }
@@ -15203,7 +15804,7 @@ button.form-submit-btn:disabled:hover {
 .planner-premium-link { font-size: 11px; white-space: nowrap; }
 .payment-history-list > li b { color: #26392e; font-size: 13px; }
 .payment-rejection-reason { color: #a5322a; overflow-wrap: anywhere; }
-.payment-admin-page { display: grid; gap: 16px; }
+.payment-admin-page { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
 .payment-admin-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
 .payment-admin-tabs button {
   display: inline-flex;
@@ -15229,6 +15830,16 @@ button.form-submit-btn:disabled:hover {
 .payment-config-toggle input { width: 18px; height: 18px; accent-color: #12603d; }
 .payment-admin-list { display: grid; gap: 10px; }
 .payment-admin-filters { display: grid; grid-template-columns: minmax(240px, 2fr) repeat(2, minmax(130px, 1fr)) repeat(2, minmax(130px, .75fr)); align-items: end; gap: 9px; }
+/* 5 tracks of 130–240px need ~830px of content column; inside the portal
+   (260px rail + 88px padding) that only fits from ~1160px of viewport.
+   Below that the row used to force the whole page to 796px wide (the grid's
+   auto minimum). Collapse instead. */
+@media (max-width: 1180px) {
+  .payment-admin-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 520px) {
+  .payment-admin-filters { grid-template-columns: minmax(0, 1fr); }
+}
 .payment-admin-filters > label:not(.payment-admin-search) { display: grid; gap: 5px; color: #617267; font-size: 11px; font-weight: 600; }
 .payment-admin-search {
   display: flex;
@@ -15483,7 +16094,7 @@ select.form-input {
 /* Help center — verification & premium explainer */
 .help-access {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
   gap: 16px;
   padding: 0 1rem 1.5rem;
   max-width: 1080px;
@@ -15521,7 +16132,7 @@ select.form-input {
 
 .premium-admin-controls {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
   gap: 12px;
 }
 
@@ -15716,4 +16327,685 @@ select.form-input {
   font-size: clamp(11.5px, 0.2vw + 10.5px, 12.5px);
   color: #7f8f81;
   overflow-wrap: anywhere;
+}
+
+/* Day headings inside the academics timetable list. */
+.platform-day-heading {
+  margin: 20px 0 8px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: #4a6b5a;
+}
+
+.platform-day-heading:first-child {
+  margin-top: 0;
+}
+
+/* Campus media picker (private campus-media bucket) */
+.media-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.media-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border: 1px solid #d3e2d6;
+  border-radius: 9px;
+  background: #f7fbf8;
+}
+
+.media-picker-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 190px;
+  min-width: 0;
+}
+
+.media-picker-label {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #1d3b2a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.media-picker-hint {
+  font-size: 0.74rem;
+  color: #5d7a68;
+}
+
+.media-picker-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 7px;
+  object-fit: cover;
+  border: 1px solid #d3e2d6;
+  background: #fff;
+  flex: 0 0 auto;
+}
+
+.media-picker-thumb.is-file {
+  display: grid;
+  place-items: center;
+  color: #4a6b5a;
+}
+
+.media-picker-remove {
+  padding: 9px 10px;
+  color: #b3251f;
+}
+
+.media-picker-error {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #b3251f;
+}
+
+.campus-listing-media {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.campus-listing-media .campus-listing-description {
+  margin: 0;
+  flex: 1 1 auto;
+}
+
+
+/* ==========================================================================
+   FUW UNIFIED ECOSYSTEM — COMPREHENSIVE DARK THEME & SURFACE HIERARCHY
+   ========================================================================== */
+
+/* Theme Toggle Button Styles (Light & Dark) */
+.theme-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.18s ease;
+  flex-shrink: 0;
+}
+
+.theme-toggle-btn:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+  background: var(--primary-bg);
+}
+
+.pill-btn {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pill-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.pill-btn.is-active {
+  background: var(--primary-bg);
+  color: var(--primary);
+  border-color: var(--primary);
+  font-weight: 700;
+}
+
+/* Accommodation Scam Advisory */
+.accommodation-scam-alert {
+  background: #fefce8;
+  border: 1px solid #fef08a;
+  border-left: 4px solid #ca8a04;
+  border-radius: 12px;
+  padding: 14px 18px;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  color: #713f12;
+  margin-top: 16px;
+}
+
+.scam-alert-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.scam-alert-text {
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+/* Base Body & Layout in Dark Theme */
+html[data-theme='dark'],
+body[data-theme='dark'],
+[data-theme='dark'] body {
+  background-color: var(--bg) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme='dark'] .site-wrapper,
+[data-theme='dark'] .public-container,
+[data-theme='dark'] .content-grow,
+[data-theme='dark'] .campus-hub-wrapper {
+  background-color: var(--bg);
+  color: var(--text-primary);
+}
+
+/* Header & Navigation in Dark Theme */
+[data-theme='dark'] .main-header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme='dark'] .brand {
+  color: var(--text-primary);
+}
+
+[data-theme='dark'] .brand-text b {
+  color: var(--primary);
+}
+
+[data-theme='dark'] .desktop-nav,
+[data-theme='dark'] .nav-link {
+  color: var(--text-secondary);
+}
+
+[data-theme='dark'] .nav-link:hover,
+[data-theme='dark'] .nav-link.active {
+  color: var(--primary);
+}
+
+[data-theme='dark'] .nav-link.active::after {
+  background: var(--primary);
+}
+
+[data-theme='dark'] .login-link {
+  color: var(--text-primary);
+}
+
+[data-theme='dark'] .portal-pill-link {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+}
+
+[data-theme='dark'] .portal-pill-link:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+[data-theme='dark'] .nav-logout-btn {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+[data-theme='dark'] .nav-logout-btn:hover {
+  background: var(--error-bg);
+  color: var(--error);
+  border-color: var(--error);
+}
+
+[data-theme='dark'] .mobile-menu-toggle {
+  color: var(--text-primary);
+}
+
+[data-theme='dark'] .mobile-nav-inner {
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+[data-theme='dark'] .mobile-link {
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--line);
+}
+
+[data-theme='dark'] .mobile-link:hover,
+[data-theme='dark'] .mobile-link.active {
+  color: var(--primary);
+  background: var(--primary-bg);
+}
+
+[data-theme='dark'] .mobile-auth-btn.login {
+  background: var(--surface-alt);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+
+/* Cards & Surfaces Hierarchy in Dark Theme */
+[data-theme='dark'] .card,
+[data-theme='dark'] .portal-card,
+[data-theme='dark'] .service-card,
+[data-theme='dark'] .property-card,
+[data-theme='dark'] .stat-card,
+[data-theme='dark'] .material-card,
+[data-theme='dark'] .faculty-card,
+[data-theme='dark'] .course-card,
+[data-theme='dark'] .collection-card,
+[data-theme='dark'] .hub-quick-strip,
+[data-theme='dark'] .accommodation-filter-panel {
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: var(--shadow-sm);
+  color: var(--text-primary);
+}
+
+[data-theme='dark'] .service-card:hover,
+[data-theme='dark'] .property-card:hover,
+[data-theme='dark'] .material-card:hover {
+  border-color: var(--primary);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+[data-theme='dark'] .accommodation-scam-alert {
+  background: #24220e;
+  border-color: #534c1b;
+  border-left-color: #facc15;
+  color: #fef08a;
+}
+
+[data-theme='dark'] .accommodation-scam-alert svg {
+  color: #facc15 !important;
+}
+
+/* Forms & Inputs in Dark Theme */
+[data-theme='dark'] .form-input,
+[data-theme='dark'] .form-select,
+[data-theme='dark'] input[type='text'],
+[data-theme='dark'] input[type='email'],
+[data-theme='dark'] input[type='password'],
+[data-theme='dark'] input[type='number'],
+[data-theme='dark'] input[type='tel'],
+[data-theme='dark'] input[type='date'],
+[data-theme='dark'] textarea,
+[data-theme='dark'] select {
+  background: var(--bg-secondary) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme='dark'] input::placeholder,
+[data-theme='dark'] textarea::placeholder {
+  color: var(--text-soft) !important;
+}
+
+[data-theme='dark'] .form-input:focus,
+[data-theme='dark'] .form-select:focus,
+[data-theme='dark'] input:focus,
+[data-theme='dark'] textarea:focus {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.25) !important;
+  outline: none !important;
+}
+
+/* Modals, Drawers & Dialogs in Dark Theme */
+[data-theme='dark'] .modal,
+[data-theme='dark'] .modal-content,
+[data-theme='dark'] .dialog,
+[data-theme='dark'] .drawer,
+[data-theme='dark'] .document-reader-modal,
+[data-theme='dark'] .reader-sidebar {
+  background: var(--surface) !important;
+  border-color: var(--border) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme='dark'] .drawer-overlay,
+[data-theme='dark'] .modal-backdrop {
+  background: rgba(5, 12, 8, 0.8) !important;
+  backdrop-filter: blur(4px);
+}
+
+/* Tables & Data Lists in Dark Theme */
+[data-theme='dark'] table {
+  border-color: var(--border);
+  color: var(--text-primary);
+}
+
+[data-theme='dark'] thead th {
+  background: var(--surface-alt);
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border);
+}
+
+[data-theme='dark'] tbody tr {
+  border-bottom: 1px solid var(--border);
+}
+
+[data-theme='dark'] tbody tr:hover,
+[data-theme='dark'] .student-result-row:hover {
+  background: var(--surface-alt) !important;
+}
+
+[data-theme='dark'] td {
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border);
+}
+
+/* Student Portal & Admin Portal in Dark Theme */
+[data-theme='dark'] .portal-shell,
+[data-theme='dark'] .student-portal,
+[data-theme='dark'] .admin-portal {
+  background: var(--bg);
+  color: var(--text-primary);
+}
+
+[data-theme='dark'] .portal-header,
+[data-theme='dark'] .admin-header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+[data-theme='dark'] .portal-sidebar,
+[data-theme='dark'] .admin-sidebar {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+}
+
+[data-theme='dark'] .portal-nav-item,
+[data-theme='dark'] .admin-nav-item,
+[data-theme='dark'] .settings-nav-item {
+  color: var(--text-secondary);
+}
+
+[data-theme='dark'] .portal-nav-item:hover,
+[data-theme='dark'] .admin-nav-item:hover,
+[data-theme='dark'] .settings-nav-item:hover {
+  background: var(--surface-alt);
+  color: var(--primary);
+}
+
+[data-theme='dark'] .portal-nav-item.active,
+[data-theme='dark'] .admin-nav-item.active,
+[data-theme='dark'] .settings-nav-item.active {
+  background: var(--primary-bg);
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+[data-theme='dark'] .settings-section,
+[data-theme='dark'] .tab-content {
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+/* Empty, Loading & Breadcrumbs in Dark Theme */
+[data-theme='dark'] .empty-state {
+  color: var(--text-secondary);
+}
+
+[data-theme='dark'] .breadcrumbs,
+[data-theme='dark'] .breadcrumb-trail {
+  color: var(--text-secondary);
+}
+
+[data-theme='dark'] .breadcrumb-link {
+  color: var(--text-secondary);
+}
+
+[data-theme='dark'] .breadcrumb-link:hover {
+  color: var(--primary);
+}
+
+/* Buttons in Dark Theme */
+[data-theme='dark'] .btn-primary {
+  background: var(--primary) !important;
+  color: #0b1e12 !important;
+  border-color: var(--primary) !important;
+  font-weight: 700;
+}
+
+[data-theme='dark'] .btn-primary:hover {
+  background: var(--primary-hover) !important;
+  border-color: var(--primary-hover) !important;
+}
+
+[data-theme='dark'] .btn-secondary {
+  background: var(--surface-alt) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border) !important;
+}
+
+[data-theme='dark'] .btn-secondary:hover {
+  background: var(--line) !important;
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
+}
+
+/* Footer in Dark Theme */
+[data-theme='dark'] .site-footer,
+[data-theme='dark'] footer {
+  background: #09120e;
+  border-top: 1px solid var(--border);
+}
+
+/* ==========================================================================
+   Accommodation Responsive System (pay.md Phase 5.1)
+   ========================================================================== */
+.accommodation-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(min(280px, 100%), 360px);
+  gap: 32px;
+  align-items: start;
+  width: 100%;
+}
+
+.accommodation-sidebar {
+  position: sticky;
+  top: 90px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.properties-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
+  gap: 24px;
+  width: 100%;
+}
+
+.accommodation-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
+  gap: 16px;
+  width: 100%;
+}
+
+/* Tablet & Mobile Screens (<= 960px) */
+@media (max-width: 960px) {
+  .accommodation-detail-grid {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  .accommodation-sidebar {
+    position: static;
+  }
+}
+
+/* Standard Mobile & Small Android Phones (<= 640px) */
+@media (max-width: 640px) {
+  .properties-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .accommodation-filter-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .accommodation-filter-panel {
+    padding: 16px !important;
+  }
+
+  .property-card {
+    border-radius: 12px !important;
+  }
+}
+
+/* Ultra Small Android Screens (<= 360px) */
+@media (max-width: 360px) {
+  .property-card {
+    border-radius: 10px !important;
+  }
+
+  .properties-grid {
+    gap: 12px;
+  }
+}
+
+
+/* ==========================================================================
+   Touch targets — Phase 24 responsive audit
+   Spec: interactive controls ≥ 40×40 on phones. Anchors that are pure prose
+   inside a sentence stay exempt (they are already skipped by the audit);
+   navigation, chips, icon buttons and form controls are not prose.
+   ========================================================================== */
+@media (max-width: 768px) {
+  /* portals: sidebar rows, mobile bars, drawer links */
+  .side-link,
+  .side-close-btn,
+  .dept-link-item,
+  .portal-mobile-toggle,
+  .portal-mobile-logout,
+  .mobile-link,
+  .mobile-portal-btn,
+  .mobile-auth-btn,
+
+  /* public header */
+  .brand,
+  .mobile-menu-toggle,
+  .join-btn,
+  .login-link,
+
+  /* cards, lists, chips, table actions */
+  .card-action-btn,
+  .card-view-link,
+  .card-cite-link,
+  .save-btn,
+  .link-btn,
+  .pill-btn,
+  .secondary-btn,
+  .primary,
+  .danger-btn-outline,
+  .btn-sm,
+  .action-icon-btn,
+  .mobile-filter-btn,
+  button.mobile-only,
+
+  /* auth screens */
+  .mac-link-btn,
+  .mac-step,
+  .password-toggle-btn,
+
+  /* navigation aids */
+  .quick-links a,
+  .auth-back-link a {
+    min-height: 40px;
+  }
+
+  /* link-style controls need a box before min-height applies */
+  .crumb a,
+  .footer-links a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+  }
+
+  /* form controls (checkbox/radio/range stay natural size) */
+  .library-search-bar input,
+  .library-search-bar button[type='submit'],
+  select,
+  input.form-input:not([type='checkbox']):not([type='radio']),
+  textarea.form-input {
+    min-height: 40px;
+  }
+
+  /* icon-only controls also need 40px of width */
+  .side-close-btn,
+  .action-icon-btn,
+  .password-toggle-btn,
+  .mac-trailing,
+  .mobile-menu-toggle,
+  .app-splash-skip,
+  button.mobile-only {
+    min-width: 40px;
+  }
+
+  /* Marketplace header is intentionally dense (6 icons + cart in one row);
+     growing them in layout would reintroduce an overflow there, so the
+     tap area is expanded with a transparent hit layer instead. */
+  .mp-nav-icon,
+  .mp-nav-toggle {
+    position: relative;
+  }
+  .mp-nav-icon::after,
+  .mp-nav-toggle::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 40px;
+    height: 40px;
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* Phase 24 touch targets, pass 2 — the first pass fixed the selectors we had
+   measured; this covers the long tail of classless links/buttons that only
+   show up on individual pages (footer legal links, hero links, settings rail,
+   admin tab bars, filter pills, wallet amount chips). */
+@media (max-width: 768px) {
+  /* Inline prose links are unaffected: min-height does not apply to inline
+     boxes, and the audit exempts them anyway. */
+  a {
+    min-height: 40px;
+  }
+
+  button:not(.mp-nav-icon):not(.mp-nav-toggle),
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']):not([type='file']),
+  select,
+  textarea {
+    min-height: 40px;
+  }
+
+  /* breadcrumb trail + icon-only controls also need 40px of width */
+  .crumb a,
+  .portal-mobile-upload,
+  .notif-bell,
+  .profile-setup-banner-close,
+  .btn.btn-secondary {
+    min-width: 40px;
+  }
+
+  /* marketplace small buttons carry their own min-height (0,2,0) */
+  .mp-root .btn-sm {
+    min-height: 40px;
+  }
 }

@@ -253,7 +253,7 @@ export function DepartmentDetailPage() {
           <h2>Parent faculty</h2>
           <p>
             <Link to={`/faculties/${facultySlug(faculty)}`}>{faculty.name}</Link>
-            {faculty.college ? ` — one of the faculties in the ${faculty.college}.` : '.'}
+            {faculty.college ? `, one of the faculties in the ${faculty.college}.` : '.'}
           </p>
         </section>
         <section>

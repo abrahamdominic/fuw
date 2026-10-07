@@ -100,6 +100,8 @@ export function EditMaterialModal({
     const primaryFaculty = assignedDepartments[0].facultyName || material.faculty;
     const departmentIds = assignedDepartments.map((d) => d.id).filter(Boolean);
 
+    const isPendingOrRejected = material.status === 'pending' || material.status === 'rejected';
+
     try {
       await updateMaterialDb(material.id, {
         title: title.trim(),
@@ -112,7 +114,8 @@ export function EditMaterialModal({
         level,
         semester,
         material_type: materialType,
-        academic_session: academicSession
+        academic_session: academicSession,
+        ...(isPendingOrRejected ? { status: 'pending' } : {})
       });
 
       // Update in local store
@@ -134,12 +137,18 @@ export function EditMaterialModal({
           level,
           semester,
           type: materialType,
-          session: academicSession
+          session: academicSession,
+          ...(isPendingOrRejected ? { status: 'pending', rejectionReason: undefined } : {})
         },
-        'Administrator'
+        'Editor'
       );
 
-      toast('Material updated successfully! Department assignments have been updated.', 'success');
+      toast(
+        isPendingOrRejected
+          ? 'Material updated and resubmitted for admin review!'
+          : 'Material updated successfully!',
+        'success'
+      );
       if (onSaved) onSaved();
       onClose();
     } catch (err: any) {
@@ -193,7 +202,7 @@ export function EditMaterialModal({
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 required
-                placeholder="e.g. CSC 201 — Data Structures and Algorithms"
+                placeholder="e.g. CSC 201: Data Structures and Algorithms"
                 style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cddcd2', fontSize: '13px' }}
               />
             </label>

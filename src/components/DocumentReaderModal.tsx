@@ -248,7 +248,7 @@ export function DocumentReaderModal({ material, onClose }: DocumentReaderModalPr
             /* Real uploaded document rendered straight from storage */
             <iframe
               src={source}
-              title={`${material.title} — full document`}
+              title={`${material.title}: full document`}
               className="document-embed-frame"
               referrerPolicy="no-referrer"
               sandbox="allow-same-origin"

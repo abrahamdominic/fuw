@@ -55,7 +55,7 @@ export function AssignedDepartmentsModal({
             <div>
               <h3 className="adm-title">Assigned Departments</h3>
               <p className="adm-subtitle">
-                {material.course ? `${material.course} — ` : ''}{material.title}
+                {material.course ? `${material.course}: ` : ''}{material.title}
               </p>
             </div>
           </div>

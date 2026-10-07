@@ -63,7 +63,7 @@ export function AnalyticsChart({
           <span>Live data appears here automatically as it is recorded.</span>
         </div>
       ) : horizontal ? (
-        <div className="hchart" role="img" aria-label={`${title} — ${total.toLocaleString()} ${valueLabel} total`}>
+        <div className="hchart" role="img" aria-label={`${title}: ${total.toLocaleString()} ${valueLabel} total`}>
           {filtered.map((d) => (
             <div className="hbar" key={d.label} title={`${d.label}: ${d.value.toLocaleString()} ${valueLabel}`}>
               <span className="hbar-label">{d.label}</span>
@@ -75,7 +75,7 @@ export function AnalyticsChart({
           ))}
         </div>
       ) : (
-        <div className="vchart" role="img" aria-label={`${title} — ${total.toLocaleString()} ${valueLabel} total`}>
+        <div className="vchart" role="img" aria-label={`${title}: ${total.toLocaleString()} ${valueLabel} total`}>
           {filtered.map((d) => (
             <div className="vbar" key={d.label} title={`${d.label}: ${d.value.toLocaleString()} ${valueLabel}`}>
               <span className="vbar-count">{d.value.toLocaleString()}</span>

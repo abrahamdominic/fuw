@@ -82,7 +82,7 @@ export function HelpPage() {
           },
           {
             title: 'Verify your academic identity',
-            desc: 'Submit your matric number, faculty, department and level. A library officer reviews it — this is not email verification.'
+            desc: 'Submit your matric number, faculty, department and level. A library officer reviews it (this is not email verification).'
           },
           {
             title: 'Browse everything',
@@ -144,7 +144,7 @@ export function HelpPage() {
           <Crown size={24} />
           <b>2. An active plan</b>
           <p>
-            Plans are activated by a library officer after you have been verified — there is no
+            Plans are activated by a library officer after you have been verified: there is no
             online payment and no auto-renewal. Ask at the library office or message staff.
           </p>
         </div>

@@ -28,6 +28,7 @@ import {
   Landmark
 } from 'lucide-react';
 import { useStore } from '../lib/useStore';
+import { supabase } from '../lib/supabase';
 import { MaterialItem } from '../lib/store';
 import { getSecureFileUrl } from '../lib/materials';
 import { checkDocumentAccess, type BlockReason } from '../lib/premium';
@@ -1279,6 +1280,7 @@ export function LoginPage({
 
   // Forgot-password recovery field (email or username)
   const [forgotEmail, setForgotEmail] = useState('');
+  const [accountNotFound, setAccountNotFound] = useState(false);
 
   // Academic fields for the post-signup profile completion step
   const [profileData, setProfileData] = useState({
@@ -1300,6 +1302,14 @@ export function LoginPage({
   // If already authenticated with a completed profile, redirect to the right
   // dashboard. Incomplete profiles stay here so the student finishes signup.
   useEffect(() => {
+    if (
+      typeof window !== 'undefined' &&
+      (window.location.hash.includes('type=recovery') ||
+        new URLSearchParams(window.location.search).get('type') === 'recovery')
+    ) {
+      navigate('/reset-password', { replace: true });
+      return;
+    }
     if (isAuthenticated && isProfileComplete && step !== 'profile' && !mfaRequired) {
       if (profile?.role === 'super_admin') {
         navigate('/super', { replace: true });
@@ -1372,11 +1382,16 @@ export function LoginPage({
     return null;
   };
 
-  // Login with username + password
+  // Login with username or email + password
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
     setSuccessMsg(null);
+
+    if (!username.trim() || !password) {
+      setErrorMsg('Please enter your email or username and password.');
+      return;
+    }
 
     setBusy(true);
     const res = await signInWithUsername(username, password);
@@ -1396,7 +1411,7 @@ export function LoginPage({
       return;
     }
 
-    toast('Welcome back to FUW E-Library!', 'success');
+    toast('Welcome back to FUW Campus Hub!', 'success');
     if (res.role === 'super_admin') {
       navigate('/super');
     } else if (res.role === 'admin') {
@@ -1457,6 +1472,7 @@ export function LoginPage({
     e.preventDefault();
     setErrorMsg(null);
     setSuccessMsg(null);
+    setAccountNotFound(false);
 
     if (!forgotEmail.trim()) {
       setErrorMsg('Please enter your registered email address or username.');
@@ -1468,13 +1484,17 @@ export function LoginPage({
     setBusy(false);
 
     if (res.error) {
-      setErrorMsg(friendlyError(res.error, 'Unable to complete the request. Please try again.'));
+      if (res.notFound) {
+        setAccountNotFound(true);
+      }
+      setErrorMsg(res.error.message);
       return;
     }
 
+    setAccountNotFound(false);
     setForgotEmail('');
     setSuccessMsg(
-      'If an account exists for that email, a password reset link has been sent. Check your inbox (and spam folder) for instructions.'
+      'A password reset link has been sent to your email address. Please check your inbox and spam folder.'
     );
   };
 
@@ -1507,11 +1527,11 @@ export function LoginPage({
       setSuccessMsg(
         'Account created! Check your email inbox for the confirmation link, then log in with your username and password.'
       );
-      toast('Account created — confirm your email to log in.', 'success');
+      toast('Account created. Confirm your email to log in.', 'success');
       return;
     }
 
-    toast('Account created successfully! Welcome to FUW E-Library.', 'success');
+    toast('Account created successfully! Welcome to FUW Campus Hub.', 'success');
     setProfileData((prev) => ({ ...prev, fullName: fullName.trim() }));
     setStep('profile');
   };
@@ -1543,7 +1563,7 @@ export function LoginPage({
       (phone.match(/\d/g) || []).length >= 8 &&
       (phone.match(/\d/g) || []).length <= 15;
     if (!validPhone) {
-      setErrorMsg('Please enter a valid phone number (8–15 digits).');
+      setErrorMsg('Please enter a valid phone number (8-15 digits).');
       return;
     }
 
@@ -1563,7 +1583,7 @@ export function LoginPage({
     if (res.error) {
       setErrorMsg(friendlyError(res.error, 'Unable to complete the request. Please try again.'));
     } else {
-      toast('Student profile created successfully! Welcome to FUW E-Library.', 'success');
+      toast('Student profile created successfully! Welcome to FUW Campus Hub.', 'success');
       navigate('/student');
     }
   };
@@ -1572,22 +1592,22 @@ export function LoginPage({
     <main className="auth">
       <SEO
         title={isRegister ? 'Register' : showForgot ? 'Forgot Password' : 'Login'}
-        description={isRegister ? 'Create a student account on the FUW E-Library to access and share academic materials.' : showForgot ? 'Reset your FUW E-Library password and regain access to your account.' : 'Sign in to the FUW E-Library to access verified academic materials.'}
+        description={isRegister ? 'Create a student account on the FUW Campus Hub to access university services, academic materials, and campus marketplace.' : showForgot ? 'Reset your FUW Campus Hub password and regain access to your account.' : 'Sign in to the FUW Campus Hub to access student services and materials.'}
         path={isRegister ? '/register' : showForgot ? '/forgot-password' : '/login'}
         noindex
       />
       <div className="auth-panel">
         <div className="brand">
           <Logo size={36} />
-          <b>FUW</b> E-Library
+          <b>FUW</b> Campus Hub
         </div>
 
         {/* STEP 1: Credentials (login) */}
         {step === 'credentials' && !isRegister && !showForgot && (
           <>
             <p className="kicker">SECURE STUDENT ACCESS</p>
-            <h1>Sign in to library</h1>
-            <p>Log in with your username and password.</p>
+            <h1>Sign in to Campus Hub</h1>
+            <p>Sign in with your email or username and password.</p>
 
             {errorMsg && (
               <div className="form-feedback-box error">
@@ -1605,13 +1625,13 @@ export function LoginPage({
 
             <form onSubmit={handleLogin} className="auth-flow-form">
               <label className="auth-field-label">
-                <span>Username</span>
+                <span>Email or username</span>
                 <input
                   required
                   type="text"
                   autoCapitalize="none"
                   autoCorrect="off"
-                  placeholder="your.username"
+                  placeholder="Enter your email or username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   disabled={busy}
@@ -1678,7 +1698,7 @@ export function LoginPage({
 
             <div className="auth-toggle-row">
               <p>
-                New student to FUW E-Library?{' '}
+                New student to FUW Campus Hub?{' '}
                 <button
                   type="button"
                   className="auth-link-btn"
@@ -1780,9 +1800,31 @@ export function LoginPage({
             <p>Enter the email address or username tied to your account and we will send you a reset link.</p>
 
             {errorMsg && (
-              <div className="form-feedback-box error">
-                <AlertCircle size={17} />
-                <p>{errorMsg}</p>
+              <div className="form-feedback-box error" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <AlertCircle size={17} />
+                  <p>{errorMsg}</p>
+                </div>
+                {accountNotFound && (
+                  <button
+                    type="button"
+                    className="primary auth-submit-btn"
+                    style={{ alignSelf: 'flex-start', marginTop: '4px', padding: '8px 16px', fontSize: '13px' }}
+                    onClick={() => {
+                      setShowForgot(false);
+                      setIsRegister(true);
+                      setAccountNotFound(false);
+                      setErrorMsg(null);
+                      if (forgotEmail.includes('@')) {
+                        setEmail(forgotEmail);
+                      } else {
+                        setUsername(forgotEmail);
+                      }
+                    }}
+                  >
+                    Create Account
+                  </button>
+                )}
               </div>
             )}
 
@@ -2050,7 +2092,7 @@ export function LoginPage({
                 <div className="input-with-badge">
                   <input
                     type="text"
-                    value={`${profileData.matricNumber.toUpperCase() || 'Not provided'} · ${profileData.gender || '—'} · ${profileData.phoneNumber || '—'}`}
+                    value={`${profileData.matricNumber.toUpperCase() || 'Not provided'} · ${profileData.gender || 'N/A'} · ${profileData.phoneNumber || 'N/A'}`}
                     readOnly
                     className="input-readonly"
                   />
@@ -2146,7 +2188,7 @@ export function LoginPage({
 export function ResetPasswordPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user, resetPassword, signOut } = useAuth();
+  const { user, isLoading, resetPassword, signOut } = useAuth();
 
   const [checked, setChecked] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -2154,17 +2196,52 @@ export function ResetPasswordPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [linkError, setLinkError] = useState<string | null>(null);
 
-  // Wait briefly for the recovery session to be recognised; if no session
-  // materialises the link is invalid or expired.
+  // Check URL parameters for explicit errors (e.g. otp_expired) or PKCE code,
+  // or wait for recovery session hydration.
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+      const searchParams = new URLSearchParams(window.location.search);
+      const err =
+        searchParams.get('error_description') ||
+        hashParams.get('error_description') ||
+        searchParams.get('error') ||
+        hashParams.get('error');
+
+      if (err) {
+        setLinkError(decodeURIComponent(err.replace(/\+/g, ' ')));
+        setChecked(true);
+        return;
+      }
+
+      // If PKCE code is present, exchange it for session
+      const code = searchParams.get('code');
+      if (code && !user && supabase) {
+        supabase.auth.exchangeCodeForSession(code).then(({ error }: { error: any }) => {
+          if (error) {
+            setLinkError(error.message);
+          }
+          setChecked(true);
+        }).catch((e: any) => {
+          setLinkError(e?.message || 'Failed to verify reset link.');
+          setChecked(true);
+        });
+        return;
+      }
+    }
+
     if (user) {
       setChecked(true);
       return;
     }
-    const t = window.setTimeout(() => setChecked(true), 2500);
-    return () => window.clearTimeout(t);
-  }, [user]);
+
+    if (!isLoading) {
+      const t = window.setTimeout(() => setChecked(true), 1200);
+      return () => window.clearTimeout(t);
+    }
+  }, [user, isLoading]);
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -2198,13 +2275,13 @@ export function ResetPasswordPage() {
     navigate('/login');
   };
 
-  const invalidLink = checked && !user;
+  const invalidLink = checked && (!user || !!linkError);
 
   return (
     <MacPage pill="ACCOUNT RECOVERY">
       <SEO
         title="Reset Password"
-        description="Set a new password for your FUW E-Library account."
+        description="Set a new password for your FUW Campus Hub account."
         path="/reset-password"
         noindex
       />
@@ -2215,13 +2292,13 @@ export function ResetPasswordPage() {
             <div className="mac-card-header">
               <h2 className="mac-card-title">Link is invalid or expired</h2>
               <p className="mac-card-subtitle">
-                This password reset link is no longer valid. Request a fresh one to continue.
+                {linkError || 'This password reset link is no longer valid. Request a fresh one to continue.'}
               </p>
             </div>
             <div className="mac-empty">
               <HelpCircle size={30} />
               <b>We could not verify this reset link.</b>
-              <span>Reset links expire shortly after being sent.</span>
+              <span>{linkError || 'Reset links expire shortly after being sent.'}</span>
             </div>
             <Link to="/forgot-password" className="mac-btn mac-btn-primary">
               Request a new reset link <ArrowRight size={17} aria-hidden />
@@ -2249,7 +2326,7 @@ export function ResetPasswordPage() {
             <div className="mac-card-header">
               <h2 className="mac-card-title">Choose a new password</h2>
               <p className="mac-card-subtitle">
-                Set a strong new password for your FUW E-Library account.
+                Set a strong new password for your FUW Campus Hub account.
               </p>
             </div>
 
@@ -2320,7 +2397,7 @@ export function AdminLoginPage() {
     setErrorMsg(null);
 
     if (!adminUsername.trim() || !password) {
-      setErrorMsg('Please enter your admin username and password.');
+      setErrorMsg('Please enter your admin email or username and password.');
       return;
     }
 
@@ -2399,7 +2476,7 @@ export function AdminLoginPage() {
           <>
             <p className="kicker">STAFF & LIBRARIAN GATEWAY</p>
             <h1>Admin sign in</h1>
-            <p>Sign in with your administrator username and password to review submissions and manage library catalogues.</p>
+            <p>Sign in with your administrator email or username and password to review submissions and manage library catalogues.</p>
 
             {errorMsg && (
               <div className="form-feedback-box error">
@@ -2410,13 +2487,13 @@ export function AdminLoginPage() {
 
             <form onSubmit={handleAdminSignIn} className="auth-flow-form">
               <label className="auth-field-label">
-                <span>Admin Username</span>
+                <span>Admin email or username</span>
                 <input
                   required
                   type="text"
                   autoCapitalize="none"
                   autoCorrect="off"
-                  placeholder="e.g. library.admin"
+                  placeholder="e.g. library.admin or admin@fuwukari.edu.ng"
                   value={adminUsername}
                   onChange={(e) => setAdminUsername(e.target.value.toLowerCase())}
                   disabled={busy}

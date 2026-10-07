@@ -190,7 +190,7 @@ export function CatalogueFilters({ filters, onChange, compact = false, fields }:
           availableCourses.length > 0 ? (
             availableCourses.map((c, i) => (
               <option key={`${c.code}-${i}`} value={c.code}>
-                {c.code} — {c.name}
+                {c.code} · {c.name}
               </option>
             ))
           ) : (

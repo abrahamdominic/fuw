@@ -100,7 +100,7 @@ export function departmentMeta(entry: DepartmentEntry): PageMeta {
   const levelWord = levels.map((l) => `${l} level`).join(', ');
 
   const description =
-    `${department.name}, ${faculty.name} at ${UNIVERSITY_NAME} — ` +
+    `${department.name}, ${faculty.name} at ${UNIVERSITY_NAME}: ` +
     `${courseCount} courses across ${levelWord || 'each level'}, with lecture notes, ` +
     `handouts and past questions available in the FUW E-Library.`;
 
@@ -185,7 +185,7 @@ export function courseMeta(entry: CourseEntry): PageMeta {
       : `offered by ${listSentence(departmentNames)}`;
 
   const description =
-    `${code} ${title} — ${where}. Find lecture notes, handouts, ` +
+    `${code} ${title}: ${where}. Find lecture notes, handouts, ` +
     `test and exam past questions and project guides for ${code} in the FUW E-Library.`;
 
   return meta({
@@ -232,7 +232,7 @@ export interface MaterialSeoInput {
 export function materialMeta(material: MaterialSeoInput): PageMeta {
   const path = `/materials/${material.id}`;
   const base =
-    `${material.title} — ${material.type.toLowerCase()} for ${material.course}` +
+    `${material.title}: ${material.type.toLowerCase()} for ${material.course}` +
     (material.courseTitle && material.courseTitle !== material.title ? ` (${material.courseTitle})` : '') +
     ` in ${material.department}, ${material.faculty}, ${UNIVERSITY_NAME}.`;
 
@@ -299,8 +299,8 @@ export function repositoryMeta(item: RepositorySeoInput): PageMeta {
 
   const summary = (item.abstract || item.subtitle || '').trim();
   const description = summary
-    ? `${item.title} — ${facts}. ${summary}`
-    : `${item.title} — ${facts} archived in the ${UNIVERSITY_NAME} institutional repository.`;
+    ? `${item.title}: ${facts}. ${summary}`
+    : `${item.title}: ${facts} archived in the ${UNIVERSITY_NAME} institutional repository.`;
 
   return meta({
     title: `${item.title} | FUW Institutional Repository`,
@@ -343,8 +343,8 @@ export function collectionMeta(collection: CollectionSeoInput): PageMeta {
   const resources = count > 0 ? `${count} grouped academic resource${count === 1 ? '' : 's'}` : 'grouped academic resources';
 
   const description = own
-    ? `${collection.name} — a curated FUW E-Library collection of ${resources}. ${own}`
-    : `${collection.name} — a curated collection of ${resources} assembled by Federal University Wukari librarians in the FUW E-Library.`;
+    ? `${collection.name}: a curated FUW E-Library collection of ${resources}. ${own}`
+    : `${collection.name}: a curated collection of ${resources} assembled by Federal University Wukari librarians in the FUW E-Library.`;
 
   return meta({
     title: `${collection.name} | FUW E-Library Collections`,

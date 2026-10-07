@@ -98,7 +98,7 @@ export const PUBLIC_ROUTES: Record<string, PageMeta> = {
   '/library': {
     title: 'FUW E-Library | Academic Materials & Digital Library',
     description:
-      'Search and filter verified Federal University Wukari academic materials — lecture notes, test and exam past questions, handouts and projects by faculty, department, level and semester.',
+      'Search and filter verified Federal University Wukari academic materials: lecture notes, test and exam past questions, handouts and projects by faculty, department, level and semester.',
     path: '/library',
     changefreq: 'daily',
     priority: 0.9,
@@ -148,7 +148,7 @@ export const PUBLIC_ROUTES: Record<string, PageMeta> = {
   '/collections': {
     title: 'Curated Study Collections | FUW E-Library',
     description:
-      'Curated reading collections assembled by FUW librarians — grouped lecture notes, past questions and research that map directly onto a course, a semester or an exam revision plan.',
+      'Curated reading collections assembled by FUW librarians: grouped lecture notes, past questions and research that map directly onto a course, a semester or an exam revision plan.',
     path: '/collections',
     changefreq: 'weekly',
     priority: 0.7,
@@ -174,7 +174,7 @@ export const PUBLIC_ROUTES: Record<string, PageMeta> = {
   '/about': {
     title: 'About the FUW E-Library | What It Is & How It Works',
     description:
-      'What the FUW E-Library is, who it serves and how academic material is verified before publication — the digital library of Federal University Wukari, Wukari, Taraba State.',
+      'What the FUW E-Library is, who it serves and how academic material is verified before publication: the digital library of Federal University Wukari, Wukari, Taraba State.',
     path: '/about',
     changefreq: 'monthly',
     priority: 0.5,
@@ -195,6 +195,88 @@ export const PUBLIC_ROUTES: Record<string, PageMeta> = {
     indexability: 'index',
     breadcrumbs: [HOME_CRUMB, { name: 'Contact', path: '/contact' }],
     schema: 'webPage'
+  },
+
+  '/accommodation': {
+    title: 'FUW Accommodation & Student Lodges | Federal University Wukari',
+    description:
+      'Search verified student hostels, self-contained rooms, flats and shared lodges around Federal University Wukari campus with anti-scam protection and caretaker verification.',
+    path: '/accommodation',
+    changefreq: 'daily',
+    priority: 0.9,
+    keywords: [
+      'FUW accommodation',
+      'FUW student hostels',
+      'lodges near Federal University Wukari',
+      'FUW off campus housing',
+      'self contained rooms Wukari'
+    ],
+    indexability: 'index',
+    breadcrumbs: [HOME_CRUMB, { name: 'Accommodation', path: '/accommodation' }],
+    schema: 'itemList'
+  },
+
+  '/accommodation/roommates': {
+    title: 'Roommate Finder & Student Matching | FUW Accommodation',
+    description:
+      'Connect with verified Federal University Wukari students looking to share lodge rent and accommodation costs. Filter by gender preference, budget, and location.',
+    path: '/accommodation/roommates',
+    changefreq: 'daily',
+    priority: 0.85,
+    keywords: [
+      'FUW roommate finder',
+      'find roommate Federal University Wukari',
+      'FUW student roommates',
+      'shared student lodge Wukari',
+      'FUW accommodation matching'
+    ],
+    indexability: 'index',
+    breadcrumbs: [
+      HOME_CRUMB,
+      { name: 'Accommodation', path: '/accommodation' },
+      { name: 'Roommate Finder', path: '/accommodation/roommates' }
+    ],
+    schema: 'itemList'
+  },
+
+  '/marketplace': {
+    title: 'FUW Student Marketplace | Federal University Wukari Campus Commerce',
+    description:
+      'Buy and sell products and campus services safely within the Federal University Wukari community. Textbooks, gadgets, fashion, food, laundry and trusted student vendors.',
+    path: '/marketplace',
+    changefreq: 'daily',
+    priority: 0.9,
+    keywords: [
+      'FUW student marketplace',
+      'buy and sell FUW',
+      'Federal University Wukari student vendors',
+      'campus commerce Wukari',
+      'student textbooks Wukari'
+    ],
+    indexability: 'index',
+    breadcrumbs: [HOME_CRUMB, { name: 'Marketplace', path: '/marketplace' }],
+    schema: 'itemList'
+  },
+
+  '/marketplace/browse': {
+    title: 'Browse Campus Products & Services | FUW Marketplace',
+    description:
+      'Discover verified student products and services at Federal University Wukari. Search textbooks, gadgets, housing supplies, and services by category and price.',
+    path: '/marketplace/browse',
+    changefreq: 'daily',
+    priority: 0.85,
+    keywords: [
+      'browse FUW marketplace',
+      'FUW campus listings',
+      'student items Wukari'
+    ],
+    indexability: 'index',
+    breadcrumbs: [
+      HOME_CRUMB,
+      { name: 'Marketplace', path: '/marketplace' },
+      { name: 'Browse', path: '/marketplace/browse' }
+    ],
+    schema: 'itemList'
   }
 } as const;
 
@@ -204,6 +286,42 @@ export const PUBLIC_ROUTES: Record<string, PageMeta> = {
  * `noindex, follow` and never appear in sitemap.xml.
  */
 export const NOINDEX_ROUTES: Record<string, PageMeta> = {
+  '/marketplace/cart': {
+    title: 'Shopping Cart | FUW Marketplace',
+    description: 'Review your selected items before checkout.',
+    path: '/marketplace/cart',
+    keywords: [],
+    indexability: 'noindex',
+    breadcrumbs: [HOME_CRUMB, { name: 'Marketplace', path: '/marketplace' }, { name: 'Cart', path: '/marketplace/cart' }],
+    schema: 'none'
+  },
+  '/marketplace/checkout': {
+    title: 'Secure Checkout | FUW Marketplace',
+    description: 'Complete your purchase with student escrow protection.',
+    path: '/marketplace/checkout',
+    keywords: [],
+    indexability: 'noindex',
+    breadcrumbs: [HOME_CRUMB, { name: 'Marketplace', path: '/marketplace' }, { name: 'Checkout', path: '/marketplace/checkout' }],
+    schema: 'none'
+  },
+  '/marketplace/orders': {
+    title: 'Orders | FUW Marketplace',
+    description: 'Track your campus orders and deliveries.',
+    path: '/marketplace/orders',
+    keywords: [],
+    indexability: 'noindex',
+    breadcrumbs: [HOME_CRUMB, { name: 'Marketplace', path: '/marketplace' }, { name: 'Orders', path: '/marketplace/orders' }],
+    schema: 'none'
+  },
+  '/marketplace/wallet': {
+    title: 'Student Wallet | FUW Platform',
+    description: 'Manage your platform balance, bank withdrawals, and payments.',
+    path: '/marketplace/wallet',
+    keywords: [],
+    indexability: 'noindex',
+    breadcrumbs: [HOME_CRUMB, { name: 'Wallet', path: '/marketplace/wallet' }],
+    schema: 'none'
+  },
   '/repository/submit': {
     title: 'Submit to the Repository | FUW E-Library',
     description: 'Submit a final-year project, thesis or publication to the Federal University Wukari institutional repository.',
@@ -249,6 +367,15 @@ export const NOINDEX_ROUTES: Record<string, PageMeta> = {
  * and RLS are what actually protect the data behind them.
  */
 export const PRIVATE_ROUTES: Record<string, PageMeta> = {
+  '/hub': {
+    title: 'FUW Campus Hub | Your gateway to everything in FUW',
+    description: 'Central authenticated gateway to Federal University Wukari digital services: E-Library, Marketplace, and Accommodation.',
+    path: '/hub',
+    keywords: [],
+    indexability: 'noindex',
+    breadcrumbs: [HOME_CRUMB, { name: 'Campus Hub', path: '/hub' }],
+    schema: 'none'
+  },
   '/': {
     title: 'Sign In | FUW E-Library',
     description: 'Sign in to continue to your Federal University Wukari E-Library dashboard.',
@@ -268,8 +395,8 @@ export const PRIVATE_ROUTES: Record<string, PageMeta> = {
     schema: 'none'
   },
   '/login': {
-    title: 'Sign In | FUW E-Library',
-    description: 'Sign in to your Federal University Wukari E-Library account.',
+    title: 'Sign In | FUW Campus Hub',
+    description: 'Sign in to your Federal University Wukari Campus Hub account.',
     path: '/login',
     keywords: [],
     indexability: 'noindex',
@@ -277,8 +404,8 @@ export const PRIVATE_ROUTES: Record<string, PageMeta> = {
     schema: 'none'
   },
   '/register': {
-    title: 'Create an Account | FUW E-Library',
-    description: 'Register for a Federal University Wukari E-Library student account.',
+    title: 'Create an Account | FUW Campus Hub',
+    description: 'Register for a Federal University Wukari Campus Hub student account.',
     path: '/register',
     keywords: [],
     indexability: 'noindex',
@@ -286,8 +413,8 @@ export const PRIVATE_ROUTES: Record<string, PageMeta> = {
     schema: 'none'
   },
   '/forgot-password': {
-    title: 'Reset Your Password | FUW E-Library',
-    description: 'Request a password reset link for your FUW E-Library account.',
+    title: 'Reset Your Password | FUW Campus Hub',
+    description: 'Request a password reset link for your FUW Campus Hub account.',
     path: '/forgot-password',
     keywords: [],
     indexability: 'noindex',
@@ -295,8 +422,8 @@ export const PRIVATE_ROUTES: Record<string, PageMeta> = {
     schema: 'none'
   },
   '/reset-password': {
-    title: 'Choose a New Password | FUW E-Library',
-    description: 'Choose a new password for your FUW E-Library account.',
+    title: 'Choose a New Password | FUW Campus Hub',
+    description: 'Choose a new password for your FUW Campus Hub account.',
     path: '/reset-password',
     keywords: [],
     indexability: 'noindex',
@@ -304,8 +431,8 @@ export const PRIVATE_ROUTES: Record<string, PageMeta> = {
     schema: 'none'
   },
   '/admin/login': {
-    title: 'Administrator Sign In | FUW E-Library',
-    description: 'Administrator sign-in for the FUW E-Library management portal.',
+    title: 'Administrator Sign In | FUW Campus Hub',
+    description: 'Administrator sign-in for the FUW Campus Hub management portal.',
     path: '/admin/login',
     keywords: [],
     indexability: 'noindex',
@@ -313,8 +440,8 @@ export const PRIVATE_ROUTES: Record<string, PageMeta> = {
     schema: 'none'
   },
   '/super/login': {
-    title: 'Administrator Sign In | FUW E-Library',
-    description: 'Administrator sign-in for the FUW E-Library management portal.',
+    title: 'Super Admin Sign In | FUW Campus Hub',
+    description: 'Super administrator sign-in for the FUW Campus Hub management portal.',
     path: '/super/login',
     keywords: [],
     indexability: 'noindex',
@@ -418,6 +545,10 @@ export function isIndexablePath(pathname: string): boolean {
   const collectionRecord = /^\/collections\/([^/]+)$/.exec(path);
   if (collectionRecord) return collectionRecord[1] !== 'submit';
 
+  // Dynamic accommodation property detail pages (exclude static /accommodation/roommates)
+  const accommodationRecord = /^\/accommodation\/([^/]+)$/.exec(path);
+  if (accommodationRecord) return accommodationRecord[1] !== 'roommates';
+
   return false;
 }
 
@@ -428,7 +559,7 @@ export function isIndexablePath(pathname: string): boolean {
 export const FALLBACK_META: PageMeta = {
   title: 'FUW E-Library',
   description:
-    'The digital library of Federal University Wukari — verified lecture notes, past questions, handouts and research materials for students of the university.',
+    'The digital library of Federal University Wukari: verified lecture notes, past questions, handouts and research materials for students of the university.',
   path: '/',
   keywords: [...KEYWORDS.brand],
   indexability: 'noindex',

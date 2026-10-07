@@ -4,6 +4,7 @@ import { supabase, requireSupabase } from '../lib/supabase';
 import {
   LayoutDashboard,
   Home,
+  Bed,
   FileText,
   Upload,
   Users,
@@ -61,7 +62,11 @@ import {
   Calendar,
   Archive,
   Layers,
-  HelpCircle
+  HelpCircle,
+  CalendarRange,
+  Briefcase,
+  SearchX,
+  BookOpen
 } from 'lucide-react';
 import { fx, staggerDelay } from '../lib/motion';
 import { AnimatedModal } from '../components/animations/AnimatedModal';
@@ -90,6 +95,7 @@ import { AssignedDepartmentsModal } from '../components/AssignedDepartmentsModal
 import { aiProcessMaterial } from '../lib/ai';
 import { ConfirmDialog, ConfirmDialogState, PromptDialog } from '../components/ConfirmDialog';
 import ProtectedActionModal from '../components/ProtectedActionModal';
+import { AdminAcademicsModule } from '../components/AdminAcademics';
 import { AuthenticatorAppCard } from '../components/AuthenticatorAppCard';
 import { PasskeysManager } from '../components/PasskeysManager';
 import { DashboardSearch } from '../components/DashboardSearch';
@@ -111,6 +117,8 @@ import {
 } from './AdminRepositoryTabs';
 import { AdminVerificationTab } from './AdminVerificationTab';
 import { AdminPlansTab } from './AdminPlansTab';
+import { AdminCampusTab } from './AdminCampusTab';
+import { AdminAccommodationTab } from './AdminAccommodationTab';
 
 interface AdminPortalProps {
   onReadOnline: (material: MaterialItem) => void;
@@ -139,6 +147,15 @@ const adminNavItems = [
   { label: 'Courses & levels', path: '/admin/courses', icon: GraduationCap, permission: 'manage_catalogue' },
   { label: 'Student Courses', path: '/admin/student-courses', icon: List, permission: 'manage_catalogue' },
   { label: 'Categories & sessions', path: '/admin/categories', icon: Bookmark, permission: 'manage_catalogue' },
+  { label: 'Academic records', path: '/admin/academics', icon: GraduationCap, permission: null },
+  { label: 'Events', path: '/admin/events', icon: CalendarRange, permission: 'manage_events' },
+  { label: 'Organizations', path: '/admin/organizations', icon: Users, permission: 'manage_organizations' },
+  { label: 'Jobs & Gigs', path: '/admin/jobs', icon: Briefcase, permission: 'moderate_jobs' },
+  { label: 'Lost & Found', path: '/admin/lost-found', icon: SearchX, permission: 'moderate_lost_found' },
+  { label: 'Study Groups', path: '/admin/study-groups', icon: BookOpen, permission: 'manage_study_groups' },
+  { label: 'Skills & Learning', path: '/admin/learning', icon: GraduationCap, permission: 'manage_learning' },
+  { label: 'Accommodation', path: '/admin/accommodation', icon: Bed, permission: null },
+  { label: 'Platform reports', path: '/admin/reports', icon: AlertTriangle, permission: 'moderate_reports' },
   { label: 'Audit logs', path: '/admin/logs', icon: ShieldCheck, permission: 'view_analytics' },
   { label: 'Usage analytics', path: '/admin/usage-analytics', icon: BarChart3, permission: 'view_analytics' },
   { label: 'Settings', path: '/admin/settings', icon: Settings, permission: null }
@@ -175,11 +192,16 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
     action: () => void | Promise<void>;
   } | null>(null);
 
+  const [, setStoreVersion] = useState(0);
+
   // Pull fresh live data from Supabase whenever the admin portal opens
   useEffect(() => {
     store.syncMaterialsFromSupabase();
     store.fetchUserStats();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const unsubscribe = store.subscribe(() => {
+      setStoreVersion((v) => v + 1);
+    });
+    return unsubscribe;
   }, []);
 
   const currentUser = store.getCurrentUser();
@@ -234,7 +256,7 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
       toast(successMsg, 'success');
     } catch (err: any) {
       if (fallbackStore) fallbackStore();
-      toast(err?.message || 'Action failed — check your permissions.', 'error');
+      toast(err?.message || 'Action failed. Check your permissions.', 'error');
     }
   };
 
@@ -504,6 +526,24 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
           <AdminUsageAnalyticsTab />
         ) : currentPath.startsWith('/admin/settings') ? (
           <AdminSettingsTab />
+        ) : currentPath.startsWith('/admin/academics') ? (
+          <AdminAcademicsModule />
+        ) : currentPath.startsWith('/admin/events') ? (
+          can(profile, 'manage_events') ? <AdminCampusTab module="events" /> : <div className="portal-empty"><ShieldAlert size={32} className="empty-icon" /><p>You do not have permission to access this section.</p></div>
+        ) : currentPath.startsWith('/admin/organizations') ? (
+          can(profile, 'manage_organizations') ? <AdminCampusTab module="organizations" /> : <div className="portal-empty"><ShieldAlert size={32} className="empty-icon" /><p>You do not have permission to access this section.</p></div>
+        ) : currentPath.startsWith('/admin/jobs') ? (
+          can(profile, 'moderate_jobs') ? <AdminCampusTab module="jobs" /> : <div className="portal-empty"><ShieldAlert size={32} className="empty-icon" /><p>You do not have permission to access this section.</p></div>
+        ) : currentPath.startsWith('/admin/lost-found') ? (
+          can(profile, 'moderate_lost_found') ? <AdminCampusTab module="lost-found" /> : <div className="portal-empty"><ShieldAlert size={32} className="empty-icon" /><p>You do not have permission to access this section.</p></div>
+        ) : currentPath.startsWith('/admin/study-groups') ? (
+          can(profile, 'manage_study_groups') ? <AdminCampusTab module="study-groups" /> : <div className="portal-empty"><ShieldAlert size={32} className="empty-icon" /><p>You do not have permission to access this section.</p></div>
+        ) : currentPath.startsWith('/admin/learning') ? (
+          can(profile, 'manage_learning') ? <AdminLearningStubTab /> : <div className="portal-empty"><ShieldAlert size={32} className="empty-icon" /><p>You do not have permission to access this section.</p></div>
+        ) : currentPath.startsWith('/admin/accommodation') || currentPath.startsWith('/admin/services') ? (
+          <AdminAccommodationTab />
+        ) : currentPath.startsWith('/admin/reports') ? (
+          can(profile, 'moderate_reports') ? <AdminCampusTab module="reports" /> : <div className="portal-empty"><ShieldAlert size={32} className="empty-icon" /><p>You do not have permission to access this section.</p></div>
         ) : (
           <AdminOverviewTab
             stats={stats}
@@ -629,15 +669,21 @@ function AdminOverviewTab({
     if (analyticsBusy.current) return;
     analyticsBusy.current = true;
     try {
-      const [g, f, d] = await Promise.all([
+      const [gRes, fRes, dRes] = await Promise.allSettled([
         fetchGenderCounts(),
         fetchMaterialsByFaculty(),
         fetchMaterialsByDepartment()
       ]);
-      setGenderData(g.map((row) => ({ label: row.gender, value: row.count })));
-      setFacultyData(f.map((row) => ({ label: row.name, value: row.count })));
-      setDeptData(d.map((row) => ({ label: row.name, value: row.count })));
-    } catch (err) {
+      if (gRes.status === 'fulfilled') {
+        setGenderData(gRes.value.map((row) => ({ label: row.gender, value: row.count })));
+      }
+      if (fRes.status === 'fulfilled') {
+        setFacultyData(fRes.value.map((row) => ({ label: row.name, value: row.count })));
+      }
+      if (dRes.status === 'fulfilled') {
+        setDeptData(dRes.value.map((row) => ({ label: row.name, value: row.count })));
+      }
+    } catch {
       // Keep previous values on a refresh failure; first load falls back to
       // the empty state so the dashboard never crashes on a hiccup.
     } finally {
@@ -1346,7 +1392,7 @@ function AdminUploadTab({ onUploaded }: { onUploaded: () => void }) {
               <input
                 name="title"
                 required
-                placeholder="e.g. CSC 201 — Data Structures and Algorithms"
+                placeholder="e.g. CSC 201: Data Structures and Algorithms"
               />
             </label>
 
@@ -1433,7 +1479,7 @@ function AdminUploadTab({ onUploaded }: { onUploaded: () => void }) {
             <div className="drop file-dropzone">
               <Upload size={32} />
               <b>{file ? file.name : 'Select or drop academic resource file'}</b>
-              <span>PDF, DOC/DOCX, PPT/PPTX, XLS/XLSX — Up to 25 MB</span>
+              <span>PDF, DOC/DOCX, PPT/PPTX, XLS/XLSX (Up to 25 MB)</span>
               {file && (
                 <div className="file-ready-tag">
                   <CheckCircle2 size={14} /> Ready for instant publication ({(file.size / (1024 * 1024)).toFixed(2)} MB)
@@ -1496,7 +1542,7 @@ function AdminAiManagementTab() {
       if (res.status === 'ready') {
         setJobResults((prev) => ({
           ...prev,
-          [m.id]: { ok: true, text: `Indexed successfully — ${res.chunks ?? '?'} text chunks embedded.` }
+          [m.id]: { ok: true, text: `Indexed successfully: ${res.chunks ?? '?'} text chunks embedded.` }
         }));
         toast(`"${m.title}" is now searchable by the AI assistant.`, 'success');
       } else {
@@ -1817,7 +1863,7 @@ function AdminUsersTab() {
             const verified = u.verified === true;
             const joined = u.created_at
               ? new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
-              : '—';
+              : '-';
             return (
               <div className="tr users-table-grid" key={u.id}>
                 <span>
@@ -1827,7 +1873,7 @@ function AdminUsersTab() {
                 </span>
                 <span>{u.matric_number || 'Not submitted'}</span>
                 <span>
-                  {u.department || '—'} · {u.level || '—'}
+                  {u.department || '-'} · {u.level || '-'}
                   <small className="block-text opacity-70">{u.faculty || ''}</small>
                 </span>
                 <span>
@@ -2231,7 +2277,7 @@ function AdminCoursesTab() {
           <div className="empty-state card-empty">
             <GraduationCap size={32} />
             <b>No administrator-published courses yet.</b>
-            <span>Publish courses using "Add Course" above. Published courses are added to the official catalogue immediately — no approval needed.</span>
+            <span>Publish courses using "Add Course" above. Published courses are added to the official catalogue immediately (no approval needed).</span>
           </div>
         ) : (
           <div className="table">
@@ -2254,8 +2300,8 @@ function AdminCoursesTab() {
                   {c.department}
                   {c.faculty && <small>{c.faculty}</small>}
                 </span>
-                <span>{c.level || '—'}</span>
-                <span>{c.semester || '—'}</span>
+                <span>{c.level || '-'}</span>
+                <span>{c.semester || '-'}</span>
                 <span>{new Date(c.created_at).toLocaleDateString()}</span>
                 <span>
                   {isSuperAdmin || c.created_by === profile?.id ? (
@@ -2517,7 +2563,7 @@ function AdminCoursePublisher({ onPublished }: { onPublished: () => void }) {
         <div className="form-section">
           <h3>Publish new courses</h3>
           <p className="subtitle">
-            Courses published here appear in the official catalogue immediately — there is no approval step.
+            Courses published here appear in the official catalogue immediately (no approval step required).
           </p>
         </div>
 
@@ -3104,7 +3150,7 @@ function AdminUsageAnalyticsTab() {
             <div className="analytics-block-head">
               <p className="kicker">COUNTRY</p>
               <h2>Geographic distribution</h2>
-              <p>Coarse country aggregation derived from timezone/locale only — no precise location is stored.</p>
+              <p>Coarse country aggregation derived from timezone/locale only (no precise location is stored).</p>
             </div>
             <div className="analytics-grid">
               <AnalyticsChart title="Countries" description="Derived from timezone and locale." items={toPairs(dashboard.country_distribution)} loading={false} horizontal emptyText="No country data yet." valueLabel="users" />
@@ -3180,7 +3226,7 @@ function AdminUsageAnalyticsTab() {
                           <li key={q.query}>
                             <span className="search-insight-badge failed" title="No matching materials">0</span>
                             <b>{q.query}</b>
-                            <small>{q.count.toLocaleString()}× · last {q.last_at ? new Date(q.last_at).toLocaleDateString() : '—'}</small>
+                            <small>{q.count.toLocaleString()}× · last {q.last_at ? new Date(q.last_at).toLocaleDateString() : '-'}</small>
                           </li>
                         ))}
                       </ul>
@@ -3314,7 +3360,7 @@ function AdminUsageAnalyticsTab() {
                   <span>
                     Deletes everything recorded before{' '}
                     <b>{new Date(Date.now() - purgeDays * 86400000).toLocaleDateString()}</b>
-                    {' '}— this action is irreversible.
+                    {' '}(this action is irreversible).
                   </span>
                 </p>
               </div>
@@ -4511,7 +4557,7 @@ function AdminStudentCoursesTab() {
                     <td className="cell-bold">{c.course_code}</td>
                     <td>{c.course_title}</td>
                     <td className="cell-secondary">
-                      {c.profiles?.full_name || '—'}<br />
+                      {c.profiles?.full_name || '-'}<br />
                       <span className="opacity-60">{c.profiles?.matric_number || ''}</span>
                     </td>
                     <td className="cell-secondary">{c.faculty}</td>
@@ -4829,7 +4875,7 @@ function AdminDeletionRequestsTab() {
                       <div className="student-cell">
                         <span className="avatar-mini" style={{ background: avatarColor(r.profiles?.full_name) }}>{adminInitials(r.profiles?.full_name)}</span>
                         <span className="student-cell-main">
-                          <span className="student-name-cell">{r.profiles?.full_name || '—'}</span>
+                          <span className="student-name-cell">{r.profiles?.full_name || '-'}</span>
                           <span className="cell-secondary">{r.profiles?.matric_number || r.profiles?.email}</span>
                         </span>
                       </div>
@@ -4879,7 +4925,7 @@ function AdminDeletionRequestsTab() {
                     <span className="avatar-mini" style={{ background: avatarColor(r.profiles?.full_name) }}>{adminInitials(r.profiles?.full_name)}</span>
                     <span className="student-cell-main">
                       <div className="cell-bold">{r.item_name}</div>
-                      <div className="cell-secondary">{r.profiles?.full_name || '—'} · {r.profiles?.matric_number || ''}</div>
+                      <div className="cell-secondary">{r.profiles?.full_name || '-'} · {r.profiles?.matric_number || ''}</div>
                     </span>
                   </div>
                   {statusBadge(r.status)}
@@ -4920,7 +4966,7 @@ function AdminDeletionRequestsTab() {
               <div className="detail-summary">
                 <span className="avatar-lg" style={{ background: avatarColor(detailReq.profiles?.full_name) }}>{adminInitials(detailReq.profiles?.full_name)}</span>
                 <div>
-                  <div className="detail-value cell-bold">{detailReq.profiles?.full_name || '—'}</div>
+                  <div className="detail-value cell-bold">{detailReq.profiles?.full_name || '-'}</div>
                   <div className="cell-secondary">{detailReq.profiles?.matric_number} · {detailReq.profiles?.email}</div>
                   {detailReq.profiles?.faculty && <div className="cell-secondary">{detailReq.profiles.faculty} · {detailReq.profiles.department} · Level {detailReq.profiles.level}</div>}
                 </div>
@@ -5268,7 +5314,7 @@ function AdminChangeRequestsTab() {
                       <div className="student-cell">
                         <span className="avatar-mini" style={{ background: avatarColor(r.profiles?.full_name) }}>{adminInitials(r.profiles?.full_name)}</span>
                         <span className="student-cell-main">
-                          <span className="student-name-cell">{r.profiles?.full_name || '—'}</span>
+                          <span className="student-name-cell">{r.profiles?.full_name || '-'}</span>
                           <span className="cell-secondary">{r.profiles?.matric_number || r.profiles?.email}</span>
                         </span>
                       </div>
@@ -5310,7 +5356,7 @@ function AdminChangeRequestsTab() {
                   <div className="student-cell">
                     <span className="avatar-mini" style={{ background: avatarColor(r.profiles?.full_name) }}>{adminInitials(r.profiles?.full_name)}</span>
                     <span className="student-cell-main">
-                      <div className="student-name-cell">{r.profiles?.full_name || '—'}</div>
+                      <div className="student-name-cell">{r.profiles?.full_name || '-'}</div>
                       <div className="cell-secondary">{r.profiles?.matric_number || r.profiles?.email}</div>
                     </span>
                   </div>
@@ -5353,7 +5399,7 @@ function AdminChangeRequestsTab() {
               <div className="detail-summary">
                 <span className="avatar-lg" style={{ background: avatarColor(detailRequest.profiles?.full_name) }}>{adminInitials(detailRequest.profiles?.full_name)}</span>
                 <div>
-                  <div className="detail-value cell-bold">{detailRequest.profiles?.full_name || '—'}</div>
+                  <div className="detail-value cell-bold">{detailRequest.profiles?.full_name || '-'}</div>
                   <div className="cell-secondary">{detailRequest.profiles?.matric_number} · {detailRequest.profiles?.email}</div>
                   {detailRequest.profiles?.faculty && <div className="cell-secondary">{detailRequest.profiles.faculty} · {detailRequest.profiles.department} · Level {detailRequest.profiles.level}</div>}
                 </div>
@@ -5990,7 +6036,7 @@ function AdminActiveSessionsTab() {
                           <div className="student-cell">
                             <span className="avatar avatar-mini xs">{adminInitials(s.profiles?.full_name)}</span>
                             <div className="student-cell-main">
-                              <span className="cell-bold">{s.profiles?.full_name || '—'}</span>
+                              <span className="cell-bold">{s.profiles?.full_name || '-'}</span>
                               <span className="cell-code cell-secondary">{s.profiles?.matric_number || s.profiles?.email}</span>
                             </div>
                           </div>
@@ -6008,7 +6054,7 @@ function AdminActiveSessionsTab() {
                           </div>
                         </td>
                         <td>{s.os}</td>
-                        <td className="cell-code">{s.ip_address || '—'}</td>
+                        <td className="cell-code">{s.ip_address || '-'}</td>
                         <td><span className={`conn-badge ${connClass(s.connection_type)}`}>{connectionLabel(s.connection_type)}</span></td>
                         <td className="cell-secondary">{timeSince(s.last_active)}</td>
                         <td>
@@ -6038,7 +6084,7 @@ function AdminActiveSessionsTab() {
                       <div className="student-cell">
                         <span className="avatar avatar-mini xs">{adminInitials(s.profiles?.full_name)}</span>
                         <div className="student-cell-main">
-                          <div className="student-name-cell">{s.profiles?.full_name || '—'}</div>
+                          <div className="student-name-cell">{s.profiles?.full_name || '-'}</div>
                           <div className="cell-secondary">{s.profiles?.matric_number || s.profiles?.email}</div>
                         </div>
                       </div>
@@ -6050,7 +6096,7 @@ function AdminActiveSessionsTab() {
                         <span className="cell-bold">{s.device_type.charAt(0).toUpperCase() + s.device_type.slice(1)}</span>
                         <span className="cell-secondary"> · {s.browser} · {s.os}</span>
                       </div>
-                      <div className="cell-secondary mt-xs">{s.ip_address || '—'} · <span className={`conn-badge ${connClass(s.connection_type)}`}>{connectionLabel(s.connection_type)}</span></div>
+                      <div className="cell-secondary mt-xs">{s.ip_address || '-'} · <span className={`conn-badge ${connClass(s.connection_type)}`}>{connectionLabel(s.connection_type)}</span></div>
                       <div className="cell-secondary mt-xs">Last active {timeSince(s.last_active)}</div>
                     </div>
                     <div className="request-card-footer">
@@ -6092,6 +6138,39 @@ function AdminActiveSessionsTab() {
         }}
         onClose={() => setTerminateTarget(null)}
       />
+    </div>
+  );
+}
+
+// Skills & Learning admin stub — Phase 6 (ff.md §30). Routes and permissions
+// are live. Full content authoring UI will be added in a future release.
+function AdminLearningStubTab() {
+  return (
+    <div className="platform-shell">
+      <div className="platform-header">
+        <div>
+          <p className="kicker">ADMIN · SKILLS &amp; LEARNING</p>
+          <h2>Learning content management</h2>
+          <p className="subtitle">
+            Manage learning paths, modules and lessons for the FUW Campus Platform.
+          </p>
+        </div>
+      </div>
+      <div className="portal-empty" style={{ minHeight: 240 }}>
+        <GraduationCap size={36} className="empty-icon" />
+        <strong>Content authoring coming soon</strong>
+        <p>
+          The <code>manage_learning</code> permission, student route{' '}
+          <code>/student/learning</code> and the Skills &amp; Learning section are
+          all in place. Full learning-path authoring, lesson editor and progress
+          reporting will be released in the Phase 6 rollout.
+        </p>
+      </div>
+      <p className="platform-disclaimer">
+        No learning content has been created yet. Once the full editor is
+        available, published content will appear at{' '}
+        <strong>/student/learning</strong> for enrolled students.
+      </p>
     </div>
   );
 }

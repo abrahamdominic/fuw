@@ -198,7 +198,7 @@ export function DepartmentAssigner({
 
         {selectedDepartments.length === 0 ? (
           <div className="da-chips-empty">
-            No departments assigned yet — choose from the picker below.
+            No departments assigned yet. Choose from the picker below.
           </div>
         ) : (
           <div className="da-selected-grid">

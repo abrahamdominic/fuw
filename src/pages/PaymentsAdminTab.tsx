@@ -283,7 +283,7 @@ export function PaymentsAdminTab() {
                         <b>{request.student_name || 'Student'}</b>
                         <span className={`payment-status-pill is-${request.status}`}>{request.status}</span>
                       </div>
-                      <span>{request.student_email || 'No email'} · Matric {request.student_matric_number || '—'}</span>
+                      <span>{request.student_email || 'No email'} · Matric {request.student_matric_number || 'N/A'}</span>
                       <span>{request.plan_name} · Expected {naira(request.amount_kobo, request.currency)}
                         {request.submitted_amount_kobo != null && ` · Reported ${naira(request.submitted_amount_kobo, request.currency)}`}
                         {` · ${new Date(request.created_at).toLocaleString('en-NG')}`}

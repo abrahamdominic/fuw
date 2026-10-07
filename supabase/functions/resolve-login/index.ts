@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
   // Require the anon key as the caller credential (matching how the browser
   // invokes every other Supabase API) — the edge function itself never runs
   // unauthenticated at the platform level, but we still require a key.
-  const presentedKey = req.headers.get('Authorization') ?? '';
+  const presentedKey = req.headers.get('Authorization') || req.headers.get('apikey') || '';
   if (!presentedKey) return json({ error: 'Unauthorized' }, 401, req);
 
   let body: any;
@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
   const { data: profile } = await serviceClient
     .from('profiles')
     .select('email, is_active')
-    .eq('username', username)
+    .ilike('username', username)
     .maybeSingle();
 
   const email = profile && profile.is_active && typeof profile.email === 'string' ? profile.email.trim().toLowerCase() : '';
@@ -103,7 +103,9 @@ Deno.serve(async (req) => {
       .split(',')
       .map((s) => s.trim().toLowerCase())
       .filter(Boolean);
-    if (trustedOrigins.length === 0) trustedOrigins.push(DEV_ORIGIN);
+    if (trustedOrigins.length === 0) {
+      trustedOrigins.push(DEV_ORIGIN, 'https://fuwtest.netlify.app');
+    }
 
     const requested = String(body?.redirectTo ?? '');
     const requestedOrigin = originOf(requested);

@@ -110,7 +110,7 @@ export function toUserFacingAuthError(err: unknown, fallback: string): Error {
     return new Error('Your device authenticator could not complete the passkey request. Please try again or use your password.');
   }
   if (lower.includes('enabled') || lower.includes('experimental')) {
-    return new Error('Passkeys are not enabled on this server yet. Contact the library administrator to turn on the Passkeys experimental feature in Supabase.');
+    return new Error('Passkeys are not enabled on this server yet. Contact the library administrator to turn them on.');
   }
 
   return new Error(fallback);

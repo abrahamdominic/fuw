@@ -363,7 +363,7 @@ export function MultiDepartmentPicker({
 
                       {hasError && (
                         <p className="md-slot-error">
-                          <AlertCircle size={13} /> This department could not be verified in the database — re-select it from the list.
+                          <AlertCircle size={13} /> This department could not be verified in our records. Please re-select it from the list.
                         </p>
                       )}
                     </div>
@@ -372,7 +372,7 @@ export function MultiDepartmentPicker({
               </div>
 
               <p className="md-note">
-                Your own department (<b>{ownDepartment || '—'}</b>) is always included and cannot be selected below.
+                Your own department (<b>{ownDepartment || '-'}</b>) is always included and cannot be selected below.
               </p>
 
               {loading && (

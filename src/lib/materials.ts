@@ -99,7 +99,7 @@ async function sniffDocumentMagicBytes(file: File): Promise<void> {
     const isDocument =
       isPdf || isOoxml || isOldDoc || (isPlainText && /\.txt$/i.test(file.name));
     if (!isDocument) {
-      throw new Error('Unrecognized file format — please upload a PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX, or TXT file.');
+      throw new Error('Unrecognized file format: please upload a PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX, or TXT file.');
     }
   } catch (e) {
     if (e instanceof Error && e.message.includes('document')) throw e;
@@ -109,7 +109,7 @@ async function sniffDocumentMagicBytes(file: File): Promise<void> {
 
 export function formatFileSize(bytes: number | null | undefined): string {
   const size = Number(bytes ?? 0);
-  if (!size) return '—';
+  if (!size) return '-';
   if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))} KB`;
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
@@ -507,7 +507,7 @@ export async function submitMaterial(input: {
     // migrations have been applied but the schema cache hasn't reloaded.
     if (/schema cache|does not exist|column .* does not exist|relation .* does not exist/i.test(msg)) {
       throw new Error(
-        'The database schema is out of sync with the application. Run the latest migrations in the Supabase dashboard, then reload the schema cache by running: NOTIFY pgrst, \'reload schema\'; in the SQL Editor.'
+        'The library could not save your submission because the catalogue is temporarily out of sync. Please try again, and contact the help desk if it keeps failing.'
       );
     }
     throw new Error(msg || 'Could not save your submission. Please try again.');
@@ -549,7 +549,7 @@ export async function submitMaterial(input: {
     await client.from('materials').delete().eq('id', inserted.id);
     if (storageError.message?.toLowerCase().includes('row-level security')) {
       throw new Error(
-        'Upload blocked by storage permissions. Ask an administrator to verify the library-materials bucket policies.'
+        'The upload was blocked by the library\'s security settings. Contact the help desk for assistance.'
       );
     }
     throw new Error(storageError.message || 'File upload failed. Please try again.');
@@ -594,11 +594,13 @@ export async function updateMaterial(
     semester?: string;
     material_type?: string;
     academic_session?: string;
+    status?: string;
   }
 ): Promise<void> {
   const client = requireSupabase();
 
   const updatePayload: any = { updated_at: new Date().toISOString() };
+  if (input.status !== undefined) updatePayload.status = input.status;
   if (input.title !== undefined) updatePayload.title = input.title.trim();
   if (input.description !== undefined) updatePayload.description = input.description.trim();
   if (input.faculty !== undefined) updatePayload.faculty = input.faculty;
@@ -615,7 +617,7 @@ export async function updateMaterial(
     const msg = updateErr.message || '';
     if (/schema cache|does not exist|column .* does not exist|relation .* does not exist/i.test(msg)) {
       throw new Error(
-        'The database schema is out of sync with the application. Run the latest migrations in the Supabase dashboard, then reload the schema cache by running: NOTIFY pgrst, \'reload schema\'; in the SQL Editor.'
+        'The library could not save your changes because the catalogue is temporarily out of sync. Please try again, and contact the help desk if it keeps failing.'
       );
     }
     throw new Error(msg);

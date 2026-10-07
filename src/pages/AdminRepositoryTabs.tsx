@@ -209,10 +209,10 @@ export function AdminRepositoryTab() {
                 <tr key={item.id}>
                   <td className="cell-bold">{item.title}</td>
                   <td>{RESEARCH_TYPE_LABELS[item.research_type] || item.research_type}</td>
-                  <td className="cell-secondary">{item.department || '—'}</td>
-                  <td className="cell-secondary">{item.year || '—'}</td>
+                  <td className="cell-secondary">{item.department || '-'}</td>
+                  <td className="cell-secondary">{item.year || '-'}</td>
                   <td>{statusBadge(item.status)}</td>
-                  <td>{item.is_verified ? <ShieldCheck size={15} color="#0B6B3A" /> : '—'}</td>
+                  <td>{item.is_verified ? <ShieldCheck size={15} color="#0B6B3A" /> : '-'}</td>
                   <td>
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                       <a href={`/repository/${item.id}`} target="_blank" rel="noopener noreferrer" className="link-btn" title="View"><Eye size={14} /></a>

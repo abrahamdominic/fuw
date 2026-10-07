@@ -371,7 +371,12 @@ class MaterialsStore {
               name: row.uploader?.full_name || row.uploaded_by_name || 'FUW Repository',
               role: uploaderRole
             },
-            fileUrl: row.file_url || '/docs/sample.pdf',
+            // Materials are opened through `getSecureFileUrl`, which mints a
+            // signed URL from `file_path`. There is no public document to fall
+            // back to, and the reader treats an empty URL as "no file" (the same
+            // convention `lib/materials.ts` uses) instead of requesting a path
+            // that does not exist.
+            fileUrl: row.file_url || '',
             fileName: row.file_name || `${row.title}.pdf`,
             fileSize: row.file_size || '3.5 MB',
             description: row.description || ''

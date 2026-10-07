@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { useStore } from '../lib/useStore';
 import { catalogue } from '../data/catalogue';
-import { usePrefersStaticBackdrop } from '../lib/backdrop';
+import { safeMediaPlay, usePrefersStaticBackdrop } from '../lib/backdrop';
 
 /**
  * Decorative hero background.
@@ -85,7 +85,7 @@ export function HeroSection() {
     const video = videoRef.current;
     if (!video) return;
     if (isPlaying) {
-      void video.play().catch(() => undefined);
+      safeMediaPlay(video);
     } else {
       video.pause();
     }

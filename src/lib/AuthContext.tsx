@@ -96,7 +96,9 @@ export interface AuthContextType {
   changePassword: (
     newPassword: string
   ) => Promise<{ error: Error | null }>;
-  sendPasswordReset: (emailOrUsername: string) => Promise<{ error: Error | null }>;
+  sendPasswordReset: (
+    emailOrUsername: string
+  ) => Promise<{ error: Error | null; notFound?: boolean }>;
   resetPassword: (newPassword: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<ProfileData | null>;
@@ -161,6 +163,13 @@ export function validatePasswordPolicy(password: string): string | null {
   }
   return null;
 }
+
+/**
+ * Upper bound on how long session restoration may block the UI. Generous
+ * enough for a slow profile fetch on a poor connection, short enough that a
+ * stalled request resolves to a usable screen rather than a blank one.
+ */
+const AUTH_BOOT_TIMEOUT_MS = 10_000;
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -306,7 +315,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
         const { data: created } = await supabase
           .from('profiles')
-          .insert(fallbackProfile)
+          .upsert(fallbackProfile, { onConflict: 'id' })
           .select()
           .maybeSingle();
 
@@ -342,9 +351,67 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setProfile(loadedProfile);
           return loadedProfile;
         }
+
+        // Even if DB write fails, hydrate state with synthesized student profile
+        const synthesized: ProfileData = {
+          id: userId,
+          fullName: meta.full_name || meta.name || userEmail?.split('@')[0] || 'Student',
+          displayName: meta.display_name || meta.full_name?.split(' ')[0] || userEmail?.split('@')[0] || 'Student',
+          email: userEmail || currentUser.email || '',
+          matricNumber: meta.matric_number || '',
+          faculty: meta.faculty || '',
+          department: meta.department || '',
+          level: meta.level || '',
+          role: (meta.role as AppRole) || 'student',
+          permissions: Array.isArray(meta.permissions) ? meta.permissions : [],
+          isActive: true,
+          bio: meta.bio || '',
+          avatarUrl: meta.avatar_url || '',
+          isVerified: meta.verified === true,
+          verificationStatus: (meta.verification_status as ProfileData['verificationStatus']) || 'unsubmitted',
+          verificationReason: '',
+          verificationSubmittedAt: undefined,
+          joinedDate: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+          matricChangesUsed: 0,
+          facultyChangesUsed: 0,
+          departmentChangesUsed: 0,
+          levelChangesUsed: 0,
+          facultyLocked: !!meta.faculty,
+          departmentLocked: !!meta.department,
+          gender: meta.gender || '',
+          phoneNumber: meta.phone_number || ''
+        };
+        setProfile(synthesized);
+        return synthesized;
       }
     } catch (err) {
       console.error('Error fetching user profile:', err);
+      if (userId) {
+        const fallback: ProfileData = {
+          id: userId,
+          fullName: userEmail?.split('@')[0] || 'Student',
+          displayName: userEmail?.split('@')[0] || 'Student',
+          email: userEmail || '',
+          matricNumber: '',
+          faculty: '',
+          department: '',
+          level: '',
+          role: 'student',
+          permissions: [],
+          isActive: true,
+          bio: '',
+          avatarUrl: '',
+          isVerified: false,
+          verificationStatus: 'unsubmitted',
+          joinedDate: '2026',
+          facultyLocked: false,
+          departmentLocked: false,
+          gender: '',
+          phoneNumber: ''
+        };
+        setProfile(fallback);
+        return fallback;
+      }
     }
     return null;
   };
@@ -352,6 +419,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Initial session restoration & onAuthStateChange listener
   useEffect(() => {
     let mounted = true;
+
+    // Safety net: if getSession() or the profile lookup never settles (hung
+    // network, blocked storage, stalled Supabase), stop blocking the UI.
+    const bootTimer = window.setTimeout(() => {
+      if (mounted) {
+        console.warn('Auth initialization timed out; continuing without a restored session.');
+        setIsLoading(false);
+      }
+    }, AUTH_BOOT_TIMEOUT_MS);
 
     async function initAuth() {
       if (!supabase) {
@@ -384,6 +460,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error('Auth initialization error:', err);
       } finally {
         if (mounted) {
+          window.clearTimeout(bootTimer);
           setIsLoading(false);
         }
       }
@@ -391,7 +468,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     initAuth();
 
-    if (!supabase) return;
+    if (!supabase) {
+      window.clearTimeout(bootTimer);
+      return;
+    }
     const authClient = supabase;
 
     const { data: { subscription } } = authClient.auth.onAuthStateChange(
@@ -409,10 +489,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           lastUserIdRef.current = null;
         }
 
+        if (event === 'PASSWORD_RECOVERY') {
+          if (typeof window !== 'undefined' && window.location.pathname !== '/reset-password') {
+            window.location.replace('/reset-password' + window.location.search + window.location.hash);
+            return;
+          }
+        }
+
         setSession(currentSession);
         setUser(currentSession?.user || null);
 
         if (currentSession?.user) {
+          // Keep isLoading true while profile hydrates so route guards do not race.
+          // However, background token refresh for an already active user must be silent
+          // so it does not unmount active forms or flash loading screens.
+          const isSilentRefresh =
+            event === 'TOKEN_REFRESHED' &&
+            Boolean(lastUserIdRef.current && lastUserIdRef.current === currentSession.user.id);
+
+          if (!isSilentRefresh) {
+            setIsLoading(true);
+          }
           const prof = await fetchProfile(currentSession.user.id, currentSession.user.email);
           if (prof && !prof.isActive && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
             await authClient.auth.signOut();
@@ -424,16 +521,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
             syncToStore(prof, currentSession.user);
           }
+          if (!isSilentRefresh) {
+            setIsLoading(false);
+          }
         } else {
           setProfile(null);
           syncToStore(null, null);
+          setIsLoading(false);
         }
-        setIsLoading(false);
       }
     );
 
     return () => {
       mounted = false;
+      window.clearTimeout(bootTimer);
       subscription.unsubscribe();
     };
   }, []);
@@ -483,7 +584,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const raw = usernameOrEmail.trim();
     if (!raw || !password) {
-      return { error: new Error('Please enter your username or email and password.') };
+      return { error: new Error('Please enter your email or username and password.') };
     }
 
     // 1. Direct Email Sign-In (if identifier is an email)
@@ -498,7 +599,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (authError) {
           const msg = authError.message.toLowerCase();
           if (msg.includes('invalid') || msg.includes('credentials')) {
-            return { error: new Error('Invalid email or password. Please verify your credentials and try again.') };
+            return { error: new Error('Invalid username/email or password. Please verify your credentials and try again.') };
           }
           if (msg.includes('not confirmed') || msg.includes('email_not_confirmed')) {
             return {
@@ -545,7 +646,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    // 2. Username Sign-In (edge function -> lookup_login_email RPC fallback)
+    // 2. Username Sign-In (edge function -> session)
     const uname = normalizeUsername(raw);
     let code: string | null = null;
     let session: any = null;
@@ -556,42 +657,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       if (!error && data && typeof data === 'object' && (data as any).session) {
         session = (data as any).session;
+      } else if (error && (error as any).context) {
+        try {
+          const errBody = await (error as any).context.json();
+          if (errBody?.error) code = errBody.error;
+        } catch {
+          // ignore context json parse error
+        }
       } else if (data && typeof data === 'object' && (data as any).error) {
         code = (data as any).error;
       }
     } catch {
-      // Edge function may not be deployed or failed; fall through to database lookup
-    }
-
-    // Fallback: If edge function did not produce session, try RPC lookup_login_email
-    if (!session) {
-      try {
-        const { data: rpcEmail } = await supabase.rpc('lookup_login_email', {
-          p_username: uname
-        });
-        if (rpcEmail && typeof rpcEmail === 'string' && rpcEmail.includes('@')) {
-          const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-            email: rpcEmail.toLowerCase(),
-            password
-          });
-          if (authError) {
-            const msg = authError.message.toLowerCase();
-            if (msg.includes('not confirmed') || msg.includes('email_not_confirmed')) {
-              return {
-                error: new Error(
-                  'Your email address has not been confirmed yet. Please check your inbox for the confirmation link.'
-                )
-              };
-            }
-            return { error: new Error('Invalid username or password. Please verify your credentials and try again.') };
-          }
-          if (authData.user && authData.session) {
-            session = authData.session;
-          }
-        }
-      } catch {
-        // Ignore fallback RPC error
-      }
+      // Edge function may have network error
     }
 
     if (!session) {
@@ -607,7 +684,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       return {
         error: new Error(
-          'Invalid username or password. You can also sign in directly using your registered email address.'
+          'Invalid username/email or password. Please verify your credentials and try again.'
         )
       };
     }
@@ -1004,52 +1081,70 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Request a password reset email. Accepts either the registered email or a
-  // username (resolved to the account email server-side in the resolve-login
-  // edge function; no public lookup RPC exists). Always returns a neutral
-  // success for unknown accounts so the endpoint cannot be used to enumerate
-  // which usernames/emails exist.
-  const sendPasswordReset = async (emailOrUsername: string): Promise<{ error: Error | null }> => {
-    let email = emailOrUsername.trim().toLowerCase();
+  // username. Checks account existence securely via verify_account_for_reset RPC
+  // so unknown accounts receive clear "account not found, create account" guidance.
+  const sendPasswordReset = async (
+    emailOrUsername: string
+  ): Promise<{ error: Error | null; notFound?: boolean }> => {
+    const raw = emailOrUsername.trim();
     if (!supabase) {
       return { error: new Error('Supabase client is not configured.') };
     }
-
-    if (!email.includes('@')) {
-      // Username-based reset: try resolve-login edge function, fallback to lookup_login_email RPC
-      let resolvedEmail: string | null = null;
-      try {
-        const { data } = await supabase.functions.invoke('resolve-login', {
-          body: { op: 'reset_username', username: emailOrUsername, redirectTo: `${window.location.origin}/reset-password` }
-        });
-        if (data) return { error: null };
-      } catch {
-        // Edge function may not be deployed, fall through to lookup RPC
-      }
-
-      try {
-        const { data: rpcEmail } = await supabase.rpc('lookup_login_email', {
-          p_username: normalizeUsername(emailOrUsername)
-        });
-        if (rpcEmail && typeof rpcEmail === 'string' && rpcEmail.includes('@')) {
-          resolvedEmail = rpcEmail;
-        }
-      } catch {
-        // Ignore lookup error
-      }
-
-      if (resolvedEmail) {
-        await supabase.auth.resetPasswordForEmail(resolvedEmail, {
-          redirectTo: `${window.location.origin}/reset-password`
-        }).catch(() => undefined);
-      }
-      return { error: null };
+    if (!raw) {
+      return { error: new Error('Please enter your email address or username.') };
     }
 
+    const clean = raw.toLowerCase();
+
+    // 1. Verify account existence first to provide immediate feedback for non-existing accounts
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      const { data: exists, error: checkErr } = await supabase.rpc('verify_account_for_reset', {
+        p_identifier: clean
+      });
+      if (!checkErr && exists === false) {
+        const isEmail = clean.includes('@');
+        return {
+          error: new Error(
+            isEmail
+              ? "We couldn't find an account with this email. Please create an account first."
+              : "We couldn't find an account with this username. Please create an account first."
+          ),
+          notFound: true
+        };
+      }
+    } catch {
+      // If RPC is temporarily unavailable, fall through to provider reset
+    }
+
+    // 2. Username-based reset: call resolve-login edge function
+    if (!clean.includes('@')) {
+      try {
+        const { data, error } = await supabase.functions.invoke('resolve-login', {
+          body: {
+            op: 'reset_username',
+            username: clean,
+            redirectTo: `${window.location.origin}/reset-password`
+          }
+        });
+        if (error) {
+          return { error: toUserFacingAuthError(error, 'Failed to send password reset email. Please try again.') };
+        }
+        return { error: null };
+      } catch (err: any) {
+        return { error: toUserFacingAuthError(err, 'Failed to send password reset email. Please try again.') };
+      }
+    }
+
+    // 3. Direct email reset
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(clean, {
         redirectTo: `${window.location.origin}/reset-password`
       });
       if (error) {
+        const msg = error.message.toLowerCase();
+        if (msg.includes('rate')) {
+          return { error: new Error('Too many password reset attempts. Please wait a few moments and try again.') };
+        }
         return { error: toUserFacingAuthError(error, 'The request could not be completed. Please try again.') };
       }
       return { error: null };
