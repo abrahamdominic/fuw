@@ -5,13 +5,17 @@ import {
   ArrowLeft,
   ArrowRight,
   AtSign,
+  BookOpen,
   Building2,
   CheckCircle2,
   ChevronDown,
   Eye,
   EyeOff,
+  FileText,
   Fingerprint,
+  Globe,
   GraduationCap,
+  Home,
   IdCard,
   KeyRound,
   Layers,
@@ -24,15 +28,18 @@ import {
   School,
   ShieldCheck,
   ShieldPlus,
+  ShoppingBag,
   Sparkles,
   UserRound,
   UserPlus,
-  X
+  X,
+  Zap
 } from 'lucide-react';
 import { SEO } from '../components/SEO';
 import { BootFallback } from '../components/BootFallback';
 import { Logo } from '../components/Logo';
 import { useToast } from '../components/Toast';
+import { useLivePlatformStats } from '../lib/platformStats';
 import { useAuth, USERNAME_PATTERN, normalizeUsername, validatePasswordPolicy, PASSWORD_REQUIREMENTS_TEXT } from '../lib/AuthContext';
 import { catalogue, facultyByName, departmentByName, levelsFor, groupedFaculties } from '../data/catalogue';
 import {
@@ -52,6 +59,7 @@ type AuthMode = 'login' | 'register' | 'forgot';
  * Desktop Institutional Animation Showcase Side Panel
  * ------------------------------------------------------------------------- */
 export function AuthShowcase() {
+  const stats = useLivePlatformStats();
   const [isPlaying, setIsPlaying] = useState(true);
   const [shouldLoadVideo, setShouldLoadVideo] = useState(false);
   const [videoError, setVideoError] = useState(false);
@@ -138,44 +146,61 @@ export function AuthShowcase() {
         </div>
 
         <h2 className="mac-showcase-title">
-          Institutional Academic <br />
-          <em>Digital Repository</em>
+          FUW Campus Hub <br />
+          <em>Your gateway to everything in FUW</em>
         </h2>
 
         <p className="mac-showcase-desc">
-          Official study portal providing 24/7 verified access to departmental lecture notes,
-          curriculum textbooks, and past examination papers for students and faculty.
+          Access your academic resources, campus marketplace, and student accommodation from one connected FUW platform.
         </p>
 
-        <div className="mac-showcase-stats">
+        <div className="mac-showcase-pillars" aria-label="Connected FUW Services">
+          <span className="mac-pillar-pill"><BookOpen size={13} /> E-Library</span>
+          <span className="mac-pillar-pill"><ShoppingBag size={13} /> Marketplace</span>
+          <span className="mac-pillar-pill"><Home size={13} /> Accommodation</span>
+        </div>
+
+        <div className="mac-showcase-stats" aria-label="Authoritative University Platform Statistics">
           <div className="mac-showcase-stat">
-            <b>14+</b>
+            <b>{stats.faculties}</b>
             <span>Faculties</span>
           </div>
           <div className="mac-showcase-stat-divider" />
           <div className="mac-showcase-stat">
-            <b>40+</b>
+            <b>{stats.departments}</b>
             <span>Departments</span>
           </div>
           <div className="mac-showcase-stat-divider" />
           <div className="mac-showcase-stat">
-            <b>100%</b>
-            <span>Curriculum-Aligned</span>
+            <b>{stats.materials > 0 ? `${stats.materials}+` : '65+'}</b>
+            <span>Study Resources</span>
           </div>
         </div>
 
-        <div className="mac-showcase-features">
+        <div className="mac-showcase-features" aria-label="Campus Hub Highlights">
           <div className="mac-showcase-feat">
-            <CheckCircle2 size={16} />
-            <span>24/7 Access on Mobile, Tablet &amp; Desktop</span>
+            <Globe size={15} />
+            <span>24/7 access across mobile, tablet, and desktop</span>
           </div>
           <div className="mac-showcase-feat">
-            <CheckCircle2 size={16} />
-            <span>Faculty-Approved Syllabus &amp; Handouts</span>
+            <Building2 size={15} />
+            <span>Faculty and department academic resources</span>
           </div>
           <div className="mac-showcase-feat">
-            <CheckCircle2 size={16} />
-            <span>Fast Offline-Ready Study Downloads</span>
+            <Zap size={15} />
+            <span>Fast access to study materials &amp; textbooks</span>
+          </div>
+          <div className="mac-showcase-feat">
+            <FileText size={15} />
+            <span>Past questions and examination resources</span>
+          </div>
+          <div className="mac-showcase-feat">
+            <BookOpen size={15} />
+            <span>Organized, curriculum-aligned academic materials</span>
+          </div>
+          <div className="mac-showcase-feat">
+            <Sparkles size={15} />
+            <span>Campus services through the wider FUW Campus Hub</span>
           </div>
         </div>
 
@@ -236,8 +261,15 @@ export function MacPage({
             </span>
             <h1 className={`mac-title ${fx.fadeUp}`} style={staggerDelay(2, 70)}>FUW Campus Hub</h1>
             <p className={`mac-subtitle ${fx.fadeUp}`} style={staggerDelay(3, 70)}>
-              {subtitle ?? 'Official Student Portal & Campus Services'}
+              {subtitle ?? 'Your gateway to everything in FUW.'}
             </p>
+            <div className={`mac-mobile-pillars ${fx.fadeUp}`} style={staggerDelay(4, 70)}>
+              <span className="mac-mobile-pillar"><BookOpen size={11} /> E-Library</span>
+              <span className="mac-mobile-dot">•</span>
+              <span className="mac-mobile-pillar"><ShoppingBag size={11} /> Marketplace</span>
+              <span className="mac-mobile-dot">•</span>
+              <span className="mac-mobile-pillar"><Home size={11} /> Accommodation</span>
+            </div>
           </div>
 
           {children}

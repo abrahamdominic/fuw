@@ -11923,8 +11923,34 @@ button.form-submit-btn:disabled:hover {
     font-size: 14px;
     line-height: 1.6;
     color: #C4DCD0;
-    margin: 0 0 28px;
-    max-width: 420px;
+    margin: 0 0 16px;
+    max-width: 440px;
+  }
+
+  .mac-showcase-pillars {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 22px;
+  }
+
+  .mac-pillar-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(140, 230, 173, 0.28);
+    border-radius: 999px;
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: #E2F2E9;
+    backdrop-filter: blur(8px);
+  }
+
+  .mac-pillar-pill svg {
+    color: #8CE6AD;
   }
 
   .mac-showcase-stats {
@@ -17009,3 +17035,368 @@ body[data-theme='dark'],
     min-height: 40px;
   }
 }
+
+/* =============================================================================
+   FUW CAMPUS HUB — MOBILE PILLARS BAR
+   ============================================================================= */
+.mac-mobile-pillars {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding: 5px 14px;
+  background: rgba(4, 120, 87, 0.08);
+  border: 1px solid rgba(4, 120, 87, 0.2);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.mac-mobile-pillar {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--primary, #047857);
+}
+
+.mac-mobile-dot {
+  color: var(--border-subtle, rgba(0, 0, 0, 0.25));
+  font-size: 10px;
+}
+
+/* =============================================================================
+   FUW CAMPUS HUB — FIRST VISIT WELCOME PRESENTATION
+   ============================================================================= */
+.fuw-welcome-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(16px, 3vw, 32px);
+  background: radial-gradient(circle at 50% 25%, #0d5434 0%, #062e1d 55%, #03170e 100%);
+  overflow-y: auto;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.fuw-welcome-fade-in {
+  animation: fuwWelcomeIn 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.fuw-welcome-fade-out {
+  animation: fuwWelcomeOut 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes fuwWelcomeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes fuwWelcomeOut {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.97) translateY(-8px);
+  }
+}
+
+.fuw-welcome-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  pointer-events: none;
+}
+
+.fuw-welcome-orb-top {
+  top: -10%;
+  left: 20%;
+  width: 420px;
+  height: 420px;
+  background: rgba(140, 230, 173, 0.12);
+}
+
+.fuw-welcome-orb-bottom {
+  bottom: -10%;
+  right: 15%;
+  width: 480px;
+  height: 480px;
+  background: rgba(4, 120, 87, 0.18);
+}
+
+.fuw-welcome-card {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 680px;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  background: rgba(6, 46, 32, 0.92);
+  border: 1px solid rgba(140, 230, 173, 0.28);
+  border-radius: 28px;
+  padding: clamp(24px, 4.5vw, 40px);
+  box-shadow: 0 28px 64px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.08) inset;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.fuw-welcome-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 14px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(140, 230, 173, 0.25);
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #B8EFCB;
+  margin-bottom: 20px;
+}
+
+.fuw-welcome-logo-container {
+  position: relative;
+  margin-bottom: 18px;
+}
+
+.fuw-welcome-logo-glow {
+  position: absolute;
+  inset: -12px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(140, 230, 173, 0.3) 0%, transparent 70%);
+  filter: blur(14px);
+}
+
+.fuw-welcome-logo-circle {
+  position: relative;
+  width: 82px;
+  height: 82px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.05) 100%);
+  border: 1.5px solid rgba(140, 230, 173, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.fuw-welcome-title {
+  font-size: clamp(26px, 4vw, 36px);
+  font-weight: 800;
+  color: #FFFFFF;
+  margin: 0 0 6px;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.fuw-welcome-subtitle {
+  font-size: clamp(14px, 2.2vw, 17px);
+  font-weight: 600;
+  color: #8CE6AD;
+  margin: 0 0 14px;
+  letter-spacing: 0.01em;
+}
+
+.fuw-welcome-desc {
+  font-size: clamp(13px, 1.8vw, 14.5px);
+  line-height: 1.6;
+  color: #C4DCD0;
+  margin: 0 0 26px;
+  max-width: 540px;
+}
+
+.fuw-welcome-pillars {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  width: 100%;
+  margin-bottom: 28px;
+}
+
+@media (min-width: 640px) {
+  .fuw-welcome-pillars {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+}
+
+.fuw-welcome-pillar-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 16px 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+  box-sizing: border-box;
+}
+
+@media (max-width: 639px) {
+  .fuw-welcome-pillar-card {
+    flex-direction: row;
+    text-align: left;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 14px 16px;
+  }
+}
+
+.fuw-welcome-pillar-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(140, 230, 173, 0.35);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.fuw-welcome-pillar-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-bottom: 10px;
+}
+
+@media (max-width: 639px) {
+  .fuw-welcome-pillar-icon {
+    margin-bottom: 0;
+  }
+}
+
+.fuw-welcome-icon-lib {
+  background: rgba(140, 230, 173, 0.15);
+  color: #8CE6AD;
+  border: 1px solid rgba(140, 230, 173, 0.3);
+}
+
+.fuw-welcome-icon-market {
+  background: rgba(127, 212, 201, 0.15);
+  color: #7FD4C9;
+  border: 1px solid rgba(127, 212, 201, 0.3);
+}
+
+.fuw-welcome-icon-housing {
+  background: rgba(240, 197, 121, 0.15);
+  color: #F0C579;
+  border: 1px solid rgba(240, 197, 121, 0.3);
+}
+
+.fuw-welcome-pillar-info h3 {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #FFFFFF;
+  margin: 0 0 4px;
+}
+
+.fuw-welcome-pillar-info p {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: #C4DCD0;
+  margin: 0;
+}
+
+.fuw-welcome-footer {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-sizing: border-box;
+}
+
+.fuw-welcome-progress-wrap {
+  width: 100%;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.fuw-welcome-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #10B981 0%, #8CE6AD 100%);
+  border-radius: 2px;
+  transition: width 0.05s linear;
+}
+
+.fuw-welcome-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 480px) {
+  .fuw-welcome-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+}
+
+.fuw-welcome-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #B8EFCB;
+  opacity: 0.85;
+}
+
+.fuw-welcome-continue-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background: #10B981;
+  color: #032013;
+  border: none;
+  border-radius: 999px;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.35);
+}
+
+.fuw-welcome-continue-btn:hover {
+  background: #34D399;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.45);
+}
+
+.fuw-welcome-continue-btn:active {
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fuw-welcome-fade-in,
+  .fuw-welcome-fade-out {
+    animation: none !important;
+  }
+  .fuw-welcome-progress-bar {
+    transition: none !important;
+  }
+}
+

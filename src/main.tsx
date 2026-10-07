@@ -11,6 +11,7 @@ import { Footer } from './components/Footer';
 import { ToastProvider } from './components/Toast';
 import { DocumentReaderModal } from './components/DocumentReaderModal';
 import { AppSplash } from './components/AppSplash';
+import { FirstVisitWelcome } from './components/FirstVisitWelcome';
 
 import { AuthProvider, useAuth } from './lib/AuthContext';
 import { ThemeProvider } from './lib/ThemeContext';
@@ -290,6 +291,7 @@ export function App() {
         <AnalyticsLayer />
         <CrawlPolicyGuard />
         <AppSplashBoundary />
+        <FirstVisitWelcome />
         <ToastProvider>
           <MaintenanceGate>
             <ErrorBoundary>
