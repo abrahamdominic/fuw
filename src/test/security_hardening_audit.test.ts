@@ -130,4 +130,16 @@ describe('Security Hardening & Penetration Test Verification', () => {
       expect(content).toContain('Webhook payload is too large');
     });
   });
+
+  describe('Account Enumeration Hardening (ASVS 2.1.12)', () => {
+    const dropMigrationPath = path.resolve(__dirname, '../../supabase/migrations/20261007120000_drop_verify_account_for_reset.sql');
+
+    it('verifies remediation migration drops verify_account_for_reset RPC', () => {
+      expect(fs.existsSync(dropMigrationPath)).toBe(true);
+      const sql = fs.readFileSync(dropMigrationPath, 'utf8');
+      expect(sql).toContain('REVOKE EXECUTE ON FUNCTION public.verify_account_for_reset(text)');
+      expect(sql).toContain('DROP FUNCTION IF EXISTS public.verify_account_for_reset(text)');
+    });
+  });
 });
+

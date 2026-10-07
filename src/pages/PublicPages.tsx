@@ -19,7 +19,6 @@ import {
   ShieldCheck,
   ArrowRight,
   X,
-  Sparkles,
   SlidersHorizontal,
   AlertCircle,
   RefreshCw,
@@ -708,18 +707,18 @@ export function LibraryPage({ onReadOnline }: PublicPagesProps) {
             </div>
           </div>
 
-          {/* AI semantic matches (only for signed-in users with a text query) */}
+          {/* Contextual catalog matches (only for signed-in users with a text query) */}
           {queryQ && aiSearching && (
             <div className="ai-search-status">
-              <Sparkles size={14} className="spin-icon" />
-              Searching library materials semantically…
+              <Search size={14} className="spin-icon" />
+              Searching library catalog…
             </div>
           )}
           {queryQ && !aiSearching && aiResults && aiResults.length > 0 && (
             <div className="ai-search-section">
               <div className="ai-search-head">
-                <Sparkles size={15} />
-                <span>AI-powered semantic matches</span>
+                <Search size={15} />
+                <span>Relevant catalog matches</span>
                 <span className="ai-search-count">{aiResults.length} relevant file{aiResults.length !== 1 ? 's' : ''}</span>
               </div>
               <div className="ai-search-list">
@@ -1561,9 +1560,6 @@ export function LoginPage({
     setBusy(false);
 
     if (res.error) {
-      if (res.notFound) {
-        setAccountNotFound(true);
-      }
       setErrorMsg(res.error.message);
       return;
     }
@@ -1571,7 +1567,7 @@ export function LoginPage({
     setAccountNotFound(false);
     setForgotEmail('');
     setSuccessMsg(
-      'A password reset link has been sent to your email address. Please check your inbox and spam folder.'
+      'If an account is associated with this email or username, password reset instructions have been sent. Please check your inbox and spam folder.'
     );
   };
 
@@ -1882,26 +1878,6 @@ export function LoginPage({
                   <AlertCircle size={17} />
                   <p>{errorMsg}</p>
                 </div>
-                {accountNotFound && (
-                  <button
-                    type="button"
-                    className="primary auth-submit-btn"
-                    style={{ alignSelf: 'flex-start', marginTop: '4px', padding: '8px 16px', fontSize: '13px' }}
-                    onClick={() => {
-                      setShowForgot(false);
-                      setIsRegister(true);
-                      setAccountNotFound(false);
-                      setErrorMsg(null);
-                      if (forgotEmail.includes('@')) {
-                        setEmail(forgotEmail);
-                      } else {
-                        setUsername(forgotEmail);
-                      }
-                    }}
-                  >
-                    Create Account
-                  </button>
-                )}
               </div>
             )}
 

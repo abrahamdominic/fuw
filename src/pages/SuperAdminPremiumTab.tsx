@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { BadgeCheck, Crown, Loader2, RefreshCw, ShieldCheck, Sparkles } from 'lucide-react';
+import { BadgeCheck, Crown, Loader2, RefreshCw, ShieldCheck } from 'lucide-react';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useToast } from '../components/Toast';
 import { requireSupabase } from '../lib/supabase';
@@ -153,7 +153,7 @@ export function SuperAdminPremiumTab() {
             </article>
 
             <article className={`premium-admin-control ${configuration.global_grant_enabled ? 'is-enabled' : ''}`}>
-              <div className="premium-admin-control-icon is-gold"><Sparkles size={20} aria-hidden="true" /></div>
+              <div className="premium-admin-control-icon is-gold"><Crown size={20} aria-hidden="true" /></div>
               <div className="premium-admin-control-copy">
                 <h2>Grant Premium Access to All Members</h2>
                 <p>{configuration.global_grant_enabled

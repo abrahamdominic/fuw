@@ -1081,8 +1081,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Request a password reset email. Accepts either the registered email or a
-  // username. Checks account existence securely via verify_account_for_reset RPC
-  // so unknown accounts receive clear "account not found, create account" guidance.
+  // username. Implements OWASP ASVS 2.1.12 neutral response to prevent account
+  // and username enumeration oracles.
   const sendPasswordReset = async (
     emailOrUsername: string
   ): Promise<{ error: Error | null; notFound?: boolean }> => {
@@ -1096,30 +1096,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const clean = raw.toLowerCase();
 
-    // 1. Verify account existence first to provide immediate feedback for non-existing accounts
-    try {
-      const { data: exists, error: checkErr } = await supabase.rpc('verify_account_for_reset', {
-        p_identifier: clean
-      });
-      if (!checkErr && exists === false) {
-        const isEmail = clean.includes('@');
-        return {
-          error: new Error(
-            isEmail
-              ? "We couldn't find an account with this email. Please create an account first."
-              : "We couldn't find an account with this username. Please create an account first."
-          ),
-          notFound: true
-        };
-      }
-    } catch {
-      // If RPC is temporarily unavailable, fall through to provider reset
-    }
-
-    // 2. Username-based reset: call resolve-login edge function
+    // 1. Username-based reset: call resolve-login edge function
     if (!clean.includes('@')) {
       try {
-        const { data, error } = await supabase.functions.invoke('resolve-login', {
+        const { error } = await supabase.functions.invoke('resolve-login', {
           body: {
             op: 'reset_username',
             username: clean,
@@ -1127,29 +1107,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         });
         if (error) {
-          return { error: toUserFacingAuthError(error, 'Failed to send password reset email. Please try again.') };
+          const msg = error.message?.toLowerCase() || '';
+          if (msg.includes('rate') || msg.includes('too many')) {
+            return { error: new Error('Too many password reset attempts. Please wait a few moments and try again.') };
+          }
         }
         return { error: null };
       } catch (err: any) {
-        return { error: toUserFacingAuthError(err, 'Failed to send password reset email. Please try again.') };
+        const msg = err?.message?.toLowerCase() || '';
+        if (msg.includes('rate') || msg.includes('too many')) {
+          return { error: new Error('Too many password reset attempts. Please wait a few moments and try again.') };
+        }
+        return { error: null };
       }
     }
 
-    // 3. Direct email reset
+    // 2. Direct email reset
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(clean, {
         redirectTo: `${window.location.origin}/reset-password`
       });
       if (error) {
         const msg = error.message.toLowerCase();
-        if (msg.includes('rate')) {
+        if (msg.includes('rate') || msg.includes('too many')) {
           return { error: new Error('Too many password reset attempts. Please wait a few moments and try again.') };
         }
-        return { error: toUserFacingAuthError(error, 'The request could not be completed. Please try again.') };
+        // Neutral response on other errors to avoid leaking email existence
       }
       return { error: null };
-    } catch (err: any) {
-      return { error: toUserFacingAuthError(err, 'Failed to send the password reset email.') };
+    } catch {
+      return { error: null };
     }
   };
 

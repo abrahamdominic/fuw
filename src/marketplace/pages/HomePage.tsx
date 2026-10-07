@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   ShieldCheck,
   Search,
-  Sparkles,
+  Briefcase,
   ShoppingBag,
   Store,
   ChevronRight,
@@ -389,7 +389,7 @@ export const HomePage: React.FC = () => {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-              <Sparkles size={18} color="#0369a1" />
+              <Briefcase size={18} color="#0369a1" />
               <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary, #17231d)', margin: 0 }}>
                 Campus Services & Skills
               </h2>
@@ -431,7 +431,7 @@ export const HomePage: React.FC = () => {
               border: '1px dashed var(--border, #dcebe0)',
             }}
           >
-            <Sparkles size={36} color="var(--muted, #55675b)" style={{ marginBottom: 10 }} />
+            <Briefcase size={36} color="var(--muted, #55675b)" style={{ marginBottom: 10 }} />
             <h4 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 700 }}>No services listed yet</h4>
             <p style={{ margin: '0 0 16px', fontSize: 14, color: 'var(--text-secondary, #55675b)' }}>
               Offer your skills (barbing, styling, typing, tutoring, laundry) to students on campus!

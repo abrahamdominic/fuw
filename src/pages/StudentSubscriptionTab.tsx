@@ -1,7 +1,7 @@
 // StudentSubscriptionTab — premium plan status and what is (or is not) unlocked.
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BadgeCheck, Check, Clipboard, Copy, FileUp, Loader2, RefreshCw, ShieldAlert, Sparkles, Wallet, X } from 'lucide-react';
+import { BadgeCheck, Check, Clipboard, Copy, FileUp, Loader2, Lock, RefreshCw, ShieldAlert, Wallet, X } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { fetchCatalogPlans, fetchMyPremiumSource, naira, type CatalogPlan } from '../lib/verification';
 import {
@@ -199,7 +199,7 @@ export function StudentSubscriptionTab() {
         aria-live="polite"
       >
         <span className="verify-status-icon" aria-hidden="true">
-          {hasPremium ? <BadgeCheck size={24} /> : verified ? <Sparkles size={24} /> : <ShieldAlert size={24} />}
+          {hasPremium ? <BadgeCheck size={24} /> : verified ? <Check size={24} /> : <ShieldAlert size={24} />}
         </span>
         <div className="verify-status-body">
           <b>{hasPremium ? 'Premium is active' : !premiumEnabled ? 'Premium purchases are paused' : verified ? 'Verified: plan needed' : 'Verification needed first'}</b>
@@ -348,7 +348,7 @@ export function StudentSubscriptionTab() {
                       disabled={walletPaying || automaticLoading || paymentLoading}
                       style={{ padding: '8px 16px', fontSize: 13, fontWeight: 700 }}
                     >
-                      {walletPaying ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
+                      {walletPaying ? <Loader2 size={15} className="animate-spin" /> : <Wallet size={15} />}
                       {walletPaying ? 'Activating plan…' : `Pay ${naira(selectedPlanInfo.price_kobo, paymentConfig?.currency)} from Wallet`}
                     </button>
                   )}
@@ -399,7 +399,7 @@ export function StudentSubscriptionTab() {
                 onClick={() => void handleAutomaticPayment(selectedPlanInfo.slug)}
                 disabled={automaticLoading || paymentLoading || walletPaying}
               >
-                {automaticLoading ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
+                {automaticLoading ? <Loader2 size={15} className="animate-spin" /> : <Lock size={15} />}
                 {automaticLoading ? 'Opening secure checkout…' : `Pay ${naira(selectedPlanInfo.price_kobo, paymentConfig?.currency)}`}
               </button>
             </div>

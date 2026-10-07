@@ -6,7 +6,6 @@ import {
   MapPin,
   ShieldCheck,
   Clock,
-  Sparkles,
   Building,
   Users
 } from 'lucide-react';
@@ -23,6 +22,7 @@ import {
   getPropertyTypeLabel,
   getAvailabilityBadge,
   ACCOMMODATION_FALLBACK_IMAGE,
+  getAccommodationFallbackImage,
   handleAccommodationImageError,
   resolveAccommodationImage
 } from '../lib/accommodation';
@@ -466,10 +466,10 @@ export function AccommodationPage() {
                 {/* Thumbnail Header */}
                 <div style={{ position: 'relative', height: 190, background: 'var(--surface-alt)' }}>
                   <img
-                    src={thumbnail ?? ACCOMMODATION_FALLBACK_IMAGE}
-                    alt={thumbnail ? prop.title : 'Photo coming soon'}
+                    src={thumbnail ?? getAccommodationFallbackImage(prop.property_type)}
+                    alt={prop.title}
                     loading="lazy"
-                    onError={(event) => handleAccommodationImageError(event, prop.images)}
+                    onError={(event) => handleAccommodationImageError(event, prop.images, 0, prop.property_type)}
                     style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                   />
                   <div

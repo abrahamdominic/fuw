@@ -29,7 +29,6 @@ import {
   ChevronRight,
   Menu,
   X,
-  Sparkles,
   ArrowUpRight,
   ShieldAlert,
   BarChart3,
@@ -134,7 +133,7 @@ const adminNavItems = [
   { label: 'Copyright reports', path: '/admin/copyright-reports', icon: FileWarning, permission: 'manage_students' },
   { label: 'Help center', path: '/admin/help', icon: HelpCircle, permission: 'manage_students' },
   { label: 'Announcements', path: '/admin/announcements', icon: Bell, permission: 'manage_students' },
-  { label: 'AI & indexing', path: '/admin/ai', icon: Sparkles, permission: 'manage_ai' },
+  { label: 'Search & indexing', path: '/admin/ai', icon: Database, permission: 'manage_ai' },
   { label: 'Students & users', path: '/admin/users', icon: Users, permission: 'manage_students' },
   { label: 'Deletion requests', path: '/admin/deletion-requests', icon: FileWarning, permission: 'manage_students' },
   { label: 'Profile change requests', path: '/admin/change-requests', icon: UserCog, permission: 'manage_students' },
@@ -1600,9 +1599,9 @@ function AdminAiManagementTab() {
 
       {displayed.length === 0 ? (
         <div className="empty-state card-empty">
-          <Sparkles size={40} />
+          <Database size={40} />
           <b>No approved materials available.</b>
-          <span>Only approved materials can be indexed for the AI assistant.</span>
+          <span>Only approved materials can be indexed for search.</span>
         </div>
       ) : (
         <div className="table">
@@ -1653,8 +1652,8 @@ function AdminAiManagementTab() {
                     onClick={() => setConfirmTarget(m)}
                     title="Extract text and create embeddings for this document"
                   >
-                    <Sparkles size={13} />
-                    {processingId === m.id ? 'Processing…' : 'Process with AI'}
+                    <Database size={13} />
+                    {processingId === m.id ? 'Processing…' : 'Index Material'}
                   </button>
                 </span>
               </div>

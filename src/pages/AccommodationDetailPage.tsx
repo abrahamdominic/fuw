@@ -35,6 +35,7 @@ import {
   getPropertyTypeLabel,
   getAvailabilityBadge,
   ACCOMMODATION_FALLBACK_IMAGE,
+  getAccommodationFallbackImage,
   handleAccommodationImageError,
   resolveAccommodationImage
 } from '../lib/accommodation';
@@ -329,9 +330,9 @@ export function AccommodationDetailPage() {
             }}
           >
             <img
-              src={galleryImage ?? ACCOMMODATION_FALLBACK_IMAGE}
+              src={galleryImage ?? getAccommodationFallbackImage(property.property_type)}
               alt={galleryAlt}
-              onError={(event) => handleAccommodationImageError(event, property.images, activeImageIdx)}
+              onError={(event) => handleAccommodationImageError(event, property.images, activeImageIdx, property.property_type)}
               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
             />
           </div>
@@ -358,9 +359,9 @@ export function AccommodationDetailPage() {
                   }}
                 >
                   <img
-                    src={resolveAccommodationImage(property.images, idx) ?? ACCOMMODATION_FALLBACK_IMAGE}
+                    src={resolveAccommodationImage(property.images, idx) ?? getAccommodationFallbackImage(property.property_type)}
                     alt=""
-                    onError={(event) => handleAccommodationImageError(event, property.images, idx)}
+                    onError={(event) => handleAccommodationImageError(event, property.images, idx, property.property_type)}
                     style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                   />
                 </button>

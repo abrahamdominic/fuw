@@ -14,7 +14,6 @@ import {
   ArrowLeft,
   Share2,
   ShieldCheck,
-  Sparkles,
   SlidersHorizontal,
   X,
   Loader2,
@@ -490,7 +489,7 @@ export const RoommateFinderPage: React.FC = () => {
           </div>
 
           <div style={{ fontSize: 13, color: 'var(--text-secondary, #55675b)', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Sparkles size={14} color="var(--primary, #12603d)" />
+            <ShieldCheck size={14} color="var(--primary, #12603d)" />
             <span>Direct phone & WhatsApp contact with verified students</span>
           </div>
         </div>

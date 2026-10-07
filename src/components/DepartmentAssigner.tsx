@@ -8,8 +8,7 @@ import {
   AlertCircle,
   Loader2,
   CheckCircle2,
-  ChevronDown,
-  Sparkles
+  ChevronDown
 } from 'lucide-react';
 import { fetchDepartmentCatalogue, type DepartmentOption } from '../lib/materials';
 import { catalogue } from '../data/catalogue';
@@ -183,7 +182,7 @@ export function DepartmentAssigner({
       <div className="da-selected-card">
         <div className="da-selected-head">
           <div className="da-selected-head-left">
-            <Sparkles size={14} className="da-selected-head-icon" />
+            <Building2 size={14} className="da-selected-head-icon" />
             <span className="da-selected-label">
               Selected Departments
             </span>

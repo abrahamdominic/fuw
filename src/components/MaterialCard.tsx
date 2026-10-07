@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FileText, Bookmark, Download, ArrowRight, Eye, Sparkles, Quote } from 'lucide-react';
+import { FileText, Bookmark, Download, ArrowRight, Eye, BookOpen, Quote } from 'lucide-react';
 import { MaterialItem, store } from '../lib/store';
 import { incrementDownload, getSecureFileUrl } from '../lib/materials';
 import { analyticsTracker } from '../lib/analyticsTracker';
@@ -168,10 +168,10 @@ export function MaterialCard({ material, onReadOnline, onAskAi }: MaterialCardPr
               e.stopPropagation();
               onAskAi(material);
             }}
-            title="Ask the AI assistant about this material"
+            title="Open study notes and revision guide"
           >
-            <Sparkles size={14} />
-            <span>Ask AI</span>
+            <BookOpen size={14} />
+            <span>Study Guide</span>
           </button>
         )}
         <Link className="card-view-link" to={`/materials/${material.id}`} title="View full material details">

@@ -21,6 +21,7 @@ import { useToast } from '../components/Toast';
 import { useAuth } from '../lib/auth';
 import { Skeleton } from '../components/Skeleton';
 import { Modal } from '../components/Modal';
+import { getProductFallbackImage } from '../components/ProductCard';
 import { mpPath, PLATFORM_PATHS } from '../lib/routes';
 import { scrollToTop } from '../lib/scroll';
 
@@ -223,23 +224,29 @@ export const ProductDetailPage: React.FC = () => {
               border: '1px solid var(--border, #dcebe0)',
             }}
           >
-            {images.length > 0 ? (
-              <img
-                src={images[activeImageIndex]?.url}
-                alt={product.title}
-                style={{
-                  position: 'absolute',
-                  inset: 0,
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'contain',
-                }}
-              />
-            ) : (
-              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <ShoppingBag size={54} color="var(--muted, #55675b)" opacity={0.4} />
-              </div>
-            )}
+            {(() => {
+              const fallback = getProductFallbackImage(product);
+              const src = images[activeImageIndex]?.url || fallback;
+              return (
+                <img
+                  src={src}
+                  alt={product.title}
+                  onError={(e) => {
+                    const target = e.currentTarget;
+                    if (target.src !== fallback) {
+                      target.src = fallback;
+                    }
+                  }}
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'contain',
+                  }}
+                />
+              );
+            })()}
           </div>
 
           {/* Thumbnails row */}

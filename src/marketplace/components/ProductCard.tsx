@@ -14,6 +14,28 @@ interface ProductCardProps {
   isFavouritedInitial?: boolean;
 }
 
+export function getProductFallbackImage(product: Partial<MarketplaceProduct> & { category_slug?: string }): string {
+  const title = (product.title || '').toLowerCase();
+  const cat = (product.category_slug || product.category_id || '').toLowerCase();
+
+  if (product.is_service || cat.includes('service') || title.includes('barb') || title.includes('braid') || title.includes('tutor') || title.includes('print')) {
+    return 'https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=600&q=80';
+  }
+  if (cat.includes('book') || cat.includes('academic') || title.includes('book') || title.includes('handout') || title.includes('material') || title.includes('past question')) {
+    return 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=600&q=80';
+  }
+  if (cat.includes('electronic') || cat.includes('gadget') || title.includes('calc') || title.includes('laptop') || title.includes('phone') || title.includes('charger')) {
+    return 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=600&q=80';
+  }
+  if (cat.includes('food') || cat.includes('snack') || title.includes('food') || title.includes('rice') || title.includes('cake') || title.includes('snack')) {
+    return 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80';
+  }
+  if (cat.includes('fashion') || cat.includes('cloth') || title.includes('bag') || title.includes('shoe') || title.includes('shirt') || title.includes('wear')) {
+    return 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=600&q=80';
+  }
+  return 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=600&q=80';
+}
+
 export const ProductCard: React.FC<ProductCardProps> = ({
   product,
   isFavouritedInitial = false,
@@ -23,6 +45,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   const { toast } = useToast();
   const [isFav, setIsFav] = useState(isFavouritedInitial);
   const [favLoading, setFavLoading] = useState(false);
+
+  const fallback = getProductFallbackImage(product);
+  const initialThumbnail = product.thumbnail_url || product.images?.[0]?.url || fallback;
+  const [imgSrc, setImgSrc] = useState(initialThumbnail);
 
   const handleToggleFav = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -50,8 +76,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     toast(`Added "${product.title}" to cart`, 'success');
   };
 
-  const thumbnail = product.thumbnail_url || product.images?.[0]?.url;
-
   return (
     <div
       className="product-card"
@@ -78,33 +102,23 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           overflow: 'hidden',
         }}
       >
-        {thumbnail ? (
-          <img
-            src={thumbnail}
-            alt={product.title}
-            loading="lazy"
-            style={{
-              position: 'absolute',
-              inset: 0,
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-            }}
-          />
-        ) : (
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--muted, #55675b)',
-            }}
-          >
-            <ShoppingBag size={40} strokeWidth={1.5} opacity={0.6} />
-          </div>
-        )}
+        <img
+          src={imgSrc}
+          alt={product.title}
+          loading="lazy"
+          onError={() => {
+            if (imgSrc !== fallback) {
+              setImgSrc(fallback);
+            }
+          }}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+          }}
+        />
 
         {/* Condition / Service Badge */}
         <span

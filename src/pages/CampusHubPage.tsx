@@ -7,7 +7,6 @@ import {
   ShieldCheck,
   ArrowRight,
   GraduationCap,
-  Sparkles,
   ExternalLink,
   Users,
   Compass,

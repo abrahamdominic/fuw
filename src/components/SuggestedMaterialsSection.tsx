@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Sparkles, BookOpen, ChevronRight, Info } from 'lucide-react';
+import { BookOpen, ChevronRight, Info } from 'lucide-react';
 import { MaterialItem } from '../lib/store';
 import { MaterialCard } from './MaterialCard';
 import { fetchSuggestedMaterials, fetchStudentCourseCodes, SuggestedMaterial } from '../lib/suggestions';
@@ -85,7 +85,7 @@ export function SuggestedMaterialsSection({ currentUser, onReadOnline, onAskAi }
           {suggested!.map(({ material, reason }) => (
             <div className="suggested-card" key={material.id}>
               <div className="suggested-reason">
-                <Sparkles size={12} />
+                <BookOpen size={12} />
                 <span>{reason.label}</span>
               </div>
               <MaterialCard material={material} onReadOnline={onReadOnline} onAskAi={onAskAi} />

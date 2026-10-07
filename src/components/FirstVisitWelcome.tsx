@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { BookOpen, ShoppingBag, Home, ArrowRight, School, Sparkles } from 'lucide-react';
+import { BookOpen, ShoppingBag, Home, ArrowRight, School, GraduationCap } from 'lucide-react';
 import { Logo } from './Logo';
 import { hasSeenWelcome, markWelcomeSeen } from '../lib/welcomePersistence';
 
@@ -161,7 +161,7 @@ export function FirstVisitWelcome() {
 
           <div className="fuw-welcome-actions">
             <span className="fuw-welcome-hint">
-              <Sparkles size={13} aria-hidden="true" />
+              <GraduationCap size={13} aria-hidden="true" />
               <span>Connecting campus life &amp; academia</span>
             </span>
 

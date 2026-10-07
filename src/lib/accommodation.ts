@@ -165,6 +165,25 @@ const FALLBACK_SVG = [
 export const ACCOMMODATION_FALLBACK_IMAGE = `data:image/svg+xml,${encodeURIComponent(FALLBACK_SVG)}`;
 
 /**
+ * Curated student accommodation lodge photographs that resonate with students
+ * across standard room types (self-contained, single room, flat, shared bedspace).
+ */
+export const ACCOMMODATION_TYPE_FALLBACKS: Record<string, string> = {
+  self_contained: 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=800&q=80',
+  single_room: 'https://images.unsplash.com/photo-1555854877-bab0e564b8d5?auto=format&fit=crop&w=800&q=80',
+  flat_apartment: 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=800&q=80',
+  bedspace: 'https://images.unsplash.com/photo-1595526114035-0d45ed16cfbf?auto=format&fit=crop&w=800&q=80',
+  shared_room: 'https://images.unsplash.com/photo-1595526114035-0d45ed16cfbf?auto=format&fit=crop&w=800&q=80',
+};
+
+export function getAccommodationFallbackImage(propertyType?: string): string {
+  if (propertyType && ACCOMMODATION_TYPE_FALLBACKS[propertyType]) {
+    return ACCOMMODATION_TYPE_FALLBACKS[propertyType];
+  }
+  return 'https://images.unsplash.com/photo-1555854877-bab0e564b8d5?auto=format&fit=crop&w=800&q=80';
+}
+
+/**
  * Whether an entry from `accommodation_properties.images` can be handed to an
  * `<img src>`. Anything else — a bare storage path that was never resolved to
  * a URL, a null, a blank string — would render as a broken image, so it is
@@ -213,14 +232,17 @@ export function resolveAccommodationImage(
 export function handleAccommodationImageError(
   event: SyntheticEvent<HTMLImageElement>,
   images: readonly string[] | null | undefined,
-  startIndex = 0
+  startIndex = 0,
+  propertyType?: string
 ): void {
   const img = event.currentTarget;
   const current = img.getAttribute('src') ?? '';
+  const photoFallback = getAccommodationFallbackImage(propertyType);
 
   // Already on the placeholder: there is nothing left to fall back to.
-  if (current === ACCOMMODATION_FALLBACK_IMAGE || img.dataset.accImageFallback === '1') {
+  if (current === ACCOMMODATION_FALLBACK_IMAGE || current === photoFallback || img.dataset.accImageFallback === '1') {
     img.dataset.accImageFallback = '1';
+    img.src = ACCOMMODATION_FALLBACK_IMAGE;
     return;
   }
 
@@ -244,7 +266,7 @@ export function handleAccommodationImageError(
   }
 
   img.dataset.accImageFallback = '1';
-  img.src = ACCOMMODATION_FALLBACK_IMAGE;
+  img.src = photoFallback;
 }
 
 export async function fetchAccommodationProperties(

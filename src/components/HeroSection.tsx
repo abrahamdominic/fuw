@@ -5,7 +5,6 @@ import {
   Search,
   CheckCircle2,
   BookOpen,
-  Sparkles,
   ArrowRight,
   Pause,
   Play
@@ -223,7 +222,7 @@ export function HeroSection() {
 
               <div className="showcase-highlight-box">
                 <div className="highlight-icon">
-                  <Sparkles size={18} />
+                  <BookOpen size={18} />
                 </div>
                 <div className="highlight-text">
                   <h4>Curated by FUW Faculty</h4>

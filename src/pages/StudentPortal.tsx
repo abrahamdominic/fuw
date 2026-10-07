@@ -23,7 +23,7 @@ import {
   Trash2,
   Eye,
   ArrowRight,
-  Sparkles,
+  Compass,
   Menu,
   X,
   ShieldCheck,
@@ -159,7 +159,7 @@ const studentNavGroups = [
     items: [
       { label: 'Upload material', path: '/student/upload', icon: Upload },
       { label: 'My uploads', path: '/student/uploads', icon: FileText },
-      { label: 'AI study assistant', path: '/student/assistant', icon: Sparkles },
+      { label: 'Study assistant', path: '/student/assistant', icon: Compass },
       { label: 'Saved materials', path: '/student/saved', icon: Heart },
       { label: 'Recently viewed', path: '/student/recent', icon: Clock },
       { label: 'Downloads', path: '/student/downloads', icon: Download },
@@ -800,7 +800,7 @@ function SkillsLearningModule() {
           In the meantime, use the{' '}
           <Link to="/library">E-Library</Link> to find
           lecture notes, handouts and past questions for your courses, and the{' '}
-          <Link to="/student/assistant">AI study assistant</Link>{' '}
+          <Link to="/student/assistant">Study assistant</Link>{' '}
           to get personalised study support.
         </p>
       </div>
@@ -960,7 +960,7 @@ function StudentOverviewTab({
       {uploadsCount > 0 && (
         <div className="portal-notice-card">
           <div className="notice-icon">
-            <Sparkles size={20} />
+            <FileText size={20} />
           </div>
           <div className="notice-content">
             <h4>You have submitted {uploadsCount} material{uploadsCount > 1 ? 's' : ''} for faculty review</h4>
@@ -1729,7 +1729,7 @@ function StudentAiChatTab({
       <div className="portal-top">
         <div>
           <p className="kicker">POWERED BY THE E-LIBRARY COLLECTION</p>
-          <h1>AI study assistant</h1>
+          <h1>Study assistant</h1>
           <p className="subtitle">
             Ask questions about your courses. Answers are grounded in the approved materials in this library, with links to sources.
           </p>
@@ -1777,7 +1777,7 @@ function StudentAiChatTab({
             messages.length === 0 && (
               <div className="ai-chat-empty">
                 <div className="ai-empty-hero" aria-hidden="true">
-                  <Sparkles size={30} />
+                  <Compass size={30} />
                 </div>
                 <span className="ai-empty-badge">
                   <BookOpen size={11} /> Grounded in your e-library

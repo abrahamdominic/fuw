@@ -62,22 +62,18 @@ describe('Password Policy Enforcement', () => {
   });
 });
 
-describe('Password Reset Account Existence Responses', () => {
-  it('formats non-existing email message accurately', () => {
-    const email = 'notfound@example.com';
-    const isEmail = email.includes('@');
-    const msg = isEmail
-      ? "We couldn't find an account with this email. Please create an account first."
-      : "We couldn't find an account with this username. Please create an account first.";
-    expect(msg).toBe("We couldn't find an account with this email. Please create an account first.");
+describe('Neutral Password Reset Account Enumeration Defense (OWASP ASVS 2.1.12)', () => {
+  const NEUTRAL_RESET_MESSAGE =
+    'If an account is associated with this email or username, password reset instructions have been sent. Please check your inbox and spam folder.';
+
+  it('provides a uniform neutral response for email reset requests', () => {
+    // Both existing and non-existing accounts receive the exact same response
+    expect(NEUTRAL_RESET_MESSAGE).toContain('If an account is associated with this email or username');
+    expect(NEUTRAL_RESET_MESSAGE).not.toContain("couldn't find");
   });
 
-  it('formats non-existing username message accurately', () => {
-    const uname = 'ghostuser';
-    const isEmail = uname.includes('@');
-    const msg = isEmail
-      ? "We couldn't find an account with this email. Please create an account first."
-      : "We couldn't find an account with this username. Please create an account first.";
-    expect(msg).toBe("We couldn't find an account with this username. Please create an account first.");
+  it('provides the exact same neutral response for username reset requests without oracle leakage', () => {
+    expect(NEUTRAL_RESET_MESSAGE).toContain('password reset instructions have been sent');
+    expect(NEUTRAL_RESET_MESSAGE).not.toContain('ghostuser');
   });
 });

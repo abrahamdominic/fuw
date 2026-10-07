@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Megaphone, Sparkles } from 'lucide-react';
+import { Megaphone, TrendingUp } from 'lucide-react';
 import type { VisibleAdvert } from '../lib/types';
 import { formatNaira } from '../lib/format';
 
@@ -55,7 +55,7 @@ export const AdvertCard: React.FC<{ advert: VisibleAdvert }> = ({ advert }) => {
             color: advert.advert_type === 'sponsored' ? '#8a5a00' : 'var(--text-secondary, #55675b)',
           }}
         >
-          {advert.advert_type === 'sponsored' ? <Megaphone size={11} /> : <Sparkles size={11} />}
+          {advert.advert_type === 'sponsored' ? <Megaphone size={11} /> : <TrendingUp size={11} />}
           {advert.advert_type === 'sponsored' ? 'Sponsored' : 'Featured'}
         </span>
         <span style={{ fontWeight: 700, fontSize: 14, lineHeight: 1.35 }}>
