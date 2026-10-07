@@ -8,6 +8,7 @@ import { AdvertStrip } from '../components/AdvertCard';
 import { Skeleton } from '../components/Skeleton';
 import { EmptyState } from '../components/EmptyState';
 import { scrollToTop } from '../lib/scroll';
+import { SEO } from '../../components/SEO';
 
 export const BrowsePage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -107,6 +108,18 @@ export const BrowsePage: React.FC = () => {
 
   return (
     <div style={{ paddingBottom: 60 }}>
+      <SEO
+        title="Browse Campus Products & Services | FUW Marketplace"
+        description="Discover verified student products and services at Federal University Wukari. Search textbooks, gadgets, housing supplies, and services by category and price."
+        path="/marketplace/browse"
+        keywords={[
+          'browse FUW marketplace',
+          'FUW campus listings',
+          'student items Wukari',
+          'student services FUW'
+        ]}
+        image="/images/fuw-marketplace-og.png"
+      />
       {/* Top Header Bar */}
       <div
         style={{

@@ -136,6 +136,7 @@ export function AccommodationPage() {
           'Federal University Wukari housing',
           'FUW off campus accommodation'
         ]}
+        image="/images/fuw-accommodation-og.png"
         schema="itemList"
       />
 

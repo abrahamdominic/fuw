@@ -47,11 +47,16 @@ export function CampusHubPage() {
   return (
     <>
       <SEO
-        title="FUW Campus Hub | Your gateway to everything in FUW"
-        description="Central gateway to all Federal University Wukari digital services: FUW E-Library, Student Marketplace, and Accommodation Lodges."
+        title="FUW Campus Hub | Official Gateway to University Services"
+        description="The central gateway to Federal University Wukari digital services: explore the E-Library, browse the Student Marketplace, and find verified Accommodation."
         path="/hub"
-        noindex={true}
-        follow={false}
+        image="/images/fuw-campushub-og.png"
+        imageAlt="FUW Campus Hub: E-Library, Marketplace & Accommodation"
+        breadcrumbs={[
+          { name: 'Home', path: '/' },
+          { name: 'Campus Hub', path: '/hub' }
+        ]}
+        schema="webPage"
       />
 
       <div className="campus-hub-wrapper page-pad" style={{ maxWidth: 1240, margin: '0 auto', padding: '24px 20px 80px' }}>

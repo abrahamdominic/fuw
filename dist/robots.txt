@@ -4,6 +4,8 @@
 
 User-agent: *
 Allow: /
+Allow: /hub
+Allow: /hub/
 Allow: /library
 Allow: /accommodation
 Allow: /accommodation/
@@ -29,7 +31,6 @@ Disallow: /super
 Disallow: /super/
 Disallow: /super-admin
 Disallow: /superadmin
-Disallow: /hub
 Disallow: /campus-hub
 Disallow: /campus
 Disallow: /login

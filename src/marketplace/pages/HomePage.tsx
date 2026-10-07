@@ -24,6 +24,7 @@ import { ProductCard } from '../components/ProductCard';
 import { AdvertStrip } from '../components/AdvertCard';
 import { Skeleton } from '../components/Skeleton';
 import { mpPath } from '../lib/routes';
+import { SEO } from '../../components/SEO';
 
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
@@ -83,6 +84,27 @@ export const HomePage: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 40, paddingBottom: 60 }}>
+      <SEO
+        title="FUW Marketplace | Federal University Wukari Student Commerce"
+        description="The official student marketplace for Federal University Wukari. Buy and sell textbooks, gadgets, food, laundry and campus services with escrow protection."
+        path="/marketplace"
+        keywords={[
+          'FUW Marketplace',
+          'Federal University Wukari Marketplace',
+          'FUW student marketplace',
+          'FUW campus marketplace',
+          'buy and sell FUW',
+          'student textbooks Wukari',
+          'FUW campus commerce'
+        ]}
+        image="/images/fuw-marketplace-og.png"
+        imageAlt="FUW Marketplace: Student Commerce, Textbooks, Gadgets & Campus Services"
+        breadcrumbs={[
+          { name: 'Home', path: '/' },
+          { name: 'Marketplace', path: '/marketplace' }
+        ]}
+        schema="itemList"
+      />
       {/* Hero Section */}
       <section className="mp-hero-card" aria-label="FUW Student Marketplace">
         <div className="mp-hero-content">

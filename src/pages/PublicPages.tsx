@@ -25,7 +25,9 @@ import {
   RefreshCw,
   EyeOff,
   ArrowLeft,
-  Landmark
+  Landmark,
+  ShoppingBag,
+  Home
 } from 'lucide-react';
 import { useStore } from '../lib/useStore';
 import { supabase } from '../lib/supabase';
@@ -79,24 +81,26 @@ export function HomePage({ onReadOnline }: PublicPagesProps) {
     <>
       <SEO
         path="/"
-        title="FUW E-Library | Academic Materials & Past Questions"
-        description="Federal University Wukari digital library: verified lecture notes, test and exam past questions, handouts and academic research across all faculties and departments in FUW."
+        title="FUW Campus Hub | E Library, Marketplace & Accommodation"
+        description="Federal University Wukari official student platform: access the FUW E-Library, Student Marketplace, and verified campus Accommodation."
         keywords={[
+          'FUW Campus Hub',
           'FUW E-Library',
-          'FUW e library',
-          'Federal University Wukari E-Library',
-          'Federal University Wukari digital library',
-          'FUW lecture notes',
+          'FUW Marketplace',
+          'FUW Accommodation',
+          'Federal University Wukari',
+          'FUW student portal',
           'FUW past questions',
-          'FUW study materials',
-          'FUW Taraba'
+          'FUW lodges'
         ]}
+        image="/images/fuw-campushub-og.png"
+        imageAlt="FUW Campus Hub: E-Library, Marketplace & Accommodation"
         schema="home"
       />
       <HeroSection />
 
       {/* University Stats Bar */}
-      <section className="stats" aria-label="FUW E-Library at a glance">
+      <section className="stats" aria-label="FUW Campus Hub at a glance">
         {stats.map(([Icon, num, label]: any, idx) => (
           <div key={idx} className={fx.fadeUp} style={staggerDelay(idx, 60)}>
             <Icon size={24} />
@@ -104,6 +108,69 @@ export function HomePage({ onReadOnline }: PublicPagesProps) {
             <span>{label}</span>
           </div>
         ))}
+      </section>
+
+      {/* Campus Hub Core Ecosystem Pillars */}
+      <section className="public-container" aria-label="FUW Campus Hub Core Services" style={{ marginTop: '2.5rem', marginBottom: '2.5rem' }}>
+        <div className="section-head" style={{ marginBottom: '1.25rem' }}>
+          <div>
+            <p className="kicker">FUW CAMPUS ECOSYSTEM</p>
+            <h2 style={{ fontSize: '1.75rem', fontWeight: 800 }}>Explore FUW Campus Hub Services</h2>
+          </div>
+          <Link to="/hub" className="view-all-link" style={{ fontWeight: 600 }}>
+            Explore FUW Campus Hub <ChevronRight size={17} />
+          </Link>
+        </div>
+
+        <div className="grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem' }}>
+          {/* E-Library Card */}
+          <div className="card pillar-card" style={{ padding: '1.5rem', borderRadius: '1rem', border: '1px solid var(--border-color, #e2e8f0)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ width: 44, height: 44, borderRadius: 10, background: 'rgba(16, 185, 129, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981', marginBottom: '1rem' }}>
+                <BookOpen size={24} />
+              </div>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.5rem' }}>FUW E-Library</h3>
+              <p style={{ color: 'var(--text-muted, #64748b)', fontSize: '0.925rem', lineHeight: 1.6, marginBottom: '1.25rem' }}>
+                Curated lecture notes, exam past questions, handouts, and research theses across all 14 faculties and accredited departments of Federal University Wukari.
+              </p>
+            </div>
+            <Link to="/library" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 700, color: '#0B6B3A' }}>
+              Explore FUW E-Library <ArrowRight size={16} />
+            </Link>
+          </div>
+
+          {/* Marketplace Card */}
+          <div className="card pillar-card" style={{ padding: '1.5rem', borderRadius: '1rem', border: '1px solid var(--border-color, #e2e8f0)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ width: 44, height: 44, borderRadius: 10, background: 'rgba(56, 189, 248, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0284c7', marginBottom: '1rem' }}>
+                <ShoppingBag size={24} />
+              </div>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.5rem' }}>FUW Marketplace</h3>
+              <p style={{ color: 'var(--text-muted, #64748b)', fontSize: '0.925rem', lineHeight: 1.6, marginBottom: '1.25rem' }}>
+                Buy and sell student textbooks, gadgets, dorm items, and campus services like laundry, barbing, and device repairs with student escrow protection.
+              </p>
+            </div>
+            <Link to="/marketplace" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 700, color: '#0B6B3A' }}>
+              Browse FUW Marketplace <ArrowRight size={16} />
+            </Link>
+          </div>
+
+          {/* Accommodation Card */}
+          <div className="card pillar-card" style={{ padding: '1.5rem', borderRadius: '1rem', border: '1px solid var(--border-color, #e2e8f0)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ width: 44, height: 44, borderRadius: 10, background: 'rgba(245, 158, 11, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d97706', marginBottom: '1rem' }}>
+                <Home size={24} />
+              </div>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.5rem' }}>FUW Accommodation</h3>
+              <p style={{ color: 'var(--text-muted, #64748b)', fontSize: '0.925rem', lineHeight: 1.6, marginBottom: '1.25rem' }}>
+                Verified student lodges, self-contained rooms, and off-campus apartments in Wukari with caretaker checks and verified roommate matching.
+              </p>
+            </div>
+            <Link to="/accommodation" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 700, color: '#0B6B3A' }}>
+              Find FUW Accommodation <ArrowRight size={16} />
+            </Link>
+          </div>
+        </div>
       </section>
 
       {/* Main Content Sections */}

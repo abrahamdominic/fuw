@@ -429,11 +429,9 @@ export function App() {
             <Route
               path="/hub"
               element={
-                <RequireAuth>
-                  <PublicLayout onReadOnline={handleReadOnline}>
-                    <CampusHubPage />
-                  </PublicLayout>
-                </RequireAuth>
+                <PublicLayout onReadOnline={handleReadOnline}>
+                  <CampusHubPage />
+                </PublicLayout>
               }
             />
             <Route path="/campus-hub" element={<Navigate to="/hub" replace />} />

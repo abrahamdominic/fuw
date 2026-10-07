@@ -15,10 +15,10 @@
  */
 export const SITE_URL = 'https://fuwtest.netlify.app';
 
-export const SITE_NAME = 'FUW E-Library';
+export const SITE_NAME = 'FUW Campus Hub';
 
 /** Long-form name used in titles, structured data and footer copy. */
-export const SITE_LONG_NAME = 'Federal University Wukari E-Library';
+export const SITE_LONG_NAME = 'FUW Campus Hub: E-Library, Marketplace & Accommodation';
 
 /** The owning institution — never abbreviated inconsistently. */
 export const UNIVERSITY_NAME = 'Federal University Wukari';
@@ -39,9 +39,9 @@ export const UNIVERSITY_OFFICIAL_SITE = 'https://fuwukari.edu.ng';
 
 /** Shared brand assets (paths are root-relative on purpose). */
 export const LOGO_PATH = '/images/fuw-logo.png';
-export const OG_IMAGE_PATH = '/images/fuw-elibrary-og.png';
+export const OG_IMAGE_PATH = '/images/fuw-campushub-og.png';
 export const OG_IMAGE_ALT =
-  'FUW E-Library: Federal University Wukari digital library of lecture notes, past questions and academic resources';
+  'FUW Campus Hub: E-Library, Marketplace and Accommodation for Federal University Wukari';
 export const OG_IMAGE_WIDTH = 1200;
 export const OG_IMAGE_HEIGHT = 630;
 

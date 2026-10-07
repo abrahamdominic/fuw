@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { Logo } from '../components/Logo';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { SEO } from '../components/SEO';
 import { useAuth } from '../lib/AuthContext';
 import {
   type RoommateRequest,
@@ -288,6 +289,19 @@ export const RoommateFinderPage: React.FC = () => {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--surface-alt, #f7faf8)', paddingBottom: 80 }}>
+      <SEO
+        title="FUW Roommate Finder | Student Lodges & Roommate Matching"
+        description="Connect with verified Federal University Wukari students looking to share lodge rent and accommodation costs. Filter by gender preference, budget, and location."
+        path="/accommodation/roommates"
+        keywords={[
+          'FUW roommate finder',
+          'find roommate Federal University Wukari',
+          'FUW student roommates',
+          'shared student lodge Wukari',
+          'FUW accommodation matching'
+        ]}
+        image="/images/fuw-accommodation-og.png"
+      />
       {/* Top Banner Navigation */}
       <div style={{ background: 'var(--surface, #ffffff)', borderBottom: '1px solid var(--border, #dcebe0)' }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>

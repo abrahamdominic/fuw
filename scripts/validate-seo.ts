@@ -127,6 +127,9 @@ if (FALLBACK_META.indexability !== 'noindex') {
 if (!isIndexablePath('/')) {
   fail('/ must be indexable');
 }
+if (!isIndexablePath('/hub')) {
+  fail('/hub must be indexable');
+}
 
 for (const path of ['/home', '/student', '/admin', '/super-admin', '/login', '/register', '/reset-password', '/repository/submit']) {
   if (isIndexablePath(path)) fail(`${path} must not be indexable`);
@@ -299,6 +302,9 @@ if (existsSync(netlifyToml)) {
 // ---------------------------------------------------------------------------
 for (const asset of [
   '/images/fuw-elibrary-og.png',
+  '/images/fuw-campushub-og.png',
+  '/images/fuw-marketplace-og.png',
+  '/images/fuw-accommodation-og.png',
   '/images/fuw-logo.png',
   '/images/animation-poster.jpg',
   '/favicon.ico',

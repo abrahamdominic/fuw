@@ -244,7 +244,6 @@ const PRIVATE_PREFIXES = [
   '/super/',
   '/super-admin',
   '/superadmin',
-  '/hub',
   '/campus-hub',
   '/campus',
   '/login',
@@ -278,6 +277,8 @@ function renderRobots(): string {
     '',
     'User-agent: *',
     'Allow: /',
+    'Allow: /hub',
+    'Allow: /hub/',
     'Allow: /library',
     'Allow: /accommodation',
     'Allow: /accommodation/',
@@ -522,7 +523,7 @@ function copy404Shell(): boolean {
       /<meta name="googlebot" content="[^"]*"\s*\/?>/g,
       '<meta name="googlebot" content="noindex, follow" />'
     )
-    .replace(/<title>[\s\S]*?<\/title>/, '<title>Page not found | FUW E-Library</title>');
+    .replace(/<title>[\s\S]*?<\/title>/, '<title>Page not found | FUW Campus Hub</title>');
 
   writeFileSync(resolve(DIST, '404.html'), shell);
   return true;

@@ -142,17 +142,16 @@ export function HeroSection() {
             <div className="eyebrow hero-badge">
               <span className="badge-pulse" />
               <GraduationCap size={15} />
-              <span>FEDERAL UNIVERSITY WUKARI · E-LIBRARY</span>
+              <span>FEDERAL UNIVERSITY WUKARI · CAMPUS HUB</span>
             </div>
 
             <h1 className="hero-title">
-              FUW E-Library<br />
-              <em className="hero-highlight">Academic Materials &amp; Past Questions</em>
+              FUW Campus Hub<br />
+              <em className="hero-highlight">E-Library, Marketplace &amp; Accommodation</em>
             </h1>
 
             <p className="hero-desc">
-              Federal University Wukari digital library for students and researchers. Discover verified lecture notes,
-              past examination questions, curriculum textbooks and research publications across 14 faculties and 67 departments.
+              Federal University Wukari official student platform. Discover verified academic lecture notes and past questions in the E-Library, buy and sell safely on the student Marketplace, and find verified campus Accommodation.
             </p>
 
             <form className="search hero-search-form" onSubmit={handleSearchSubmit}>
