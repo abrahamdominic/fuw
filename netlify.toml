@@ -21,6 +21,13 @@
 # unmatched with dist/404.html and a genuine HTTP 404.
 # ----------------------------------------------------------------------------
 
+# Canonical home: /home redirects permanently to root /
+[[redirects]]
+  from = "/home"
+  to = "/"
+  status = 301
+  force = true
+
 # Legacy alias: /departments was a duplicate of /faculties. One permanent
 # redirect, no chain, no second copy of the same directory page.
 [[redirects]]

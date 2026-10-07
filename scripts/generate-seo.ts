@@ -281,6 +281,8 @@ function renderRobots(): string {
     'Allow: /library',
     'Allow: /accommodation',
     'Allow: /accommodation/',
+    'Allow: /marketplace',
+    'Allow: /marketplace/',
     'Allow: /faculties/',
     'Allow: /departments/',
     'Allow: /courses/',
@@ -334,6 +336,7 @@ function renderRobots(): string {
  * reason, while looking perfectly healthy under `vite dev`.
  */
 const PORTAL_ALIASES = [
+  '/home',
   '/dashboard',
   '/profile',
   '/settings',

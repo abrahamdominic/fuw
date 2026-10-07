@@ -416,13 +416,14 @@ export function App() {
                 Only approved catalogue data and published repository/collection
                 records are readable here, and every authenticated action
                 (download, read-online, submit, save) is still gated by the
-                session plus the server-side entitlement check.
-
-                NOTE: / redirects to login or the user's dashboard. /home is
-                the authenticated application homepage. */}
+                session plus the server-side entitlement check. */}
             <Route
               path="/"
-              element={<RootRedirect />}
+              element={
+                <PublicLayout onReadOnline={handleReadOnline}>
+                  <HomePage onReadOnline={handleReadOnline} />
+                </PublicLayout>
+              }
             />
             {/* FUW Campus Hub Gateway */}
             <Route
@@ -490,13 +491,7 @@ export function App() {
             />
             <Route
               path="/home"
-              element={
-                <RequireAuth>
-                  <PublicLayout onReadOnline={handleReadOnline}>
-                    <HomePage onReadOnline={handleReadOnline} />
-                  </PublicLayout>
-                </RequireAuth>
-              }
+              element={<Navigate to="/" replace />}
             />
             <Route
               path="/library"

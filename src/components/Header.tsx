@@ -52,7 +52,7 @@ export function Header() {
   return (
     <>
       <header className="main-header">
-        <Link className="brand" to="/home" aria-label="Federal University Wukari Digital Library Home">
+        <Link className="brand" to="/" aria-label="Federal University Wukari Digital Library Home">
           <Logo size={36} />
           <span className="brand-text">
             <b>FUW</b> Ecosystem
@@ -63,7 +63,7 @@ export function Header() {
           <NavLink to="/hub" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
             Campus Hub
           </NavLink>
-          <NavLink to="/home" end className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
+          <NavLink to="/" end className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
             Home
           </NavLink>
           <NavLink to="/library" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
@@ -170,7 +170,7 @@ export function Header() {
               <NavLink to="/hub" className={({ isActive }) => (isActive ? 'mobile-link active' : 'mobile-link')}>
                 FUW Campus Hub
               </NavLink>
-              <NavLink to="/home" end className={({ isActive }) => (isActive ? 'mobile-link active' : 'mobile-link')}>
+              <NavLink to="/" end className={({ isActive }) => (isActive ? 'mobile-link active' : 'mobile-link')}>
                 Home
               </NavLink>
               <NavLink to="/library" className={({ isActive }) => (isActive ? 'mobile-link active' : 'mobile-link')}>

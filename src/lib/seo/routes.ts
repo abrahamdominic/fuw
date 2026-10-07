@@ -72,7 +72,7 @@ export interface PageMeta {
   priority?: number;
 }
 
-const HOME_CRUMB: Crumb = { name: 'Home', path: '/home' };
+const HOME_CRUMB: Crumb = { name: 'Home', path: '/' };
 
 export const KEYWORDS = {
   brand: ['FUW E-Library', 'Federal University Wukari E-Library'],
@@ -95,6 +95,23 @@ const C = DIRECTORY_TOTALS.courses;
  * rendered into a static HTML shell at build time.
  */
 export const PUBLIC_ROUTES: Record<string, PageMeta> = {
+  '/': {
+    title: 'FUW E-Library | Academic Materials & Past Questions',
+    description:
+      'Federal University Wukari digital library: verified lecture notes, test and exam past questions, handouts and academic research across all faculties and departments in FUW.',
+    path: '/',
+    changefreq: 'daily',
+    priority: 1.0,
+    keywords: [
+      ...KEYWORDS.brand,
+      ...KEYWORDS.library,
+      ...KEYWORDS.materials
+    ],
+    indexability: 'index',
+    breadcrumbs: [{ name: 'Home', path: '/' }],
+    schema: 'home'
+  },
+
   '/library': {
     title: 'FUW E-Library | Academic Materials & Digital Library',
     description:
@@ -376,24 +393,6 @@ export const PRIVATE_ROUTES: Record<string, PageMeta> = {
     breadcrumbs: [HOME_CRUMB, { name: 'Campus Hub', path: '/hub' }],
     schema: 'none'
   },
-  '/': {
-    title: 'Sign In | FUW E-Library',
-    description: 'Sign in to continue to your Federal University Wukari E-Library dashboard.',
-    path: '/',
-    keywords: [],
-    indexability: 'noindex',
-    breadcrumbs: [],
-    schema: 'none'
-  },
-  '/home': {
-    title: 'Home | FUW E-Library',
-    description: 'Your authenticated FUW E-Library homepage.',
-    path: '/home',
-    keywords: [],
-    indexability: 'noindex',
-    breadcrumbs: [HOME_CRUMB],
-    schema: 'none'
-  },
   '/login': {
     title: 'Sign In | FUW Campus Hub',
     description: 'Sign in to your Federal University Wukari Campus Hub account.',
@@ -497,6 +496,7 @@ export const PORTAL_ROUTES: Record<string, PageMeta> = {
 /** Look up any static route's metadata (public, noindex, private, portal). */
 export function staticMetaFor(path: string): PageMeta | null {
   const key = path.replace(/\/+$/, '') || '/';
+  if (key === '/home') return PUBLIC_ROUTES['/'];
   return (
     PUBLIC_ROUTES[key] ||
     NOINDEX_ROUTES[key] ||

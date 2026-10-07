@@ -20,7 +20,8 @@ import {
   PORTAL_ROUTES,
   PRIVATE_ROUTES,
   PUBLIC_ROUTES,
-  isIndexablePath
+  isIndexablePath,
+  type PageMeta
 } from '../src/lib/seo/routes';
 import { facultyEntries, departmentEntries, courseEntries } from '../src/lib/seo/directory';
 import { facultyMeta, departmentMeta, courseMeta } from '../src/lib/seo/dynamic';
@@ -123,7 +124,11 @@ if (FALLBACK_META.indexability !== 'noindex') {
   fail('FALLBACK_META must default to noindex so an undeclared route is never indexed');
 }
 
-for (const path of ['/', '/home', '/student', '/admin', '/super-admin', '/login', '/register', '/reset-password', '/repository/submit']) {
+if (!isIndexablePath('/')) {
+  fail('/ must be indexable');
+}
+
+for (const path of ['/home', '/student', '/admin', '/super-admin', '/login', '/register', '/reset-password', '/repository/submit']) {
   if (isIndexablePath(path)) fail(`${path} must not be indexable`);
 }
 
@@ -203,7 +208,7 @@ if (existsSync(notFoundPath)) {
 // ---------------------------------------------------------------------------
 
 const sampleMetas: PageMeta[] = [
-  PRIVATE_ROUTES['/home'],
+  PUBLIC_ROUTES['/'],
   PUBLIC_ROUTES['/library'],
   ...facultyEntries().slice(0, 1).map((e) => facultyMeta(e.faculty)),
   ...departmentEntries().slice(0, 1).map((e) => departmentMeta(e)),

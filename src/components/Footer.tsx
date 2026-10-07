@@ -77,6 +77,8 @@ export function Footer() {
             <li><Link to="/courses">Course Directory</Link></li>
             <li><Link to="/repository">Institutional Repository</Link></li>
             <li><Link to="/collections">Curated Collections</Link></li>
+            <li><Link to="/accommodation">Campus Accommodation</Link></li>
+            <li><Link to="/marketplace">Student Marketplace</Link></li>
             <li><Link to="/help">Help &amp; Library Services</Link></li>
             <li><Link to="/about">About the E-Library</Link></li>
             <li><Link to="/contact">Library Helpdesk</Link></li>

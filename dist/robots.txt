@@ -7,6 +7,8 @@ Allow: /
 Allow: /library
 Allow: /accommodation
 Allow: /accommodation/
+Allow: /marketplace
+Allow: /marketplace/
 Allow: /faculties/
 Allow: /departments/
 Allow: /courses/

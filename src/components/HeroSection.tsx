@@ -146,13 +146,13 @@ export function HeroSection() {
             </div>
 
             <h1 className="hero-title">
-              Your gateway to<br />
-              <em className="hero-highlight">academic knowledge.</em>
+              FUW E-Library<br />
+              <em className="hero-highlight">Academic Materials &amp; Past Questions</em>
             </h1>
 
             <p className="hero-desc">
-              Discover trusted learning resources, from verified lecture notes and textbooks to past questions
-              and research publications, all curated for the FUW community.
+              Federal University Wukari digital library for students and researchers. Discover verified lecture notes,
+              past examination questions, curriculum textbooks and research publications across 14 faculties and 67 departments.
             </p>
 
             <form className="search hero-search-form" onSubmit={handleSearchSubmit}>

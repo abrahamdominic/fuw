@@ -145,7 +145,7 @@ export function FirstVisitWelcome() {
             </div>
             <div className="fuw-welcome-pillar-info">
               <h3>Accommodation</h3>
-              <p>Hostel listings, verified lodges, and student roommate matching.</p>
+              <p>Verified lodges, and student roommate matching.</p>
             </div>
           </div>
         </div>

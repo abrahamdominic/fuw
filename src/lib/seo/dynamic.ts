@@ -26,7 +26,7 @@ import {
 } from './directory';
 import { SITE_LONG_NAME, UNIVERSITY_NAME } from './site';
 
-const HOME: Crumb = { name: 'Home', path: '/home' };
+const HOME: Crumb = { name: 'Home', path: '/' };
 const FACULTIES: Crumb = { name: 'Faculties', path: '/faculties' };
 const COURSES: Crumb = { name: 'Courses', path: '/courses' };
 

@@ -78,10 +78,20 @@ export function HomePage({ onReadOnline }: PublicPagesProps) {
   return (
     <>
       <SEO
-        path="/home"
-        title="Home | FUW E-Library"
-        description="Your authenticated FUW E-Library homepage."
-        noindex
+        path="/"
+        title="FUW E-Library | Academic Materials & Past Questions"
+        description="Federal University Wukari digital library: verified lecture notes, test and exam past questions, handouts and academic research across all faculties and departments in FUW."
+        keywords={[
+          'FUW E-Library',
+          'FUW e library',
+          'Federal University Wukari E-Library',
+          'Federal University Wukari digital library',
+          'FUW lecture notes',
+          'FUW past questions',
+          'FUW study materials',
+          'FUW Taraba'
+        ]}
+        schema="home"
       />
       <HeroSection />
 
@@ -463,13 +473,13 @@ export function LibraryPage({ onReadOnline }: PublicPagesProps) {
         noindex={Boolean(queryQ) || activeFiltersCount > 0}
         title={queryQ ? `Search results for “${queryQ}”` : undefined}
         breadcrumbs={[
-          { name: 'Home', path: '/home' },
+          { name: 'Home', path: '/' },
           { name: 'Library', path: '/library' }
         ]}
       />
       <Breadcrumbs
         trail={[
-          { name: 'Home', path: '/home' },
+          { name: 'Home', path: '/' },
           { name: 'Library', path: '/library' }
         ]}
       />
