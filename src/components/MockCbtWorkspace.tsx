@@ -61,6 +61,36 @@ const SAMPLE_QUESTION_BANK: CbtQuestion[] = [
     explanation: 'When subjects are connected by "neither... nor", the verb agrees in number with the nearer subject ("the students" is plural, hence "were").',
   },
   {
+    id: 'gst101-3',
+    courseCode: 'GST101',
+    courseTitle: 'Use of English I',
+    question: 'Which of the following reading techniques is specifically designed for rapidly locating specific pieces of information such as dates, numbers, or names?',
+    options: {
+      A: 'Skimming',
+      B: 'Scanning',
+      C: 'Critical Reading',
+      D: 'Extensive Reading',
+    },
+    correctOption: 'B',
+    topic: 'Reading Techniques',
+    explanation: 'Scanning involves quickly moving eyes over text to locate specific facts or answers without reading the entire passage.',
+  },
+  {
+    id: 'gst101-4',
+    courseCode: 'GST101',
+    courseTitle: 'Use of English I',
+    question: 'Choose the correct form of the verb: "The committee _______ divided in their opinions regarding the new grading policy."',
+    options: {
+      A: 'is',
+      B: 'was',
+      C: 'were',
+      D: 'has been',
+    },
+    correctOption: 'C',
+    topic: 'Collective Nouns & Concord',
+    explanation: 'When members of a collective noun act as individuals or hold differing viewpoints, plural concord ("were") is used.',
+  },
+  {
     id: 'gst102-1',
     courseCode: 'GST102',
     courseTitle: 'Philosophy, Logic & Human Existence',
@@ -74,6 +104,261 @@ const SAMPLE_QUESTION_BANK: CbtQuestion[] = [
     correctOption: 'B',
     topic: 'Deductive Logic',
     explanation: 'A deductive argument is valid if and only if it takes a form that makes it impossible for the premises to be true and the conclusion nevertheless false.',
+  },
+  {
+    id: 'gst102-2',
+    courseCode: 'GST102',
+    courseTitle: 'Philosophy, Logic & Human Existence',
+    question: 'Attacking an opponent\'s character rather than addressing the substance of their logical argument is an example of which informal fallacy?',
+    options: {
+      A: 'Petitio Principii (Begging the question)',
+      B: 'Argumentum ad Populum',
+      C: 'Argumentum ad Hominem',
+      D: 'Post Hoc Ergo Propter Hoc',
+    },
+    correctOption: 'C',
+    topic: 'Informal Fallacies',
+    explanation: 'Argumentum ad hominem directs attacks toward the proponent personally rather than the logical merit of their proposition.',
+  },
+  {
+    id: 'gst102-3',
+    courseCode: 'GST102',
+    courseTitle: 'Philosophy, Logic & Human Existence',
+    question: 'The epistemological doctrine which holds that genuine knowledge is primarily derived from sensory experience is known as:',
+    options: {
+      A: 'Rationalism',
+      B: 'Empiricism',
+      C: 'Skepticism',
+      D: 'Idealism',
+    },
+    correctOption: 'B',
+    topic: 'Epistemology',
+    explanation: 'Empiricism (advocated by philosophers like John Locke and David Hume) posits that sensory perception is the primary origin of knowledge.',
+  },
+  {
+    id: 'gst111-1',
+    courseCode: 'GST111',
+    courseTitle: 'Nigerian Peoples and Culture',
+    question: 'In the pre-colonial political administration of the Oyo Empire, which body served as the supreme council of kingmakers and institutional check on the Alaafin?',
+    options: {
+      A: 'Ogboni Society',
+      B: 'Oyomesi',
+      C: 'Are Ona Kakanfo',
+      D: 'Ilari',
+    },
+    correctOption: 'B',
+    topic: 'Pre-colonial Political Systems',
+    explanation: 'The Oyomesi was the aristocratic council of state headed by the Bashorun, responsible for electing the Alaafin and holding supreme veto power over tyranny.',
+  },
+  {
+    id: 'gst111-2',
+    courseCode: 'GST111',
+    courseTitle: 'Nigerian Peoples and Culture',
+    question: 'The historical amalgamation of the Northern and Southern protectorates into modern Nigeria took place in which year?',
+    options: {
+      A: '1900',
+      B: '1906',
+      C: '1914',
+      D: '1960',
+    },
+    correctOption: 'C',
+    topic: 'Colonial History & Nationhood',
+    explanation: 'Sir Frederick Lugard promulgated the amalgamation of the Northern and Southern protectorates of Nigeria on January 1, 1914.',
+  },
+  {
+    id: 'gst111-3',
+    courseCode: 'GST111',
+    courseTitle: 'Nigerian Peoples and Culture',
+    question: 'Pre-colonial traditional Igbo political organization was historically characterized by which structural system?',
+    options: {
+      A: 'Centralized Feudal Caliphate',
+      B: 'Absolute Monarchy',
+      C: 'Acephalous (Segmentary Lineage / Republican)',
+      D: 'Constitutional Dyarchy',
+    },
+    correctOption: 'C',
+    topic: 'Traditional Social Structures',
+    explanation: 'Traditional Igbo societies were largely acephalous or egalitarian republics without centralized kings, practicing direct democracy through title-holders, age grades, and village assemblies.',
+  },
+  {
+    id: 'mth101-1',
+    courseCode: 'MTH101',
+    courseTitle: 'Elementary Mathematics I (Algebra & Trigonometry)',
+    question: 'If the quadratic equation 2x² - kx + 8 = 0 has equal real roots, what is the value of k?',
+    options: {
+      A: '±4',
+      B: '±8',
+      C: '±16',
+      D: '±64',
+    },
+    correctOption: 'B',
+    topic: 'Quadratic Equations & Discriminant',
+    explanation: 'For equal real roots, the discriminant b² - 4ac = 0. Here (-k)² - 4(2)(8) = 0 => k² - 64 = 0 => k = ±8.',
+  },
+  {
+    id: 'mth101-2',
+    courseCode: 'MTH101',
+    courseTitle: 'Elementary Mathematics I (Algebra & Trigonometry)',
+    question: 'Evaluate the sum of the first 20 terms of the arithmetic progression (AP): 3, 7, 11, 15, ...',
+    options: {
+      A: '820',
+      B: '780',
+      C: '840',
+      D: '760',
+    },
+    correctOption: 'A',
+    topic: 'Sequences & Series (AP)',
+    explanation: 'Sum S_n = (n/2)[2a + (n-1)d]. With a=3, d=4, n=20: S_20 = 10[6 + (19)(4)] = 10[6 + 76] = 10(82) = 820.',
+  },
+  {
+    id: 'mth101-3',
+    courseCode: 'MTH101',
+    courseTitle: 'Elementary Mathematics I (Algebra & Trigonometry)',
+    question: 'Simplify the logarithmic expression: log₂(32) + log₃(81) - log₅(125)',
+    options: {
+      A: '4',
+      B: '5',
+      C: '6',
+      D: '7',
+    },
+    correctOption: 'C',
+    topic: 'Logarithms & Indices',
+    explanation: 'log₂(32) = 5; log₃(81) = 4; log₅(125) = 3. Therefore, 5 + 4 - 3 = 6.',
+  },
+  {
+    id: 'phy101-1',
+    courseCode: 'PHY101',
+    courseTitle: 'General Physics I (Mechanics & Thermal)',
+    question: 'A body accelerating uniformly from rest reaches a velocity of 20 m/s in 4 seconds. What is the total displacement covered?',
+    options: {
+      A: '20 m',
+      B: '40 m',
+      C: '80 m',
+      D: '160 m',
+    },
+    correctOption: 'B',
+    topic: 'Kinematics & Motion',
+    explanation: 'Displacement s = ((u + v)/2) * t = ((0 + 20)/2) * 4 = 10 * 4 = 40 meters.',
+  },
+  {
+    id: 'phy101-2',
+    courseCode: 'PHY101',
+    courseTitle: 'General Physics I (Mechanics & Thermal)',
+    question: 'What is the base dimensional formula of Force in standard SI mechanics?',
+    options: {
+      A: '[M L T⁻¹]',
+      B: '[M L T⁻²]',
+      C: '[M L² T⁻²]',
+      D: '[M L⁻¹ T⁻²]',
+    },
+    correctOption: 'B',
+    topic: 'Units & Dimensional Analysis',
+    explanation: 'Force = mass * acceleration = [M] * [L T⁻²] = [M L T⁻²].',
+  },
+  {
+    id: 'phy101-3',
+    courseCode: 'PHY101',
+    courseTitle: 'General Physics I (Mechanics & Thermal)',
+    question: 'Which law of thermodynamics establishes the concept of entropy and states that the total entropy of an isolated system always increases over time?',
+    options: {
+      A: 'Zeroth Law',
+      B: 'First Law',
+      C: 'Second Law',
+      D: 'Third Law',
+    },
+    correctOption: 'C',
+    topic: 'Thermodynamics',
+    explanation: 'The Second Law of Thermodynamics dictates that natural spontaneous processes increase total system entropy.',
+  },
+  {
+    id: 'chm101-1',
+    courseCode: 'CHM101',
+    courseTitle: 'General Chemistry I (Physical & Inorganic)',
+    question: 'What is the hybridization state of the central carbon atom in a methane (CH₄) molecule?',
+    options: {
+      A: 'sp',
+      B: 'sp²',
+      C: 'sp³',
+      D: 'sp³d',
+    },
+    correctOption: 'C',
+    topic: 'Chemical Bonding & Hybridization',
+    explanation: 'Methane has four equivalent C-H sigma single bonds pointing toward the vertices of a tetrahedron, corresponding to sp³ hybridization.',
+  },
+  {
+    id: 'chm101-2',
+    courseCode: 'CHM101',
+    courseTitle: 'General Chemistry I (Physical & Inorganic)',
+    question: 'Calculate the pH of a 0.001 M solution of Hydrochloric acid (HCl), assuming complete dissociation.',
+    options: {
+      A: '1.0',
+      B: '2.0',
+      C: '3.0',
+      D: '4.0',
+    },
+    correctOption: 'C',
+    topic: 'Acids, Bases & pH',
+    explanation: 'pH = -log₁₀[H⁺]. For 0.001 M (10⁻³ M) HCl, pH = -log₁₀(10⁻³) = 3.0.',
+  },
+  {
+    id: 'chm101-3',
+    courseCode: 'CHM101',
+    courseTitle: 'General Chemistry I (Physical & Inorganic)',
+    question: 'According to Hund’s Rule of Maximum Multiplicity, how do electrons occupy degenerate orbitals?',
+    options: {
+      A: 'They pair up immediately with opposite spins before filling higher subshells',
+      B: 'They occupy singly with parallel spins before any pairing occurs',
+      C: 'They fill the highest principal quantum level first',
+      D: 'Electrons never occupy the same subshell simultaneously',
+    },
+    correctOption: 'B',
+    topic: 'Atomic Structure & Quantum Numbers',
+    explanation: 'Hund\'s Rule states that each orbital in a degenerate subshell is singly occupied with electrons of parallel spins before any orbital is doubly occupied.',
+  },
+  {
+    id: 'cos101-1',
+    courseCode: 'COS101',
+    courseTitle: 'Introduction to Computing Sciences',
+    question: 'Convert the binary number (11010)₂ to its decimal (base-10) equivalent:',
+    options: {
+      A: '22',
+      B: '24',
+      C: '26',
+      D: '28',
+    },
+    correctOption: 'C',
+    topic: 'Number Systems & Data Representation',
+    explanation: '(1*2⁴) + (1*2³) + (0*2²) + (1*2¹) + (0*2⁰) = 16 + 8 + 0 + 2 + 0 = 26.',
+  },
+  {
+    id: 'cos101-2',
+    courseCode: 'COS101',
+    courseTitle: 'Introduction to Computing Sciences',
+    question: 'Which component of the Central Processing Unit (CPU) is directly responsible for performing arithmetic calculations and logical comparisons?',
+    options: {
+      A: 'Control Unit (CU)',
+      B: 'Arithmetic Logic Unit (ALU)',
+      C: 'Instruction Register (IR)',
+      D: 'Program Counter (PC)',
+    },
+    correctOption: 'B',
+    topic: 'Computer Architecture',
+    explanation: 'The ALU executes all fundamental mathematical computations (addition, subtraction) and Boolean logical operations (AND, OR, NOT).',
+  },
+  {
+    id: 'cos101-3',
+    courseCode: 'COS101',
+    courseTitle: 'Introduction to Computing Sciences',
+    question: 'In standard algorithm flowchart representation, which geometric shape represents a decision/conditional branching point?',
+    options: {
+      A: 'Rectangle',
+      B: 'Parallelogram',
+      C: 'Diamond (Rhombus)',
+      D: 'Oval',
+    },
+    correctOption: 'C',
+    topic: 'Algorithms & Flowcharts',
+    explanation: 'A diamond represents a conditional evaluation where the algorithm branches based on a Boolean outcome (True/False or Yes/No).',
   },
   {
     id: 'bio102-1',
@@ -126,15 +411,17 @@ export const MockCbtWorkspace: React.FC = () => {
   const { hasPremium, profile } = useAuth();
 
   const [selectedCourse, setSelectedCourse] = useState('ALL');
+  const [selectedDuration, setSelectedDuration] = useState(600); // 10 minutes default
+  const [shuffleQuestions, setShuffleQuestions] = useState(true);
   const [examStarted, setExamStarted] = useState(false);
   const [examFinished, setExamFinished] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [userAnswers, setUserAnswers] = useState<{ [id: string]: string }>({});
   const [flaggedQuestions, setFlaggedQuestions] = useState<{ [id: string]: boolean }>({});
-  const [timeLeftSeconds, setTimeLeftSeconds] = useState(600); // 10 minutes default
+  const [timeLeftSeconds, setTimeLeftSeconds] = useState(600);
   const [questions, setQuestions] = useState<CbtQuestion[]>(SAMPLE_QUESTION_BANK);
 
-  // Filter questions by course
+  // Filter questions by course preview
   useEffect(() => {
     if (selectedCourse === 'ALL') {
       setQuestions(SAMPLE_QUESTION_BANK);
@@ -157,10 +444,17 @@ export const MockCbtWorkspace: React.FC = () => {
   }, [examStarted, examFinished, timeLeftSeconds]);
 
   const handleStartExam = () => {
+    const baseList = selectedCourse === 'ALL'
+      ? [...SAMPLE_QUESTION_BANK]
+      : SAMPLE_QUESTION_BANK.filter((q) => q.courseCode === selectedCourse);
+    const examList = shuffleQuestions
+      ? [...baseList].sort(() => Math.random() - 0.5)
+      : baseList;
+    setQuestions(examList);
     setUserAnswers({});
     setFlaggedQuestions({});
     setCurrentIndex(0);
-    setTimeLeftSeconds(Math.max(questions.length * 60, 300));
+    setTimeLeftSeconds(selectedDuration);
     setExamStarted(true);
     setExamFinished(false);
   };
@@ -241,7 +535,7 @@ export const MockCbtWorkspace: React.FC = () => {
         <div style={{ background: '#ffffff', borderRadius: 16, border: '1px solid #dcebe0', padding: 24 }}>
           <h3 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: 800 }}>Configure Your Practice Test</h3>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16, marginBottom: 24 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 20 }}>
             <div>
               <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 6 }}>
                 Select Course / Subject
@@ -249,11 +543,16 @@ export const MockCbtWorkspace: React.FC = () => {
               <select
                 value={selectedCourse}
                 onChange={(e) => setSelectedCourse(e.target.value)}
-                style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #dcebe0', fontSize: 14 }}
+                style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #dcebe0', fontSize: 14, background: '#ffffff' }}
               >
                 <option value="ALL">All General Courses (Mix Drill)</option>
                 <option value="GST101">GST 101 - Use of English I</option>
                 <option value="GST102">GST 102 - Philosophy &amp; Logic</option>
+                <option value="GST111">GST 111 - Nigerian Peoples &amp; Culture</option>
+                <option value="MTH101">MTH 101 - General Mathematics I (Algebra &amp; Trig)</option>
+                <option value="PHY101">PHY 101 - General Physics I (Mechanics &amp; Thermal)</option>
+                <option value="CHM101">CHM 101 - General Chemistry I (Inorganic &amp; Physical)</option>
+                <option value="COS101">COS 101 - Intro to Computing Sciences</option>
                 <option value="BIO102">BIO 102 - General Biology II</option>
                 <option value="CHM102">CHM 102 - General Chemistry II</option>
                 <option value="MTH102">MTH 102 - Elementary Mathematics II</option>
@@ -262,12 +561,41 @@ export const MockCbtWorkspace: React.FC = () => {
 
             <div>
               <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 6 }}>
+                Test Duration
+              </label>
+              <select
+                value={selectedDuration}
+                onChange={(e) => setSelectedDuration(Number(e.target.value))}
+                style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #dcebe0', fontSize: 14, background: '#ffffff' }}
+              >
+                <option value={600}>10 Minutes (Quick Drill)</option>
+                <option value={900}>15 Minutes (Standard Practice)</option>
+                <option value={1200}>20 Minutes (Timed Challenge)</option>
+                <option value={1800}>30 Minutes (Full Exam Simulation)</option>
+              </select>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 6 }}>
                 Questions in Drill
               </label>
               <div style={{ padding: '10px 12px', borderRadius: 8, background: '#f8faf9', border: '1px solid #dcebe0', fontSize: 14, fontWeight: 700 }}>
-                {questions.length} Questions ({Math.round(questions.length * 1.5)} minutes estimated)
+                {questions.length} Questions ({Math.round(selectedDuration / 60)} mins limit)
               </div>
             </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+            <input
+              type="checkbox"
+              id="shuffleQuestions"
+              checked={shuffleQuestions}
+              onChange={(e) => setShuffleQuestions(e.target.checked)}
+              style={{ width: 18, height: 18, accentColor: '#12603d', cursor: 'pointer' }}
+            />
+            <label htmlFor="shuffleQuestions" style={{ fontSize: 13, fontWeight: 600, color: '#374151', cursor: 'pointer' }}>
+              Shuffle questions randomly (simulate real computer-based testing)
+            </label>
           </div>
 
           <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12, padding: 16, marginBottom: 24 }}>

@@ -1082,17 +1082,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         (updatedProfile as any)[counterKey] = used + 1;
       }
 
-      // Upsert (keyed by id) instead of update: when no profiles row exists
-      // yet, an UPDATE would silently match zero rows while an INSERT here is
-      // permitted by RLS (id = auth.uid()), creating it on first save.
-      const { error } = await supabase.from('profiles').upsert({
-        id: user.id,
-        email: user.email,
-        ...dbUpdates
-      });
+      // Update existing profile row first to follow profiles_update_policy.
+      // A raw upsert invokes INSERT ... ON CONFLICT DO UPDATE, which evaluates
+      // profiles_insert_policy (requiring verified=false and role='student') and
+      // fails for verified students, lecturers, admins, and vendors.
+      const { data: updateData, error: updateError } = await supabase
+        .from('profiles')
+        .update(dbUpdates)
+        .eq('id', user.id)
+        .select('id');
 
-      if (error) {
-        return { error: toUserFacingAuthError(error, 'The request could not be completed. Please try again.') };
+      if (updateError) {
+        return { error: toUserFacingAuthError(updateError, 'The request could not be completed. Please try again.') };
+      }
+
+      // If no profile row existed yet (e.g. freshly registered auth user), perform the initial insert.
+      if (!updateData || updateData.length === 0) {
+        const { error: insertError } = await supabase.from('profiles').insert({
+          id: user.id,
+          email: user.email,
+          role: 'student',
+          is_active: true,
+          verified: false,
+          permissions: [],
+          ...dbUpdates
+        });
+
+        if (insertError) {
+          return { error: toUserFacingAuthError(insertError, 'The request could not be completed. Please try again.') };
+        }
       }
 
       setProfile(updatedProfile);

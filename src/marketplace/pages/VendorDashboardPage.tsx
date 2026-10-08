@@ -58,7 +58,8 @@ import type {
   AdvertPackage,
   AdvertAudience,
 } from '../lib/types';
-import { formatNaira, formatDate, formatOrderStatus } from '../lib/format';
+import { formatNaira, formatDate, formatOrderStatus, resolveProductImageUrl } from '../lib/format';
+import { getProductFallbackImage } from '../components/ProductCard';
 import { useAuth } from '../lib/auth';
 import { useToast } from '../components/Toast';
 import { Modal } from '../components/Modal';
@@ -907,13 +908,14 @@ export const VendorDashboardPage: React.FC = () => {
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 14, flex: 1, minWidth: 260 }}>
                       <div style={{ width: 54, height: 54, borderRadius: 8, background: 'var(--surface-alt, #f4f8f5)', overflow: 'hidden', flexShrink: 0 }}>
-                        {p.thumbnail_url || p.images?.[0]?.url ? (
-                          <img src={p.thumbnail_url || p.images?.[0]?.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        ) : (
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-                            <Package size={22} color="var(--muted, #55675b)" />
-                          </div>
-                        )}
+                        {(() => {
+                          const thumbSrc = resolveProductImageUrl(
+                            p.thumbnail_url || (p as any).thumbnail_path || p.images?.[0]?.url || (p.images?.[0] as any)?.storage_path
+                          ) || getProductFallbackImage(p);
+                          return (
+                            <img src={thumbSrc} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          );
+                        })()}
                       </div>
 
                       <div>

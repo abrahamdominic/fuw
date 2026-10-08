@@ -89,6 +89,9 @@ export function resolveProductImageUrl(pathOrUrl?: string | null): string {
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
     return trimmed;
   }
-  const cleanPath = trimmed.startsWith('/') ? trimmed.slice(1) : trimmed;
+  let cleanPath = trimmed.startsWith('/') ? trimmed.slice(1) : trimmed;
+  if (cleanPath.startsWith('marketplace-product-images/')) {
+    cleanPath = cleanPath.slice('marketplace-product-images/'.length);
+  }
   return `${SUPABASE_STORAGE_PRODUCT_URL}${cleanPath}`;
 }

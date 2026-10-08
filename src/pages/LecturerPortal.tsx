@@ -59,7 +59,8 @@ import {
 } from '../lib/materials';
 import {
   lecturerUpdateOwnProfile,
-  lecturerBroadcastAnnouncement
+  lecturerBroadcastAnnouncement,
+  lecturerDeleteAnnouncement
 } from '../lib/academics';
 import { requireSupabase, supabase } from '../lib/supabase';
 import { catalogue, materialTypes, levelsFor } from '../data/catalogue';
@@ -1572,12 +1573,77 @@ function LecturerNotificationsTab({
   const [sentBroadcasts, setSentBroadcasts] = useState<any[]>([]);
   const [loadingBroadcasts, setLoadingBroadcasts] = useState(false);
 
-  // Form state for creating announcement
+  // Form state for creating/editing announcement
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [announcementType, setAnnouncementType] = useState<'general' | 'important' | 'assignment' | 'exam'>('general');
   const [targetScope, setTargetScope] = useState<'department' | 'all_departments' | 'faculty'>('department');
+  const [targetLevels, setTargetLevels] = useState<string[]>([]);
+  const [isDraft, setIsDraft] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const ALL_LEVELS = ['100L', '200L', '300L', '400L', '500L'];
+
+  const toggleLevel = (lvl: string) => {
+    setTargetLevels((prev) =>
+      prev.includes(lvl) ? prev.filter((l) => l !== lvl) : [...prev, lvl]
+    );
+  };
+
+  const handleOpenCreate = () => {
+    setEditingId(null);
+    setTitle('');
+    setBody('');
+    setAnnouncementType('general');
+    setTargetScope('department');
+    setTargetLevels([]);
+    setIsDraft(false);
+    setBroadcastModalOpen(true);
+  };
+
+  const handleOpenEdit = (b: any) => {
+    setEditingId(b.id);
+    setTitle(b.title || '');
+    setBody(b.body || '');
+    setAnnouncementType(b.announcement_type || 'general');
+    setTargetScope(b.target_faculty_id ? 'faculty' : (b.target_department_ids && b.target_department_ids.length > 1 ? 'all_departments' : 'department'));
+    setTargetLevels(Array.isArray(b.target_levels) ? b.target_levels : []);
+    setIsDraft(!b.is_published);
+    setBroadcastModalOpen(true);
+  };
+
+  const handleDelete = async (broadcastId: string) => {
+    if (!window.confirm('Are you sure you want to delete this announcement?')) return;
+    try {
+      await lecturerDeleteAnnouncement(broadcastId);
+      toast('Announcement deleted successfully.', 'success');
+      await loadSentBroadcasts();
+      onRefresh();
+    } catch (err: any) {
+      toast(err.message || 'Failed to delete announcement.', 'error');
+    }
+  };
+
+  const handlePublishDraft = async (b: any) => {
+    try {
+      await lecturerBroadcastAnnouncement({
+        title: b.title,
+        body: b.body,
+        facultyId: b.target_faculty_id,
+        departmentIds: b.target_department_ids,
+        announcementType: b.announcement_type,
+        targetLevels: b.target_levels,
+        isDraft: false,
+        announcementId: b.id
+      });
+      toast('Draft announcement published and broadcast to students!', 'success');
+      await loadSentBroadcasts();
+      onRefresh();
+    } catch (err: any) {
+      toast(err.message || 'Failed to publish announcement.', 'error');
+    }
+  };
 
   const loadSentBroadcasts = async () => {
     if (!supabase) return;
@@ -1586,8 +1652,8 @@ function LecturerNotificationsTab({
       const { data, error } = await supabase
         .from('library_announcements')
         .select('*')
-        .order('published_at', { ascending: false })
-        .limit(20);
+        .order('created_at', { ascending: false })
+        .limit(30);
       if (!error && data) {
         setSentBroadcasts(data);
       }
@@ -1613,7 +1679,7 @@ function LecturerNotificationsTab({
     }
   };
 
-  const handleBroadcast = async (e: React.FormEvent) => {
+  const handleBroadcast = async (e: React.FormEvent, forceDraft: boolean = isDraft) => {
     e.preventDefault();
     if (!title.trim()) {
       toast('Please enter an announcement title.', 'error');
@@ -1646,17 +1712,23 @@ function LecturerNotificationsTab({
         body: body.trim(),
         facultyId: facultyId || undefined,
         departmentIds: deptIds && deptIds.length > 0 ? deptIds : undefined,
-        announcementType
+        announcementType,
+        targetLevels: targetLevels.length > 0 ? targetLevels : undefined,
+        isDraft: forceDraft,
+        announcementId: editingId
       });
 
-      toast('Announcement broadcast successfully to students!', 'success');
-      setTitle('');
-      setBody('');
+      toast(
+        forceDraft
+          ? 'Announcement saved as draft.'
+          : (editingId ? 'Announcement updated successfully.' : 'Announcement broadcast successfully to students!'),
+        'success'
+      );
       setBroadcastModalOpen(false);
       await loadSentBroadcasts();
       onRefresh();
     } catch (err: any) {
-      toast(err.message || 'Failed to broadcast announcement.', 'error');
+      toast(err.message || 'Failed to process announcement.', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -1676,7 +1748,7 @@ function LecturerNotificationsTab({
           <button
             type="button"
             className="primary"
-            onClick={() => setBroadcastModalOpen(true)}
+            onClick={handleOpenCreate}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -1756,7 +1828,7 @@ function LecturerNotificationsTab({
               <button
                 type="button"
                 className="primary"
-                onClick={() => setBroadcastModalOpen(true)}
+                onClick={handleOpenCreate}
                 style={{ fontSize: 13 }}
               >
                 Create Announcement
@@ -1768,35 +1840,126 @@ function LecturerNotificationsTab({
                 <div
                   key={b.id}
                   style={{
-                    padding: '14px 18px',
+                    padding: '16px 18px',
                     borderBottom: '1px solid var(--border, #edf4f0)',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: 4
+                    gap: 6
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <strong style={{ fontSize: 15, color: 'var(--green-900, #0d4a2f)' }}>{b.title || 'Announcement'}</strong>
-                    <span
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 700,
-                        textTransform: 'uppercase',
-                        padding: '2px 8px',
-                        borderRadius: 4,
-                        background: b.announcement_type === 'important' ? '#fee2e2' : '#e8f5ec',
-                        color: b.announcement_type === 'important' ? '#991b1b' : '#065f46'
-                      }}
-                    >
-                      {b.announcement_type || 'General'}
-                    </span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <strong style={{ fontSize: 15, color: 'var(--green-900, #0d4a2f)' }}>{b.title || 'Announcement'}</strong>
+                      <span
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 800,
+                          textTransform: 'uppercase',
+                          padding: '2px 6px',
+                          borderRadius: 4,
+                          background: b.is_published ? '#e8f5ec' : '#f1f5f9',
+                          color: b.is_published ? '#065f46' : '#64748b',
+                          border: `1px solid ${b.is_published ? '#bbf7d0' : '#cbd5e1'}`
+                        }}
+                      >
+                        {b.is_published ? 'Published' : 'Draft'}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                          padding: '2px 8px',
+                          borderRadius: 4,
+                          background: b.announcement_type === 'important' ? '#fee2e2' : '#e0f2fe',
+                          color: b.announcement_type === 'important' ? '#991b1b' : '#0369a1'
+                        }}
+                      >
+                        {b.announcement_type || 'General'}
+                      </span>
+                      {b.target_levels && b.target_levels.length > 0 && (
+                        <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, background: '#fef3c7', color: '#92400e', fontWeight: 600 }}>
+                          {b.target_levels.join(', ')}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div style={{ margin: '6px 0', fontSize: 13, lineHeight: 1.5, color: 'var(--text-primary, #17231d)' }}>
+
+                  <div style={{ margin: '4px 0', fontSize: 13, lineHeight: 1.5, color: 'var(--text-primary, #17231d)' }}>
                     <MessageText body={b.body || ''} />
                   </div>
-                  <small style={{ color: 'var(--text-secondary, #55675b)', fontSize: 12 }}>
-                    Broadcast on {formatBroadcastDate(b.published_at || b.created_at)}
-                  </small>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, flexWrap: 'wrap', gap: 8 }}>
+                    <small style={{ color: 'var(--text-secondary, #55675b)', fontSize: 12 }}>
+                      {b.is_published
+                        ? `Broadcast on ${formatBroadcastDate(b.published_at || b.created_at)}`
+                        : `Saved as draft on ${formatBroadcastDate(b.created_at)}`}
+                    </small>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {!b.is_published && (
+                        <button
+                          type="button"
+                          onClick={() => handlePublishDraft(b)}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            padding: '4px 10px',
+                            borderRadius: 6,
+                            background: '#e8f5ec',
+                            color: '#0d4a2f',
+                            border: '1px solid #bbf7d0',
+                            fontSize: 12,
+                            fontWeight: 700,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <CheckCircle2 size={13} /> Publish Now
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEdit(b)}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          padding: '4px 8px',
+                          borderRadius: 6,
+                          background: 'transparent',
+                          color: 'var(--text-secondary, #55675b)',
+                          border: '1px solid var(--border, #dcebe0)',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <Edit3 size={13} /> Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(b.id)}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          padding: '4px 8px',
+                          borderRadius: 6,
+                          background: 'transparent',
+                          color: '#dc2626',
+                          border: '1px solid #fecaca',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <Trash2 size={13} /> Delete
+                      </button>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1847,7 +2010,7 @@ function LecturerNotificationsTab({
             style={{
               background: 'var(--surface, #ffffff)',
               borderRadius: 16,
-              maxWidth: 540,
+              maxWidth: 560,
               width: '100%',
               padding: 'clamp(16px, 3.5vw, 24px)',
               boxShadow: '0 20px 40px rgba(0,0,0,0.15)',
@@ -1857,7 +2020,7 @@ function LecturerNotificationsTab({
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: 'var(--green-900, #0d4a2f)' }}>
-                Broadcast Student Announcement
+                {editingId ? 'Edit Announcement' : 'Broadcast Student Announcement'}
               </h3>
               <button
                 type="button"
@@ -1868,7 +2031,7 @@ function LecturerNotificationsTab({
               </button>
             </div>
 
-            <form onSubmit={handleBroadcast}>
+            <form onSubmit={(e) => handleBroadcast(e, false)}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 20 }}>
                 <div>
                   <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 6 }}>
@@ -1891,57 +2054,113 @@ function LecturerNotificationsTab({
                   />
                 </div>
 
-                <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 6 }}>
-                    Target Audience Scope *
-                  </label>
-                  <select
-                    value={targetScope}
-                    onChange={(e) => setTargetScope(e.target.value as any)}
-                    style={{
-                      width: '100%',
-                      boxSizing: 'border-box',
-                      padding: '10px 12px',
-                      borderRadius: 8,
-                      border: '1px solid var(--border, #dcebe0)',
-                      fontSize: 14
-                    }}
-                  >
-                    <option value="department">
-                      Primary Department ({lecturer?.departmentName || 'Your Department'})
-                    </option>
-                    {secondaryDepartments.length > 0 && (
-                      <option value="all_departments">
-                        All Assigned Departments (Primary + {secondaryDepartments.length} Secondary)
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 6 }}>
+                      Target Department / Faculty Scope *
+                    </label>
+                    <select
+                      value={targetScope}
+                      onChange={(e) => setTargetScope(e.target.value as any)}
+                      style={{
+                        width: '100%',
+                        boxSizing: 'border-box',
+                        padding: '10px 12px',
+                        borderRadius: 8,
+                        border: '1px solid var(--border, #dcebe0)',
+                        fontSize: 14
+                      }}
+                    >
+                      <option value="department">
+                        Primary ({lecturer?.departmentName || 'Your Department'})
                       </option>
-                    )}
-                    <option value="faculty">
-                      Entire Faculty ({lecturer?.facultyName || 'Your Faculty'})
-                    </option>
-                  </select>
+                      {secondaryDepartments.length > 0 && (
+                        <option value="all_departments">
+                          All Assigned ({1 + secondaryDepartments.length} Departments)
+                        </option>
+                      )}
+                      <option value="faculty">
+                        Entire Faculty ({lecturer?.facultyName || 'Your Faculty'})
+                      </option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 6 }}>
+                      Notice Category
+                    </label>
+                    <select
+                      value={announcementType}
+                      onChange={(e) => setAnnouncementType(e.target.value as any)}
+                      style={{
+                        width: '100%',
+                        boxSizing: 'border-box',
+                        padding: '10px 12px',
+                        borderRadius: 8,
+                        border: '1px solid var(--border, #dcebe0)',
+                        fontSize: 14
+                      }}
+                    >
+                      <option value="general">General Notice</option>
+                      <option value="assignment">Assignment / Coursework</option>
+                      <option value="exam">Exam / Test Notice</option>
+                      <option value="important">Urgent Advisory</option>
+                    </select>
+                  </div>
                 </div>
 
+                {/* Level Targeting */}
                 <div>
                   <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 6 }}>
-                    Category
+                    Target Academic Level (optional)
                   </label>
-                  <select
-                    value={announcementType}
-                    onChange={(e) => setAnnouncementType(e.target.value as any)}
-                    style={{
-                      width: '100%',
-                      boxSizing: 'border-box',
-                      padding: '10px 12px',
-                      borderRadius: 8,
-                      border: '1px solid var(--border, #dcebe0)',
-                      fontSize: 14
-                    }}
-                  >
-                    <option value="general">General Academic Notice</option>
-                    <option value="assignment">Assignment / Coursework Update</option>
-                    <option value="exam">Exam / Test Schedule</option>
-                    <option value="important">Urgent / Important Advisory</option>
-                  </select>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {ALL_LEVELS.map((lvl) => {
+                      const isSelected = targetLevels.includes(lvl);
+                      return (
+                        <button
+                          key={lvl}
+                          type="button"
+                          onClick={() => toggleLevel(lvl)}
+                          style={{
+                            padding: '6px 12px',
+                            borderRadius: 6,
+                            fontSize: 12,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            border: isSelected ? '1px solid #12603d' : '1px solid var(--border, #dcebe0)',
+                            background: isSelected ? '#e8f5ec' : 'var(--surface-alt, #f4f8f5)',
+                            color: isSelected ? '#12603d' : 'var(--text-secondary, #55675b)'
+                          }}
+                        >
+                          {lvl}
+                        </button>
+                      );
+                    })}
+                    {targetLevels.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setTargetLevels([])}
+                        style={{
+                          padding: '6px 10px',
+                          borderRadius: 6,
+                          fontSize: 11,
+                          fontWeight: 600,
+                          border: 'none',
+                          background: 'transparent',
+                          color: '#dc2626',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Clear (All Levels)
+                      </button>
+                    )}
+                  </div>
+                  <span style={{ fontSize: 11, color: 'var(--text-secondary, #55675b)', display: 'block', marginTop: 4 }}>
+                    {targetLevels.length === 0
+                      ? 'Targeting all student levels in the chosen scope.'
+                      : `Notifications will be restricted to students in ${targetLevels.join(', ')}.`}
+                  </span>
                 </div>
 
                 <div>
@@ -1967,13 +2186,13 @@ function LecturerNotificationsTab({
                 </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, flexWrap: 'wrap' }}>
                 <button
                   type="button"
                   onClick={() => setBroadcastModalOpen(false)}
                   className="btn btn-secondary"
                   style={{
-                    padding: '10px 16px',
+                    padding: '9px 14px',
                     borderRadius: 8,
                     border: '1px solid var(--border, #dcebe0)',
                     background: 'transparent',
@@ -1984,11 +2203,29 @@ function LecturerNotificationsTab({
                   Cancel
                 </button>
                 <button
-                  type="submit"
+                  type="button"
                   disabled={isSubmitting || !title.trim() || !body.trim()}
+                  onClick={(e) => handleBroadcast(e, true)}
+                  style={{
+                    padding: '9px 16px',
+                    borderRadius: 8,
+                    border: '1px solid #cbd5e1',
+                    background: '#f1f5f9',
+                    color: '#334155',
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    fontWeight: 700
+                  }}
+                >
+                  Save Draft
+                </button>
+                <button
+                  type="button"
+                  disabled={isSubmitting || !title.trim() || !body.trim()}
+                  onClick={(e) => handleBroadcast(e, false)}
                   className="btn btn-primary"
                   style={{
-                    padding: '10px 20px',
+                    padding: '9px 18px',
                     borderRadius: 8,
                     background: 'var(--green-900, #0d4a2f)',
                     color: '#fff',
@@ -2004,7 +2241,7 @@ function LecturerNotificationsTab({
                   {isSubmitting ? (
                     <Loader2 size={16} className="animate-spin" />
                   ) : (
-                    <>Send Broadcast</>
+                    <>Broadcast &amp; Notify</>
                   )}
                 </button>
               </div>

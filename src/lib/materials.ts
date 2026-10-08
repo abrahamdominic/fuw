@@ -375,13 +375,27 @@ export async function fetchMaterialCounts(): Promise<MaterialCounts> {
   return { approved, pending, rejected, totalDownloads, totalViews };
 }
 
-export async function incrementDownload(materialId: string): Promise<void> {
-  if (!supabase) return;
+export async function incrementDownload(materialId: string): Promise<{
+  success: boolean;
+  is_premium?: boolean;
+  free_downloads_used?: number;
+  free_downloads_remaining?: number;
+}> {
+  if (!supabase) return { success: true };
+  try {
+    const { data, error } = await supabase.rpc('record_material_download', { p_material_id: materialId });
+    if (!error && data) {
+      return data;
+    }
+  } catch {
+    // fallback to legacy count increment
+  }
   try {
     await supabase.rpc('increment_download_count', { material_id: materialId });
   } catch {
     // RPC may not exist yet — the count simply stays stale.
   }
+  return { success: true };
 }
 
 export async function incrementView(materialId: string): Promise<void> {

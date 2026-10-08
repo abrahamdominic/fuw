@@ -3,6 +3,7 @@ import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   Home,
+  Compass,
   ShieldCheck,
   MailPlus,
   LogOut,
@@ -67,7 +68,7 @@ interface InviteRow {
 }
 
 const superNavItems = [
-  { label: 'Home', path: '/home', icon: Home, exact: true },
+  { label: 'Campus Hub', path: '/hub', icon: Compass },
   { label: 'Overview', path: '/super', icon: LayoutDashboard, exact: true },
   { label: 'Administrators', path: '/super/admins', icon: ShieldCheck },
   { label: 'Admin invites', path: '/super/invites', icon: MailPlus },

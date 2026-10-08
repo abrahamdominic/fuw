@@ -660,7 +660,7 @@ export async function fetchConversations(): Promise<MarketplaceConversation[]> {
       *,
       vendor:marketplace_vendors(id, store_name, slug, logo_url, owner_id),
       buyer:profiles!buyer_id(id, full_name, avatar_url),
-      product:marketplace_products(id, title, price_kobo, thumbnail_url)
+      product:marketplace_products(id, title, price_kobo, thumbnail_path)
     `)
     .order('last_message_at', { ascending: false });
 
@@ -842,7 +842,7 @@ export async function fetchVendorReviews(vendorId: string): Promise<MarketplaceR
     .select(`
       *,
       reviewer:profiles!author_id(id, full_name, avatar_url, faculty, department),
-      product:marketplace_products(id, title, thumbnail_url)
+      product:marketplace_products(id, title, thumbnail_path)
     `)
     .eq('vendor_id', vendorId)
     .eq('is_hidden', false)
@@ -1477,6 +1477,15 @@ export async function fetchAdminVerifications() {
 
   if (error) throw error;
   return data || [];
+}
+
+export async function setAdminVerifiedVendorBadge(vendorId: string, enabled: boolean) {
+  const { data, error } = await supabase.rpc('admin_set_verified_vendor_badge', {
+    p_vendor_id: vendorId,
+    p_enabled: enabled,
+  });
+  if (error) throw error;
+  return data;
 }
 
 /**

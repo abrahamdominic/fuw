@@ -538,7 +538,7 @@ export function App() {
             />
             <Route
               path="/home"
-              element={<RootRedirect />}
+              element={<Navigate to="/hub" replace />}
             />
             <Route
               path="/library"

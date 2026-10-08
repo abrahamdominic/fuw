@@ -1,7 +1,7 @@
 // StudentSubscriptionTab — premium plan status and what is (or is not) unlocked.
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BadgeCheck, Check, Clipboard, Copy, FileUp, Loader2, Lock, RefreshCw, ShieldAlert, Wallet, X, ShoppingBag } from 'lucide-react';
+import { BadgeCheck, Check, Clipboard, Copy, FileUp, Loader2, Lock, RefreshCw, ShieldAlert, Wallet, X, ShoppingBag, Gift } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { fetchCatalogPlans, fetchMyPremiumSource, naira, type CatalogPlan } from '../lib/verification';
 import { fetchUserEscrowCredit, type EscrowCreditInfo } from '../marketplace/lib/api';
@@ -14,6 +14,7 @@ import {
   fetchPremiumPublicConfiguration,
   fetchMyWalletBalance,
   payPremiumPlanFromWallet,
+  giftPremiumPlanFromWallet,
   startAutomaticPayment,
   submitPaymentRequest,
   verifyAutomaticPayment,
@@ -47,6 +48,12 @@ export function StudentSubscriptionTab() {
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [escrowCredit, setEscrowCredit] = useState<EscrowCreditInfo | null>(null);
+  const [giftRecipient, setGiftRecipient] = useState('');
+  const [giftPlanSlug, setGiftPlanSlug] = useState('semester-access');
+  const [giftLoading, setGiftLoading] = useState(false);
+  const [giftSuccessMsg, setGiftSuccessMsg] = useState<string | null>(null);
+  const [giftErrorMsg, setGiftErrorMsg] = useState<string | null>(null);
+  const [showGiftModal, setShowGiftModal] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -132,6 +139,25 @@ export function StudentSubscriptionTab() {
       setPaymentError(cause instanceof Error ? cause.message : 'Could not complete payment from wallet.');
     } finally {
       setWalletPaying(false);
+    }
+  };
+
+  const handleGiftPlan = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!giftRecipient.trim()) return;
+    setGiftLoading(true);
+    setGiftErrorMsg(null);
+    setGiftSuccessMsg(null);
+    try {
+      const res = await giftPremiumPlanFromWallet(giftRecipient.trim(), giftPlanSlug);
+      setGiftSuccessMsg(`Successfully gifted ${res.plan_name} to ${res.recipient_name} (${res.recipient_matric})! Reference: ${res.reference}`);
+      setGiftRecipient('');
+      setWallet(await fetchMyWalletBalance().catch(() => null));
+      setTransactions(await fetchMyPaymentTransactions());
+    } catch (cause) {
+      setGiftErrorMsg(cause instanceof Error ? cause.message : 'Could not complete gift purchase from wallet.');
+    } finally {
+      setGiftLoading(false);
     }
   };
 
@@ -386,6 +412,136 @@ export function StudentSubscriptionTab() {
             <p style={{ margin: '0 0 10px', fontSize: 13, color: '#55675b' }}>
               Upgrade to Campus Hub Plus (₦1,200/semester) and receive <strong>₦2,000 in Marketplace escrow credit</strong>, plus 50% discount on all subsequent escrow fees.
             </p>
+          </div>
+        )}
+      </section>
+
+      {/* Gift Premium Access to a Friend */}
+      <section style={{ background: '#fffbeb', borderRadius: 14, border: '1.5px solid #fde68a', padding: 22, marginBottom: 24, boxShadow: '0 2px 8px rgba(245, 158, 11, 0.05)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#fef3c7', color: '#b45309', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+              <Gift size={22} />
+            </div>
+            <div>
+              <strong style={{ fontSize: 16, color: '#92400e', display: 'block' }}>
+                Gift Campus Hub Plus to a Classmate
+              </strong>
+              <p style={{ margin: '2px 0 0', fontSize: 13, color: '#78350f' }}>
+                Sponsor a peer with ₦1,200 semester access directly from your FUW Wallet. They instantly unlock exam vaults &amp; ₦2,000 escrow credit!
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowGiftModal(!showGiftModal)}
+            className="btn btn-primary"
+            style={{
+              padding: '9px 18px',
+              fontSize: 13,
+              fontWeight: 700,
+              background: '#b45309',
+              border: 'none',
+              color: '#ffffff',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6
+            }}
+          >
+            <Gift size={16} />
+            {showGiftModal ? 'Close Gifting' : 'Gift Premium Now'}
+          </button>
+        </div>
+
+        {giftSuccessMsg && (
+          <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 8, background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#065f46', fontSize: 13, fontWeight: 600 }}>
+            <Check size={16} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />
+            {giftSuccessMsg}
+          </div>
+        )}
+
+        {giftErrorMsg && (
+          <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 8, background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', fontSize: 13 }}>
+            {giftErrorMsg}
+          </div>
+        )}
+
+        {showGiftModal && (
+          <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid #fef3c7' }}>
+            <form onSubmit={handleGiftPlan} style={{ display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 500 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#92400e', marginBottom: 4 }}>
+                  Recipient Student Matric Number or Email
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. FUW/2023/1234 or student@fuw.edu.ng"
+                  value={giftRecipient}
+                  onChange={(e) => setGiftRecipient(e.target.value)}
+                  required
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 14 }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#92400e', marginBottom: 4 }}>
+                  Select Gift Plan
+                </label>
+                <select
+                  value={giftPlanSlug}
+                  onChange={(e) => setGiftPlanSlug(e.target.value)}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 14, background: '#ffffff' }}
+                >
+                  {plans.filter((p) => p.is_premium && p.price_kobo > 0).map((p) => (
+                    <option key={p.slug} value={p.slug}>
+                      {p.name} — {naira(p.price_kobo, p.currency)}
+                    </option>
+                  ))}
+                  {plans.filter((p) => p.is_premium && p.price_kobo > 0).length === 0 && (
+                    <option value="semester-access">Semester Access — ₦1,200</option>
+                  )}
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, background: '#ffffff', padding: '10px 14px', borderRadius: 8, border: '1px solid #fde68a' }}>
+                <span style={{ fontSize: 13, color: '#55675b' }}>
+                  Wallet Balance: <strong style={{ color: '#17231d' }}>{formatNaira(wallet?.available_kobo ?? 0)}</strong>
+                </span>
+                {(wallet?.available_kobo ?? 0) < 120000 && (
+                  <Link
+                    to="/marketplace/wallet"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontSize: 12, fontWeight: 700, color: '#b45309', textDecoration: 'underline' }}
+                  >
+                    Top up Wallet
+                  </Link>
+                )}
+              </div>
+
+              <button
+                type="submit"
+                disabled={giftLoading || !giftRecipient.trim() || (wallet?.available_kobo ?? 0) < 120000}
+                className="btn btn-primary"
+                style={{
+                  padding: '10px 18px',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  background: '#b45309',
+                  border: 'none',
+                  color: '#ffffff',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  cursor: (wallet?.available_kobo ?? 0) < 120000 ? 'not-allowed' : 'pointer',
+                  opacity: (wallet?.available_kobo ?? 0) < 120000 ? 0.6 : 1
+                }}
+              >
+                {giftLoading ? <Loader2 size={16} className="animate-spin" /> : <Gift size={16} />}
+                {giftLoading ? 'Debiting wallet & sending gift…' : 'Debit Wallet & Send Gift'}
+              </button>
+            </form>
           </div>
         )}
       </section>

@@ -14,6 +14,7 @@ import {
   resolveDispute,
   resolveReport,
   reviewVendorVerification,
+  setAdminVerifiedVendorBadge,
   fetchPlatformSettings,
   fetchPendingManualTransfers,
   confirmManualTransfer,
@@ -913,9 +914,31 @@ export const AdminPortalPage: React.FC = () => {
                       </div>
                     </div>
                   ) : (
-                    <span style={{ fontWeight: 700, textTransform: 'uppercase', fontSize: 12, color: v.status === 'verified' ? '#065f46' : '#991b1b' }}>
-                      {v.status}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontWeight: 700, textTransform: 'uppercase', fontSize: 12, color: v.status === 'verified' ? '#065f46' : '#991b1b' }}>
+                        {v.status}
+                      </span>
+                      {v.vendor_id && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              const nextState = v.status !== 'verified';
+                              await setAdminVerifiedVendorBadge(v.vendor_id, nextState);
+                              toast(`Vendor badge ${nextState ? 'enabled' : 'revoked'}.`, 'success');
+                              const next = await fetchAdminVerifications();
+                              setVerifications(next);
+                            } catch (e: any) {
+                              toast(e.message || 'Could not update badge.', 'error');
+                            }
+                          }}
+                          className="btn btn-secondary"
+                          style={{ padding: '4px 10px', fontSize: 11 }}
+                        >
+                          {v.status === 'verified' ? 'Revoke Badge' : 'Re-verify'}
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               ))

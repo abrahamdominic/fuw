@@ -112,13 +112,17 @@ export const EcosystemSwitcher: React.FC<EcosystemSwitcherProps> = ({
       <div
         className={`ecosystem-quick-bar ${className}`}
         style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(4, 1fr)',
+          display: 'flex',
+          alignItems: 'center',
           gap: 6,
           padding: '8px',
           background: 'var(--surface-alt, #f4f8f5)',
           borderRadius: 12,
-          border: '1px solid var(--border, #dcebe0)'
+          border: '1px solid var(--border, #dcebe0)',
+          overflowX: 'auto',
+          WebkitOverflowScrolling: 'touch',
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none'
         }}
       >
         {ECOSYSTEM_PILLARS.map((pillar) => {
@@ -133,6 +137,8 @@ export const EcosystemSwitcher: React.FC<EcosystemSwitcherProps> = ({
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
+                flex: '1 1 0',
+                minWidth: '64px',
                 gap: 4,
                 padding: '6px 4px',
                 borderRadius: 8,
@@ -140,7 +146,8 @@ export const EcosystemSwitcher: React.FC<EcosystemSwitcherProps> = ({
                 background: isActive ? '#ffffff' : 'transparent',
                 boxShadow: isActive ? '0 2px 6px rgba(0,0,0,0.08)' : 'none',
                 border: isActive ? `1px solid ${pillar.color}` : '1px solid transparent',
-                transition: 'all 0.15s ease'
+                transition: 'all 0.15s ease',
+                flexShrink: 0
               }}
             >
               <div
@@ -152,7 +159,8 @@ export const EcosystemSwitcher: React.FC<EcosystemSwitcherProps> = ({
                   alignItems: 'center',
                   justifyContent: 'center',
                   background: isActive ? pillar.bgColor : 'transparent',
-                  color: pillar.color
+                  color: pillar.color,
+                  flexShrink: 0
                 }}
               >
                 <Icon size={16} />
@@ -162,7 +170,8 @@ export const EcosystemSwitcher: React.FC<EcosystemSwitcherProps> = ({
                   fontSize: 11,
                   fontWeight: isActive ? 700 : 500,
                   color: isActive ? 'var(--text-primary, #17231d)' : 'var(--text-secondary, #55675b)',
-                  whiteSpace: 'nowrap'
+                  whiteSpace: 'nowrap',
+                  textAlign: 'center'
                 }}
               >
                 {pillar.shortName}

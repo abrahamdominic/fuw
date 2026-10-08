@@ -824,16 +824,30 @@ export async function lecturerBroadcastAnnouncement(input: {
   facultyId?: string | null;
   departmentIds?: string[] | null;
   announcementType?: 'general' | 'important' | 'assignment' | 'exam';
+  targetLevels?: string[] | null;
+  isDraft?: boolean;
+  announcementId?: string | null;
 }): Promise<string> {
   const { data, error } = await requireSupabase().rpc('lecturer_broadcast_announcement', {
     p_title: input.title,
     p_body: input.body,
     p_target_faculty_id: input.facultyId ?? null,
     p_target_department_ids: input.departmentIds ?? null,
-    p_announcement_type: input.announcementType ?? 'general'
+    p_announcement_type: input.announcementType ?? 'general',
+    p_target_levels: input.targetLevels ?? null,
+    p_is_draft: input.isDraft ?? false,
+    p_announcement_id: input.announcementId ?? null
   });
   throwOn(error);
   return data;
+}
+
+export async function lecturerDeleteAnnouncement(announcementId: string): Promise<void> {
+  const { error } = await requireSupabase()
+    .from('library_announcements')
+    .delete()
+    .eq('id', announcementId);
+  throwOn(error);
 }
 
 export async function completeUserOnboarding(

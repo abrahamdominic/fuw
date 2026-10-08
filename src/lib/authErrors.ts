@@ -70,6 +70,23 @@ export function toUserFacingAuthError(err: unknown, fallback: string): Error {
     return new Error('No passkey was found for this account on this device.');
   }
 
+  // ── Domain & profile identity rules (custom triggers & checks) ───────────
+  if (
+    lower.includes('matriculation number is locked') ||
+    lower.includes('profile is complete') ||
+    lower.includes('allowed changes') ||
+    lower.includes('change counters') ||
+    lower.includes('profile change request') ||
+    lower.includes('verification state') ||
+    lower.includes('already in use by another')
+  ) {
+    return new Error(msg);
+  }
+
+  if (lower.includes('profiles_matric_number_key') || (lower.includes('unique constraint') && lower.includes('matric'))) {
+    return new Error('This matriculation number is already in use by another student.');
+  }
+
   // ── Account-level flows ─────────────────────────────────────────────────
   if (lower.includes('already registered') || lower.includes('already exists')) {
     return new Error('An account with this email already exists. Please log in instead.');

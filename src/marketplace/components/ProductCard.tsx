@@ -54,6 +54,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   const initialThumbnail = resolved || fallback;
   const [imgSrc, setImgSrc] = useState(initialThumbnail);
 
+  React.useEffect(() => {
+    setImgSrc(initialThumbnail);
+  }, [initialThumbnail]);
+
   const handleToggleFav = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();

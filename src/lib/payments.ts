@@ -311,3 +311,24 @@ export async function refundPaymentTransactionToWallet(
   return data;
 }
 
+export async function giftPremiumPlanFromWallet(
+  recipientIdentifier: string,
+  planSlug: string = 'semester-access'
+): Promise<{
+  success: boolean;
+  recipient_name: string;
+  recipient_matric: string;
+  plan_name: string;
+  amount_kobo: number;
+  expires_at: string;
+  reference: string;
+}> {
+  const { data, error } = await requireSupabase().rpc('gift_premium_plan_from_wallet', {
+    p_recipient_identifier: recipientIdentifier,
+    p_plan_slug: planSlug
+  });
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+

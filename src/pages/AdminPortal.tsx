@@ -4,6 +4,7 @@ import { supabase, requireSupabase } from '../lib/supabase';
 import {
   LayoutDashboard,
   Home,
+  Compass,
   Bed,
   FileText,
   Upload,
@@ -42,6 +43,7 @@ import {
   AlertTriangle,
   Shield,
   Store,
+  Sparkles,
   Check,
   Info,
   Globe,
@@ -127,7 +129,7 @@ interface AdminPortalProps {
 }
 
 const adminNavItems = [
-  { label: 'Home', path: '/home', icon: Home, exact: true, permission: null },
+  { label: 'Campus Hub', path: '/hub', icon: Compass, permission: null },
   { label: 'Overview', path: '/admin', icon: LayoutDashboard, exact: true, permission: null },
   { label: 'Materials & Approvals', path: '/admin/materials', icon: FileText, permission: null },
   { label: 'Upload material', path: '/admin/upload', icon: Upload, permission: 'upload_as_approved' },
@@ -1730,6 +1732,7 @@ interface AdminUserRow {
   level: string | null;
   role: 'student' | 'admin' | 'lecturer' | 'super_admin';
   verified: boolean | null;
+  has_golden_badge?: boolean | null;
   created_at: string;
 }
 
@@ -1755,7 +1758,7 @@ function AdminUsersTab() {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, full_name, email, matric_number, faculty, department, level, role, verified, created_at')
+        .select('id, full_name, email, matric_number, faculty, department, level, role, verified, has_golden_badge, created_at')
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -1828,6 +1831,31 @@ function AdminUsersTab() {
       }
     } catch {
       toast('Network error while updating verification.', 'error');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleToggleGoldenBadge = async (u: AdminUserRow) => {
+    if (!supabase) return;
+    const nextGolden = u.has_golden_badge !== true;
+    setBusyId(u.id);
+    try {
+      const { error } = await supabase.rpc('admin_set_golden_badge', {
+        p_user_id: u.id,
+        p_enabled: nextGolden
+      });
+      if (error) {
+        toast('Golden badge update failed: ' + error.message, 'error');
+      } else {
+        setUsers((prev) => prev.map((row) => (row.id === u.id ? { ...row, has_golden_badge: nextGolden } : row)));
+        toast(
+          `${u.full_name || u.email} ${nextGolden ? 'granted' : 'revoked'} Golden Honor Badge.`,
+          'success'
+        );
+      }
+    } catch {
+      toast('Network error while updating golden badge.', 'error');
     } finally {
       setBusyId(null);
     }
@@ -1940,6 +1968,26 @@ function AdminUsersTab() {
                     {verified ? <CheckCircle2 size={12} /> : <Clock size={12} />}
                     {verified ? 'VERIFIED' : u.matric_number ? 'UNVERIFIED' : 'PROFILE INCOMPLETE'}
                   </span>
+                  {u.has_golden_badge && (
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 3,
+                        marginTop: 4,
+                        padding: '2px 6px',
+                        borderRadius: 4,
+                        background: '#fef3c7',
+                        color: '#92400e',
+                        border: '1px solid #fcd34d',
+                        fontSize: 10,
+                        fontWeight: 700
+                      }}
+                      title="Golden Honor Scholar Badge (Granted by Administration)"
+                    >
+                      <Sparkles size={11} color="#b45309" /> GOLDEN BADGE
+                    </span>
+                  )}
                 </span>
                 <span className="table-action-stack">
                   {u.role === 'admin' ? (
@@ -1995,6 +2043,14 @@ function AdminUsersTab() {
                     title={verified ? 'Remove verified status from this account' : 'Mark this account as verified'}
                   >
                     {verified ? 'Unverify' : 'Verify'}
+                  </button>
+                  <button
+                    className={`table-action-btn ${u.has_golden_badge ? 'outline' : ''}`}
+                    disabled={busyId === u.id}
+                    onClick={() => void handleToggleGoldenBadge(u)}
+                    title={u.has_golden_badge ? 'Revoke Golden Honor Badge' : 'Grant Golden Honor Badge'}
+                  >
+                    {u.has_golden_badge ? 'Revoke Gold' : 'Grant Gold'}
                   </button>
                 </span>
               </div>

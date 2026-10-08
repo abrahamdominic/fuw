@@ -2,8 +2,9 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Trash2, ShoppingBag, ArrowRight, ShieldCheck, Store, MapPin } from 'lucide-react';
 import { useCart } from '../lib/cart';
-import { formatNaira } from '../lib/format';
+import { formatNaira, resolveProductImageUrl } from '../lib/format';
 import { EmptyState } from '../components/EmptyState';
+import { getProductFallbackImage } from '../components/ProductCard';
 import { mpPath } from '../lib/routes';
 
 export const CartPage: React.FC = () => {
@@ -107,7 +108,9 @@ export const CartPage: React.FC = () => {
               <div style={{ padding: '0 18px' }}>
                 {group.items.map((it) => {
                   const unitPrice = it.variant?.price_kobo ?? it.product.price_kobo;
-                  const thumb = it.product.thumbnail_url || it.product.images?.[0]?.url;
+                  const thumb = resolveProductImageUrl(
+                    it.product.thumbnail_url || (it.product as any).thumbnail_path || it.product.images?.[0]?.url || (it.product.images?.[0] as any)?.storage_path
+                  ) || getProductFallbackImage(it.product);
 
                   return (
                     <div

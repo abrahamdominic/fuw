@@ -116,6 +116,7 @@ import { ProfileSetupBanner } from '../components/ProfileSetupBanner';
 import { VerificationReminderBanner } from '../components/VerificationReminderBanner';
 import { StudentVerificationTab } from '../pages/StudentVerificationTab';
 import { StudentSubscriptionTab } from '../pages/StudentSubscriptionTab';
+import { StudentAffiliateTab } from '../pages/StudentAffiliateTab';
 import { useAuth } from '../lib/AuthContext';
 import { MessageComposer } from '../components/MessageComposer';
 import { MessageText } from '../components/MessageText';
@@ -216,6 +217,7 @@ const studentNavGroups = [
         icon: Wallet,
       },
       { label: 'Academic verification', path: '/student/verification', icon: BadgeCheck },
+      { label: 'Affiliate & Course Rep', path: '/student/affiliate', icon: Award },
       { label: 'Settings', path: '/student/settings', icon: Settings },
     ]
   }
@@ -813,6 +815,8 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
           <StudentVerificationTab />
         ) : currentPath.startsWith('/student/subscription') ? (
           <StudentSubscriptionTab />
+        ) : currentPath.startsWith('/student/affiliate') ? (
+          <StudentAffiliateTab />
         ) : currentPath.startsWith('/student/settings') ? (
           <StudentSettingsTab currentUser={currentUser} />
         ) : currentPath.startsWith('/student/course-upload') ? (
