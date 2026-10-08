@@ -48,8 +48,8 @@ const STUDENT_INTERESTS: StudentInterest[] = [
   },
   {
     id: 'accommodation',
-    label: 'Student Accomodation',
-    desc: 'Browse verified student lodges, off-campus hostels and connect with room seekers.',
+    label: 'Off-Campus Accommodation',
+    desc: 'Browse verified student lodges, off-campus apartments and connect with room seekers.',
     icon: <Home size={20} color="var(--green-700, #12603d)" />
   },
   {
@@ -192,15 +192,28 @@ export const OnboardingPage: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      await updateProfile({
-        faculty,
-        department,
-        level
-      });
+      const needsUpdate =
+        faculty !== profile?.faculty ||
+        department !== profile?.department ||
+        level !== profile?.level;
+
+      if (needsUpdate) {
+        await updateProfile({
+          faculty,
+          department,
+          level
+        });
+      }
       await saveStepProgress(3);
     } catch (err: any) {
-      toast(err.message || 'Failed to save academic profile.', 'error');
-      setIsSubmitting(false);
+      // If fields were already locked at DB level, proceed smoothly without trapping user
+      if (profile?.faculty && profile?.department) {
+        console.warn('Profile academic fields already locked, advancing step:', err);
+        await saveStepProgress(3);
+      } else {
+        toast(err.message || 'Failed to save academic profile.', 'error');
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -209,16 +222,21 @@ export const OnboardingPage: React.FC = () => {
   // ---------------------------------------------------------------------------
   const handleStudentMatricSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (matricNumber.trim()) {
+    const cleanMatric = matricNumber.trim().toUpperCase();
+    if (cleanMatric && cleanMatric !== profile?.matricNumber) {
       setIsSubmitting(true);
       try {
         await updateProfile({
-          matricNumber: matricNumber.trim().toUpperCase()
+          matricNumber: cleanMatric
         });
       } catch (err: any) {
-        toast(err.message || 'Failed to save matric number.', 'error');
-        setIsSubmitting(false);
-        return;
+        if (profile?.matricNumber) {
+          console.warn('Matric number already locked, advancing step:', err);
+        } else {
+          toast(err.message || 'Failed to save matric number.', 'error');
+          setIsSubmitting(false);
+          return;
+        }
       }
     }
     await saveStepProgress(4);
@@ -466,7 +484,7 @@ export const OnboardingPage: React.FC = () => {
                       <Home size={18} color="var(--green-800, #12603d)" />
                     </div>
                     <div>
-                      <strong style={{ fontSize: 14 }}>Hostels & Student Accomodation</strong>
+                      <strong style={{ fontSize: 14 }}>Off-Campus Student Accommodation & Lodges</strong>
                       <div style={{ fontSize: 12, color: 'var(--text-secondary, #55675b)' }}>
                         Browse verified lodges around Wukari with real pictures and caretaker contacts.
                       </div>

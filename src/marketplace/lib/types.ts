@@ -619,6 +619,7 @@ export interface MarketplaceSettlement {
 export interface PlatformSettings {
   id: number;
   default_commission_bps: number;
+  event_ticket_fee_kobo: number;
   default_delivery_fee_kobo: number;
   return_window_hours: number;
   settlement_delay_hours: number;

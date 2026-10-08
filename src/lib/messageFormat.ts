@@ -103,6 +103,7 @@ export function stripMessageMarkdown(body: string | null | undefined): string {
   if (!body) return '';
   return (body || '')
     .replace(/```/g, '\n')
+    .replace(/^>\s?/gm, '')
     .replace(/\*\*([^*]+)\*\*/g, '$1')
     .replace(/\*([^*]+)\*/g, '$1')
     .replace(/__([^_]+)__/g, '$1')
@@ -227,6 +228,7 @@ function elementToMarkdown(node: Node): string {
     case 'main':
     case 'nav':
     case 'blockquote':
+      return `\n> ${nodeToMarkdown(el).trim().replace(/\n+/g, '\n> ')}\n`;
     case 'figure':
     case 'figcaption':
     case 'address':
@@ -313,6 +315,7 @@ export type Block =
   | { type: 'code'; text: string }
   | { type: 'list'; items: { ordered: boolean; text: string }[] }
   | { type: 'heading'; level: 2 | 3 | 4; text: string }
+  | { type: 'quote'; text: string }
   | { type: 'para'; text: string };
 
 /** Split a message body into code / list / paragraph blocks. */
@@ -336,6 +339,7 @@ export function parseBlocks(body: string): Block[] {
       const lines = para.split('\n');
       let currentListItems: { ordered: boolean; text: string }[] = [];
       let currentParaLines: string[] = [];
+      let currentQuoteLines: string[] = [];
 
       const flushPara = () => {
         if (currentParaLines.length > 0) {
@@ -351,16 +355,33 @@ export function parseBlocks(body: string): Block[] {
         }
       };
 
+      const flushQuote = () => {
+        if (currentQuoteLines.length > 0) {
+          blocks.push({ type: 'quote', text: currentQuoteLines.join('\n') });
+          currentQuoteLines = [];
+        }
+      };
+
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         const trimmed = line.trim();
         if (!trimmed) continue;
+
+        // Check blockquote (> text)
+        const quoteMatch = /^>\s?(.*)$/.exec(trimmed);
+        if (quoteMatch) {
+          flushPara();
+          flushList();
+          currentQuoteLines.push(quoteMatch[1]);
+          continue;
+        }
 
         // Check markdown heading (#, ##, ###, ####)
         const headingMatch = /^(#{1,4})\s+(.+)$/.exec(trimmed);
         if (headingMatch) {
           flushPara();
           flushList();
+          flushQuote();
           blocks.push({
             type: 'heading',
             level: (Math.min(headingMatch[1].length + 1, 4)) as 2 | 3 | 4,
@@ -373,6 +394,7 @@ export function parseBlocks(body: string): Block[] {
         const listMatch = /^\s*(?:\*\*(\d+[.)])\*\*|([-*•]|\d+[.)]))\s+(.*)$/.exec(line);
         if (listMatch) {
           flushPara();
+          flushQuote();
           const marker = listMatch[1] || listMatch[2];
           currentListItems.push({
             ordered: /\d/.test(marker),
@@ -383,11 +405,13 @@ export function parseBlocks(body: string): Block[] {
 
         // Standard text line
         flushList();
+        flushQuote();
         currentParaLines.push(line);
       }
 
       flushPara();
       flushList();
+      flushQuote();
     }
   });
   return blocks;

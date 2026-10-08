@@ -1317,6 +1317,36 @@ export async function fetchPlatformSettings(): Promise<PlatformSettings | null> 
   return data as PlatformSettings;
 }
 
+export async function updatePlatformSettings(input: {
+  default_commission_bps?: number;
+  event_ticket_fee_kobo?: number;
+  min_withdrawal_kobo?: number;
+  settlement_delay_hours?: number;
+  auto_confirm_hours?: number;
+  return_window_hours?: number;
+  require_vendor_verification?: boolean;
+  allow_registration?: boolean;
+  allow_new_vendors?: boolean;
+  payments_enabled?: boolean;
+  maintenance_mode?: boolean;
+}): Promise<PlatformSettings> {
+  const { data, error } = await supabase.rpc('mp_update_platform_settings', {
+    p_default_commission_bps: input.default_commission_bps ?? null,
+    p_event_ticket_fee_kobo: input.event_ticket_fee_kobo ?? null,
+    p_min_withdrawal_kobo: input.min_withdrawal_kobo ?? null,
+    p_settlement_delay_hours: input.settlement_delay_hours ?? null,
+    p_auto_confirm_hours: input.auto_confirm_hours ?? null,
+    p_return_window_hours: input.return_window_hours ?? null,
+    p_require_vendor_verification: input.require_vendor_verification ?? null,
+    p_allow_registration: input.allow_registration ?? null,
+    p_allow_new_vendors: input.allow_new_vendors ?? null,
+    p_payments_enabled: input.payments_enabled ?? null,
+    p_maintenance_mode: input.maintenance_mode ?? null,
+  });
+  if (error) throw error;
+  return data as PlatformSettings;
+}
+
 export async function requestVendorVerification(note: string, evidencePath?: string) {
   const { data, error } = await supabase.rpc('mp_request_vendor_verification', {
     p_note: note,

@@ -83,6 +83,12 @@ export function MessageText({ body, inline = false }: MessageTextProps) {
             </span>
           );
         });
+      } else if (block.type === 'quote') {
+        inlineContent.push(
+          <span key={bi} className="msg-quote-inline">
+            “{renderParaText(block.text, true)}”
+          </span>
+        );
       } else {
         inlineContent.push(
           <span key={bi}>{renderParaText(block.text, true)}</span>
@@ -97,6 +103,13 @@ export function MessageText({ body, inline = false }: MessageTextProps) {
     if (block.type === 'heading') {
       const Tag = `h${block.level}` as 'h2' | 'h3' | 'h4';
       return <Tag key={i} className="msg-heading">{renderInlineNodes(parseInline(block.text))}</Tag>;
+    }
+    if (block.type === 'quote') {
+      return (
+        <blockquote key={i} className="msg-quote">
+          {renderParaText(block.text)}
+        </blockquote>
+      );
     }
     if (block.type === 'code') {
       return (

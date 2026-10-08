@@ -305,7 +305,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             departmentLocked: !!data.department,
             gender: data.gender || '',
             phoneNumber: data.phone_number || '',
-            onboardingCompleted: data.onboarding_completed ?? (data.role === 'student' ? Boolean(data.matric_number && data.department && data.level) : true),
+            onboardingCompleted: data.onboarding_completed ?? false,
             onboardingStarted: data.onboarding_started ?? false,
             onboardingStep: data.onboarding_step ?? 1
           };
@@ -1247,10 +1247,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const onboardingCompleted = useMemo(() => {
     if (!profile) return false;
     if (profile.onboardingCompleted !== undefined) return Boolean(profile.onboardingCompleted);
-    if (profile.role === 'student') {
-      return Boolean(profile.matricNumber && profile.department && profile.level);
-    }
-    return true;
+    return false;
   }, [profile]);
 
   const onboardingStep = profile?.onboardingStep ?? 1;

@@ -14,6 +14,7 @@ import { useToast } from '../components/Toast';
 import { Skeleton } from '../components/Skeleton';
 import { EmptyState } from '../components/EmptyState';
 import { mpPath, PLATFORM_PATHS } from '../lib/routes';
+import { MessageText } from '../../components/MessageText';
 
 export const MessagesPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -294,7 +295,7 @@ export const MessagesPage: React.FC = () => {
                           boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
                         }}
                       >
-                        {m.body}
+                        <MessageText body={m.body} />
                       </div>
                       <span style={{ fontSize: 10, color: 'var(--text-secondary, #55675b)', marginTop: 3 }}>
                         {formatTimeAgo(m.created_at)}

@@ -209,7 +209,7 @@ export function Header() {
                 Library Collection
               </NavLink>
               <NavLink to="/accommodation" className={({ isActive }) => (isActive ? 'mobile-link active' : 'mobile-link')}>
-                Accomodation
+                Accommodation
               </NavLink>
               <NavLink to="/marketplace" className={({ isActive }) => (isActive ? 'mobile-link active' : 'mobile-link')}>
                 FUW Marketplace

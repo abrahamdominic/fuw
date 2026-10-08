@@ -24,6 +24,7 @@ import {
   saveAdvertPackage,
   deleteAdvertPackage,
   fetchSupportQueue,
+  updatePlatformSettings,
 } from '../lib/api';
 import type { PendingManualTransfer } from '../lib/api';
 import type { Advert, AdvertPackage, AdvertType } from '../lib/types';
@@ -100,6 +101,20 @@ export const AdminPortalPage: React.FC = () => {
   const [verifFilter, setVerifFilter] = useState<'all' | 'pending' | 'verified' | 'rejected'>('pending');
   const [busyVerif, setBusyVerif] = useState<string | null>(null);
   const [settings, setSettings] = useState<any>(null);
+  const [settingsForm, setSettingsForm] = useState({
+    commissionPct: '8',
+    ticketFeeNaira: '100',
+    minWithdrawalNaira: '5000',
+    autoConfirmHours: '72',
+    settlementDelayHours: '72',
+    returnWindowHours: '72',
+    requireVerification: false,
+    allowRegistration: true,
+    allowNewVendors: true,
+    paymentsEnabled: true,
+    maintenanceMode: false,
+  });
+  const [savingSettings, setSavingSettings] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // Dispute resolution modal
@@ -143,6 +158,21 @@ export const AdminPortalPage: React.FC = () => {
       setReports(r);
       setVerifications(v);
       setSettings(set);
+      if (set) {
+        setSettingsForm({
+          commissionPct: String((set.default_commission_bps ?? 800) / 100),
+          ticketFeeNaira: String(Math.round((set.event_ticket_fee_kobo ?? 10000) / 100)),
+          minWithdrawalNaira: String(Math.round((set.min_withdrawal_kobo ?? 500000) / 100)),
+          autoConfirmHours: String(set.auto_confirm_hours ?? 72),
+          settlementDelayHours: String(set.settlement_delay_hours ?? 72),
+          returnWindowHours: String(set.return_window_hours ?? 72),
+          requireVerification: Boolean(set.require_vendor_verification),
+          allowRegistration: Boolean(set.allow_registration),
+          allowNewVendors: Boolean(set.allow_new_vendors),
+          paymentsEnabled: Boolean(set.payments_enabled),
+          maintenanceMode: Boolean(set.maintenance_mode),
+        });
+      }
       setTransfers(t);
 
       // Advert permissions are separate, so this must not break the rest.
@@ -282,6 +312,53 @@ export const AdminPortalPage: React.FC = () => {
       toast(err?.message || 'Could not retire the package', 'error');
     } finally {
       setPkgBusy(false);
+    }
+  };
+
+  const handleSaveSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const commPct = parseFloat(settingsForm.commissionPct);
+    const commBps = Math.round(commPct * 100);
+    const ticketKobo = Math.round(parseFloat(settingsForm.ticketFeeNaira || '0') * 100);
+    const minWithdrawalKobo = Math.round(parseFloat(settingsForm.minWithdrawalNaira || '0') * 100);
+    const autoConfirm = parseInt(settingsForm.autoConfirmHours, 10);
+    const settlementDelay = parseInt(settingsForm.settlementDelayHours, 10);
+    const returnWindow = parseInt(settingsForm.returnWindowHours, 10);
+
+    if (isNaN(commBps) || commBps < 0 || commBps > 5000) {
+      toast('Commission must be between 0% and 50%', 'error');
+      return;
+    }
+    if (isNaN(ticketKobo) || ticketKobo < 0) {
+      toast('Ticket fee cannot be negative', 'error');
+      return;
+    }
+    if (isNaN(minWithdrawalKobo) || minWithdrawalKobo < 0) {
+      toast('Minimum withdrawal cannot be negative', 'error');
+      return;
+    }
+
+    setSavingSettings(true);
+    try {
+      const updated = await updatePlatformSettings({
+        default_commission_bps: commBps,
+        event_ticket_fee_kobo: ticketKobo,
+        min_withdrawal_kobo: minWithdrawalKobo,
+        auto_confirm_hours: autoConfirm,
+        settlement_delay_hours: settlementDelay,
+        return_window_hours: returnWindow,
+        require_vendor_verification: settingsForm.requireVerification,
+        allow_registration: settingsForm.allowRegistration,
+        allow_new_vendors: settingsForm.allowNewVendors,
+        payments_enabled: settingsForm.paymentsEnabled,
+        maintenance_mode: settingsForm.maintenanceMode,
+      });
+      setSettings(updated);
+      toast('Platform settings updated successfully and active immediately', 'success');
+    } catch (err: any) {
+      toast(err?.message || 'Failed to update platform settings', 'error');
+    } finally {
+      setSavingSettings(false);
     }
   };
 
@@ -625,7 +702,7 @@ export const AdminPortalPage: React.FC = () => {
 
                 <div style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--surface-alt, #f4f8f5)', fontSize: 13 }}>
                   <p style={{ margin: '0 0 6px' }}><strong>Claim: </strong>{d.description}</p>
-                  <div><strong>Buyer: </strong>{d.buyer?.full_name} ({d.buyer?.email}) · <strong>Store: </strong>{d.vendor?.store_name}</div>
+                  <div><strong>Buyer: </strong>{d.buyer?.full_name} ({d.buyer?.email}) · <strong>Store: </strong>{d.vendor?.shop_name || d.vendor?.store_name || 'Vendor'}</div>
                   <div><strong>Order Total: </strong>{formatNaira(d.order?.total_kobo || 0)}</div>
                 </div>
 
@@ -683,7 +760,7 @@ export const AdminPortalPage: React.FC = () => {
                 <div key={v.id} style={{ background: 'var(--surface, #ffffff)', borderRadius: 12, border: '1px solid var(--border, #dcebe0)', padding: 18, display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
                   <div style={{ flex: '1 1 300px', minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                      <strong style={{ fontSize: 15 }}>{v.vendor?.store_name || 'Unknown store'}</strong>
+                      <strong style={{ fontSize: 15 }}>{v.vendor?.shop_name || v.vendor?.store_name || 'Unknown store'}</strong>
                       <span style={{ padding: '3px 8px', borderRadius: 4, background: v.status === 'verified' ? '#d1fae5' : v.status === 'rejected' ? '#fee2e2' : '#fef3c7', color: v.status === 'verified' ? '#065f46' : v.status === 'rejected' ? '#991b1b' : '#92400e', fontSize: 12, fontWeight: 700, textTransform: 'uppercase' }}>
                         {v.status}
                       </span>
@@ -950,31 +1027,194 @@ export const AdminPortalPage: React.FC = () => {
       {/* PHASE 16: SUPPORT QUEUE */}
       {activeTab === 'support' && <SupportInbox viewer="admin" embedded />}
 
-      {activeTab === 'settings' && settings && (
-        <div style={{ maxWidth: 580, background: 'var(--surface, #ffffff)', borderRadius: 14, border: '1px solid var(--border, #dcebe0)', padding: 24 }}>
-          <h3 style={{ margin: '0 0 16px', fontSize: 17, fontWeight: 700 }}>Platform Economic & Safety Settings</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, fontSize: 14 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid var(--border, #dcebe0)' }}>
-              <span>Platform Commission</span>
-              <strong>{settings.default_commission_bps / 100}%</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid var(--border, #dcebe0)' }}>
-              <span>Minimum Payout Withdrawal</span>
-              <strong>{formatNaira(settings.min_withdrawal_kobo)}</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid var(--border, #dcebe0)' }}>
-              <span>Auto-Confirm Period</span>
-              <strong>{settings.auto_confirm_hours} hours</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid var(--border, #dcebe0)' }}>
-              <span>Settlement Release Window</span>
-              <strong>{settings.settlement_delay_hours} hours</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid var(--border, #dcebe0)' }}>
-              <span>Maintenance Mode</span>
-              <strong>{settings.maintenance_mode ? 'Enabled' : 'Disabled'}</strong>
-            </div>
+      {activeTab === 'settings' && (
+        <div style={{ maxWidth: 720, background: 'var(--surface, #ffffff)', borderRadius: 14, border: '1px solid var(--border, #dcebe0)', padding: 24 }}>
+          <div style={{ marginBottom: 20 }}>
+            <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--text-primary, #17231d)' }}>
+              Platform Economic &amp; Operational Controls
+            </h3>
+            <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--text-secondary, #55675b)' }}>
+              Changes persist in PostgreSQL and take effect immediately across all transactions, wallets, and seller verifications.
+            </p>
           </div>
+
+          <form onSubmit={handleSaveSettings} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <div>
+              <h4 style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 700, color: 'var(--green-900, #0d4a2f)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                Financial &amp; Take Rates
+              </h4>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                    Platform Commission (%)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="50"
+                    required
+                    value={settingsForm.commissionPct}
+                    onChange={(e) => setSettingsForm({ ...settingsForm, commissionPct: e.target.value })}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border, #dcebe0)', fontSize: 14 }}
+                  />
+                  <small style={{ color: 'var(--text-secondary, #55675b)', fontSize: 11 }}>e.g. 8% (800 bps)</small>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                    Event Ticket Fee (₦)
+                  </label>
+                  <input
+                    type="number"
+                    step="1"
+                    min="0"
+                    required
+                    value={settingsForm.ticketFeeNaira}
+                    onChange={(e) => setSettingsForm({ ...settingsForm, ticketFeeNaira: e.target.value })}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border, #dcebe0)', fontSize: 14 }}
+                  />
+                  <small style={{ color: 'var(--text-secondary, #55675b)', fontSize: 11 }}>₦100 flat fee (10,000 kobo)</small>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                    Min Withdrawal (₦)
+                  </label>
+                  <input
+                    type="number"
+                    step="100"
+                    min="0"
+                    required
+                    value={settingsForm.minWithdrawalNaira}
+                    onChange={(e) => setSettingsForm({ ...settingsForm, minWithdrawalNaira: e.target.value })}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border, #dcebe0)', fontSize: 14 }}
+                  />
+                  <small style={{ color: 'var(--text-secondary, #55675b)', fontSize: 11 }}>e.g. ₦5,000</small>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h4 style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 700, color: 'var(--green-900, #0d4a2f)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                Escrow &amp; Operational Time Windows
+              </h4>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                    Auto-Confirm Period (hours)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="720"
+                    required
+                    value={settingsForm.autoConfirmHours}
+                    onChange={(e) => setSettingsForm({ ...settingsForm, autoConfirmHours: e.target.value })}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border, #dcebe0)', fontSize: 14 }}
+                  />
+                  <small style={{ color: 'var(--text-secondary, #55675b)', fontSize: 11 }}>Auto-releases escrow if buyer unresponsive</small>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                    Settlement Release (hours)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="720"
+                    required
+                    value={settingsForm.settlementDelayHours}
+                    onChange={(e) => setSettingsForm({ ...settingsForm, settlementDelayHours: e.target.value })}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border, #dcebe0)', fontSize: 14 }}
+                  />
+                  <small style={{ color: 'var(--text-secondary, #55675b)', fontSize: 11 }}>Hold before vendor payout release</small>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                    Return / Dispute Window (hours)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="720"
+                    required
+                    value={settingsForm.returnWindowHours}
+                    onChange={(e) => setSettingsForm({ ...settingsForm, returnWindowHours: e.target.value })}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border, #dcebe0)', fontSize: 14 }}
+                  />
+                  <small style={{ color: 'var(--text-secondary, #55675b)', fontSize: 11 }}>Max window to dispute after delivery</small>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h4 style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 700, color: 'var(--green-900, #0d4a2f)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                Platform Safety &amp; Onboarding Controls
+              </h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: 'var(--surface-alt, #f7faf8)', padding: 16, borderRadius: 10, border: '1px solid var(--border, #dcebe0)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={settingsForm.requireVerification}
+                    onChange={(e) => setSettingsForm({ ...settingsForm, requireVerification: e.target.checked })}
+                  />
+                  <span><strong>Require Vendor Verification:</strong> Vendors must be approved before publishing listings.</span>
+                </label>
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={settingsForm.allowRegistration}
+                    onChange={(e) => setSettingsForm({ ...settingsForm, allowRegistration: e.target.checked })}
+                  />
+                  <span><strong>Allow Student Registration:</strong> New buyers can create marketplace accounts.</span>
+                </label>
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={settingsForm.allowNewVendors}
+                    onChange={(e) => setSettingsForm({ ...settingsForm, allowNewVendors: e.target.checked })}
+                  />
+                  <span><strong>Allow New Vendor Applications:</strong> Students can register new store fronts.</span>
+                </label>
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={settingsForm.paymentsEnabled}
+                    onChange={(e) => setSettingsForm({ ...settingsForm, paymentsEnabled: e.target.checked })}
+                  />
+                  <span><strong>Payments &amp; Checkout Enabled:</strong> Active Paystack/Wallet transaction processing.</span>
+                </label>
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={settingsForm.maintenanceMode}
+                    onChange={(e) => setSettingsForm({ ...settingsForm, maintenanceMode: e.target.checked })}
+                  />
+                  <span style={{ color: settingsForm.maintenanceMode ? '#b42318' : 'inherit' }}>
+                    <strong>Maintenance Mode:</strong> Restrict public marketplace access for scheduled maintenance.
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 8 }}>
+              <button
+                type="submit"
+                disabled={savingSettings}
+                className="btn btn-primary"
+                style={{ padding: '10px 24px', fontSize: 14, fontWeight: 700 }}
+              >
+                {savingSettings ? 'Saving Settings…' : 'Save Platform Settings'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
 

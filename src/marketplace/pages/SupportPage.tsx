@@ -23,6 +23,7 @@ import type { SupportConversation, SupportMessage, SupportStatus } from '../lib/
 import { formatTimeAgo } from '../lib/format';
 import { useAuth } from '../lib/auth';
 import { useToast } from '../components/Toast';
+import { MessageText } from '../../components/MessageText';
 import { Skeleton } from '../components/Skeleton';
 import { EmptyState } from '../components/EmptyState';
 
@@ -436,7 +437,7 @@ export const SupportInbox: React.FC<{ viewer: Viewer; embedded?: boolean }> = ({
                           {isAdmin && <span className="chat-bubble__tag">Admin</span>}
                         </span>
                       )}
-                      {m.body}
+                      <MessageText body={m.body} />
                       <span className="chat-bubble-time">{formatTimeAgo(m.created_at)}</span>
                     </div>
                   );

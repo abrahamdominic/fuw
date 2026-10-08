@@ -23,6 +23,7 @@ import { fetchNotifications, markNotificationRead } from '../lib/api';
 import { Logo } from './Logo';
 import type { MarketplaceNotification } from '../lib/types';
 import { mpPath, PLATFORM_PATHS } from '../lib/routes';
+import { MessageText } from '../../components/MessageText';
 
 export const Navbar: React.FC = () => {
   const { user, profile, vendor, isAdmin, isStaff, theme, toggleTheme, signOut } = useAuth();
@@ -471,7 +472,9 @@ export const Navbar: React.FC = () => {
                       >
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <strong style={{ display: 'block', color: 'var(--text-primary, #17231d)' }}>{n.title}</strong>
-                          <span style={{ color: 'var(--text-secondary, #55675b)', fontSize: 12 }}>{n.body}</span>
+                          <span style={{ color: 'var(--text-secondary, #55675b)', fontSize: 12 }}>
+                            <MessageText body={n.body} inline />
+                          </span>
                         </div>
                         {!n.is_read && (
                           <button

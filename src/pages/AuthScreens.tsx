@@ -641,6 +641,10 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
       navigate(fromPath, { replace: true });
       return;
     }
+    if (profile?.onboardingCompleted === false) {
+      navigate('/onboarding', { replace: true });
+      return;
+    }
     const role = roleOverride || profile?.role;
     if (role === 'super_admin') navigate('/super', { replace: true });
     else if (role === 'admin') navigate('/admin', { replace: true });

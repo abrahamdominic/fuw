@@ -44,9 +44,11 @@ import { useStore } from '../lib/useStore';
 import { useToast } from '../components/Toast';
 import { Logo } from '../components/Logo';
 import { fx, staggerDelay } from '../lib/motion';
+import { MessageText } from '../components/MessageText';
 import { ConfirmDialog, ConfirmDialogState } from '../components/ConfirmDialog';
 import { EditMaterialModal } from '../components/EditMaterialModal';
 import { DepartmentAssigner } from '../components/DepartmentAssigner';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 import {
   fetchMaterials,
   submitMaterial,
@@ -94,7 +96,7 @@ const navItems = [
   { label: 'My Materials', path: '/lecturer/materials', icon: FileText },
   { label: 'Upload Material', path: '/lecturer/upload', icon: UploadCloud },
   { label: 'Academic Scope', path: '/lecturer/profile', icon: UserCheck },
-  { label: 'Announcements', path: '/lecturer/notifications', icon: Bell },
+  { label: 'Announcements', path: '/lecturer/announcements', icon: Bell },
   { label: 'Help & Policy', path: '/lecturer/help', icon: HelpCircle }
 ];
 
@@ -237,11 +239,11 @@ export function LecturerPortal({ onReadOnline }: LecturerPortalProps) {
     };
   }, [user?.id]);
 
-  const unreadNotifCount = notifications.filter((n) => !n.read).length;
-  const visibleNotifications = notifications.filter((n) => {
+  const unreadNotifCount = (notifications || []).filter((n) => !n.read).length;
+  const visibleNotifications = (notifications || []).filter((n) => {
     if (!notifFilter.trim()) return true;
     const q = notifFilter.trim().toLowerCase();
-    return n.title.toLowerCase().includes(q) || (n.body || '').toLowerCase().includes(q);
+    return ((n?.title || '').toLowerCase().includes(q) || (n?.body || '').toLowerCase().includes(q));
   });
 
   const handleLogout = async () => {
@@ -326,7 +328,9 @@ export function LecturerPortal({ onReadOnline }: LecturerPortalProps) {
               const Icon = item.icon;
               const isActive = item.exact
                 ? currentPath === item.path
-                : currentPath.startsWith(item.path);
+                : item.path === '/lecturer/announcements'
+                  ? currentPath.startsWith('/lecturer/announcements') || currentPath.startsWith('/lecturer/notifications')
+                  : currentPath.startsWith(item.path);
               return (
                 <NavLink
                   key={item.path}
@@ -370,7 +374,7 @@ export function LecturerPortal({ onReadOnline }: LecturerPortalProps) {
       {/* Main Content Area */}
       <main className="portal-main">
         {/* Top Header / Actions Bar */}
-        <div className="portal-mobile-bar">
+        <div className="portal-mobile-bar lecturer-mobile-bar">
           <button
             type="button"
             className="portal-mobile-toggle"
@@ -468,7 +472,7 @@ export function LecturerPortal({ onReadOnline }: LecturerPortalProps) {
                         }}
                       >
                         <b>{n.title}</b>
-                        <span>{n.body}</span>
+                        <span><MessageText body={n.body} inline /></span>
                         <small>{new Date(n.createdAt).toLocaleDateString()}</small>
                       </button>
                     </div>
@@ -481,53 +485,55 @@ export function LecturerPortal({ onReadOnline }: LecturerPortalProps) {
 
         {/* Content routing */}
         <div key={currentPath} className={fx.page} style={{ animationDuration: '180ms' }}>
-          {currentPath === '/lecturer' || currentPath === '/lecturer/' ? (
-            <LecturerOverviewTab
-              lecturer={lecturerRecord}
-              materials={myMaterials}
-              totalDownloads={totalDownloads}
-              totalViews={totalViews}
-              secondaryDepartments={secondaryDepartments}
-              onReadOnline={onReadOnline}
-              onEditMaterial={(m) => setEditMaterial(m)}
-              onDeleteMaterial={(m) => setDeleteConfirm({ open: true, material: m })}
-            />
-          ) : currentPath.startsWith('/lecturer/materials') ? (
-            <LecturerMaterialsTab
-              materials={myMaterials}
-              loading={loadingMaterials}
-              onReadOnline={onReadOnline}
-              onEditMaterial={(m) => setEditMaterial(m)}
-              onDeleteMaterial={(m) => setDeleteConfirm({ open: true, material: m })}
-              onRefresh={loadMyMaterials}
-            />
-          ) : currentPath.startsWith('/lecturer/upload') ? (
-            <LecturerUploadTab
-              lecturer={lecturerRecord}
-              onUploaded={async () => {
-                await loadMyMaterials();
-                navigate('/lecturer/materials');
-              }}
-            />
-          ) : currentPath.startsWith('/lecturer/profile') ? (
-            <LecturerProfileTab
-              lecturer={lecturerRecord}
-              secondaryDepartments={secondaryDepartments}
-              onUpdated={loadLecturerDetails}
-            />
-          ) : currentPath.startsWith('/lecturer/notifications') ? (
-            <LecturerNotificationsTab
-              notifications={notifications}
-              lecturer={lecturerRecord}
-              secondaryDepartments={secondaryDepartments}
-              onRefresh={async () => {
-                const items = await fetchNotifications();
-                setNotifications(items);
-              }}
-            />
-          ) : (
-            <LecturerHelpTab />
-          )}
+          <ErrorBoundary>
+            {currentPath === '/lecturer' || currentPath === '/lecturer/' ? (
+              <LecturerOverviewTab
+                lecturer={lecturerRecord}
+                materials={myMaterials}
+                totalDownloads={totalDownloads}
+                totalViews={totalViews}
+                secondaryDepartments={secondaryDepartments}
+                onReadOnline={onReadOnline}
+                onEditMaterial={(m) => setEditMaterial(m)}
+                onDeleteMaterial={(m) => setDeleteConfirm({ open: true, material: m })}
+              />
+            ) : currentPath.startsWith('/lecturer/materials') ? (
+              <LecturerMaterialsTab
+                materials={myMaterials}
+                loading={loadingMaterials}
+                onReadOnline={onReadOnline}
+                onEditMaterial={(m) => setEditMaterial(m)}
+                onDeleteMaterial={(m) => setDeleteConfirm({ open: true, material: m })}
+                onRefresh={loadMyMaterials}
+              />
+            ) : currentPath.startsWith('/lecturer/upload') ? (
+              <LecturerUploadTab
+                lecturer={lecturerRecord}
+                onUploaded={async () => {
+                  await loadMyMaterials();
+                  navigate('/lecturer/materials');
+                }}
+              />
+            ) : currentPath.startsWith('/lecturer/profile') ? (
+              <LecturerProfileTab
+                lecturer={lecturerRecord}
+                secondaryDepartments={secondaryDepartments}
+                onUpdated={loadLecturerDetails}
+              />
+            ) : currentPath.startsWith('/lecturer/announcements') || currentPath.startsWith('/lecturer/notifications') ? (
+              <LecturerNotificationsTab
+                notifications={notifications}
+                lecturer={lecturerRecord}
+                secondaryDepartments={secondaryDepartments}
+                onRefresh={async () => {
+                  const items = await fetchNotifications();
+                  setNotifications(items);
+                }}
+              />
+            ) : (
+              <LecturerHelpTab />
+            )}
+          </ErrorBoundary>
         </div>
       </main>
 
@@ -1547,14 +1553,14 @@ function LecturerProfileTab({
 /* 5. Lecturer Notifications & Broadcast Announcements Tab                    */
 /* -------------------------------------------------------------------------- */
 function LecturerNotificationsTab({
-  notifications,
+  notifications = [],
   lecturer,
-  secondaryDepartments,
+  secondaryDepartments = [],
   onRefresh
 }: {
-  notifications: NotificationItem[];
+  notifications?: NotificationItem[];
   lecturer: LecturerRecord | null;
-  secondaryDepartments: DepartmentOption[];
+  secondaryDepartments?: DepartmentOption[];
   onRefresh: () => void;
 }) {
   const { toast } = useToast();
@@ -1598,7 +1604,7 @@ function LecturerNotificationsTab({
     try {
       const d = new Date(dateVal);
       if (isNaN(d.getTime())) return 'Recently';
-      return d.toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' }) + ' · ' + d.toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit' });
+      return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) + ' · ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
     } catch {
       return 'Recently';
     }
@@ -1627,7 +1633,7 @@ function LecturerNotificationsTab({
       } else if (targetScope === 'all_departments') {
         const allDepts = [
           ...(lecturer?.departmentId ? [lecturer.departmentId] : []),
-          ...secondaryDepartments.map((d) => d.id).filter((id) => Boolean(id))
+          ...(secondaryDepartments || []).map((d) => d.id).filter((id) => Boolean(id))
         ];
         deptIds = Array.from(new Set(allDepts));
       }
@@ -1636,7 +1642,7 @@ function LecturerNotificationsTab({
         title: title.trim(),
         body: body.trim(),
         facultyId: facultyId || undefined,
-        departmentIds: deptIds || undefined,
+        departmentIds: deptIds && deptIds.length > 0 ? deptIds : undefined,
         announcementType
       });
 
@@ -1767,7 +1773,7 @@ function LecturerNotificationsTab({
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <strong style={{ fontSize: 15, color: 'var(--green-900, #0d4a2f)' }}>{b.title}</strong>
+                    <strong style={{ fontSize: 15, color: 'var(--green-900, #0d4a2f)' }}>{b.title || 'Announcement'}</strong>
                     <span
                       style={{
                         fontSize: 11,
@@ -1782,9 +1788,9 @@ function LecturerNotificationsTab({
                       {b.announcement_type || 'General'}
                     </span>
                   </div>
-                  <p style={{ margin: '4px 0', fontSize: 13, lineHeight: 1.5, color: 'var(--text-primary, #17231d)' }}>
-                    {b.body}
-                  </p>
+                  <div style={{ margin: '6px 0', fontSize: 13, lineHeight: 1.5, color: 'var(--text-primary, #17231d)' }}>
+                    <MessageText body={b.body || ''} />
+                  </div>
                   <small style={{ color: 'var(--text-secondary, #55675b)', fontSize: 12 }}>
                     Broadcast on {formatBroadcastDate(b.published_at || b.created_at)}
                   </small>
@@ -1808,7 +1814,9 @@ function LecturerNotificationsTab({
               {notifications.map((n) => (
                 <div key={n.id} className={`notif-item ${n.read ? '' : 'unread'}`} style={{ padding: '12px 16px', borderRadius: '6px' }}>
                   <b>{n.title}</b>
-                  <p style={{ margin: '4px 0', fontSize: '13px' }}>{n.body}</p>
+                  <div style={{ margin: '6px 0', fontSize: '13px' }}>
+                    <MessageText body={n.body} />
+                  </div>
                   <small style={{ color: '#7a9685' }}>{formatBroadcastDate(n.createdAt)}</small>
                 </div>
               ))}

@@ -125,8 +125,8 @@ export function AccommodationPage() {
   return (
     <>
       <SEO
-        title="FUW Accommodation | Student Hostels, Lodges & Off-Campus Apartments"
-        description="Search verified student hostels, self-contained rooms, flats and shared lodges around Federal University Wukari campus environs with protected listings and anti-scam verification."
+        title="FUW Accommodation | Off-Campus Student Lodges & Apartments"
+        description="Search verified off-campus student lodges, self-contained rooms, flats and shared apartments around Federal University Wukari campus environs with protected listings and anti-scam verification."
         path="/accommodation"
         keywords={[
           'FUW accommodation',
@@ -605,7 +605,7 @@ export function AccommodationPage() {
           <div style={{ maxWidth: 640 }}>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--green-800)', fontWeight: 700, fontSize: 12, textTransform: 'uppercase', marginBottom: 8 }}>
               <Building size={16} />
-              <span>Are You an FUW Hostel Owner, Landlord or Caretaker?</span>
+              <span>Are You a Lodge Owner, Landlord or Caretaker in Wukari Environs?</span>
             </div>
             <h3 style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 800 }}>
               List Your Student Lodge on the Official FUW Campus Platform

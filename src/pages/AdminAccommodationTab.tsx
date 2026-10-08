@@ -321,7 +321,7 @@ export function AdminAccommodationTab() {
             FUW Accommodation &amp; Lodges Management
           </h2>
           <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)' }}>
-            Manage student hostels, lodges, caretakers, verified status, and investigate safety reports.
+            Manage off-campus student lodges, private apartments, caretakers, verified status, and investigate safety reports.
           </p>
         </div>
 

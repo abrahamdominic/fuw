@@ -39,7 +39,7 @@ const VARIANT_COPY: Record<SplashVariant, { title: string; subtitle: string; des
   accommodation: {
     title: 'FUW Accommodation & Roommates',
     subtitle: 'Find. Connect. Move In.',
-    desc: 'Verified student hostels, lodges and roommate matching across campus.',
+    desc: 'Verified off-campus student lodges, private apartments and roommate matching in Wukari environs.',
     loading: 'Preparing campus housing'
   },
   lecturer: {
