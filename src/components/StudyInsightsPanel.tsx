@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useStore } from '../lib/useStore';
 import { fetchPlannerTasks, plannerStats, PlannerTask } from '../lib/planner';
 import { fetchStudentNotes } from '../lib/notes';
+import { fetchFlashcardDecks } from '../lib/flashcards';
+import { fetchStudyGuides } from '../lib/studyGuides';
 
 interface StudyInsights {
   loading: boolean;
@@ -12,6 +14,8 @@ interface StudyInsights {
   completionRate: number;
   notesCount: number;
   readingCount7d: number;
+  decksCount: number;
+  guidesCount: number;
   dueSoon: PlannerTask[];
 }
 
@@ -24,6 +28,8 @@ const emptyInsights: StudyInsights = {
   completionRate: 0,
   notesCount: 0,
   readingCount7d: 0,
+  decksCount: 0,
+  guidesCount: 0,
   dueSoon: []
 };
 
@@ -36,10 +42,12 @@ export function StudyInsightsPanel() {
     async function load() {
       setInsights((prev) => ({ ...prev, loading: true }));
       try {
-        const [tasks, notes, reading] = await Promise.all([
+        const [tasks, notes, reading, decks, guides] = await Promise.all([
           fetchPlannerTasks().catch(() => [] as PlannerTask[]),
           fetchStudentNotes().catch(() => []),
-          Promise.resolve(store.getReadingHistory())
+          Promise.resolve(store.getReadingHistory()),
+          fetchFlashcardDecks().catch(() => []),
+          fetchStudyGuides().catch(() => [])
         ]);
         if (cancelled) return;
         const stats = plannerStats(tasks);
@@ -63,6 +71,8 @@ export function StudyInsightsPanel() {
           completionRate: stats.completionRate,
           notesCount: notes.length,
           readingCount7d,
+          decksCount: decks.length,
+          guidesCount: guides.length,
           dueSoon
         });
       } catch {
@@ -84,7 +94,7 @@ export function StudyInsightsPanel() {
   }, [store]);
 
   if (insights.loading) return null;
-  if (insights.totalTasks === 0 && insights.notesCount === 0 && insights.readingCount7d === 0) return null;
+  if (insights.totalTasks === 0 && insights.notesCount === 0 && insights.readingCount7d === 0 && insights.decksCount === 0) return null;
 
   return (
     <section className="card study-insights">
@@ -102,12 +112,16 @@ export function StudyInsightsPanel() {
           <span className="study-insight-label">Overdue tasks</span>
         </div>
         <div className="study-insight-stat">
-          <span className="study-insight-value">{insights.notesCount}</span>
-          <span className="study-insight-label">Notes written</span>
+          <span className="study-insight-value">{insights.decksCount}</span>
+          <span className="study-insight-label">Flashcard decks</span>
+        </div>
+        <div className="study-insight-stat">
+          <span className="study-insight-value">{insights.guidesCount}</span>
+          <span className="study-insight-label">Study guides</span>
         </div>
         <div className="study-insight-stat">
           <span className="study-insight-value">{insights.readingCount7d}</span>
-          <span className="study-insight-label">Materials read (7 days)</span>
+          <span className="study-insight-label">Materials read (7d)</span>
         </div>
       </div>
       {insights.dueSoon.length > 0 && (

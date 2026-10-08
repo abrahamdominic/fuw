@@ -247,6 +247,7 @@ export interface MarketplaceOrder {
   settlement_status: SettlementStatus;
   fulfilment: DeliveryType;
   delivery_snapshot?: MarketplaceDeliverySnapshot;
+  delivery_pin?: string;
   buyer_note?: string;
   campus_area?: string;
   payment_id?: string;

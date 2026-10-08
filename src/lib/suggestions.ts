@@ -70,15 +70,15 @@ export async function fetchSuggestedMaterials(
   // ── Server-filtered queries (parallel, capped) ─────────────────────────
   const jobs: Array<Promise<{ items: MaterialItem[] }>> = [];
   if (department) {
-    // All levels within the student's department (ranking tier 3).
-    jobs.push(fetchMaterials({ status: 'approved', department }, {}, 0, 40));
+    // Restrict department queries to student's level when available to avoid cross-level leakage (e.g. 100L appearing for 400L)
+    jobs.push(fetchMaterials({ status: 'approved', department, level: level || undefined }, {}, 0, 40));
   } else if (faculty) {
     // No department known: fall back to the whole faculty.
-    jobs.push(fetchMaterials({ status: 'approved', faculty }, {}, 0, 40));
+    jobs.push(fetchMaterials({ status: 'approved', faculty, level: level || undefined }, {}, 0, 40));
   }
   if (faculty) {
     // Same faculty but other departments (ranking tier 4).
-    jobs.push(fetchMaterials({ status: 'approved', faculty }, {}, 0, 40));
+    jobs.push(fetchMaterials({ status: 'approved', faculty, level: level || undefined }, {}, 0, 40));
   }
   for (const code of codes.slice(0, MAX_COURSE_LOOKUPS)) {
     jobs.push(fetchMaterials({ status: 'approved', courseCode: code }, {}, 0, 10));
@@ -105,6 +105,13 @@ export async function fetchSuggestedMaterials(
     const courseHit = codeSet.has(course.toLowerCase());
     const facHit = !!faculty && (material.faculty || '').trim().toLowerCase() === faculty.toLowerCase();
     const levelHit = !!level && normalizeLevel(material.level) === normalizeLevel(level);
+
+    // Level guard: Never recommend material from a different level unless the student explicitly offers/registered that course
+    const matLevel = normalizeLevel(material.level);
+    const userLevel = normalizeLevel(level);
+    if (userLevel && matLevel && matLevel !== userLevel && !courseHit) {
+      return;
+    }
 
     let score: number;
     let label: string;

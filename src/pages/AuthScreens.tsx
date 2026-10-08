@@ -644,6 +644,7 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
     const role = roleOverride || profile?.role;
     if (role === 'super_admin') navigate('/super', { replace: true });
     else if (role === 'admin') navigate('/admin', { replace: true });
+    else if (role === 'lecturer') navigate('/lecturer', { replace: true });
     else navigate('/hub', { replace: true });
   };
 
@@ -653,21 +654,23 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
     isPlatformAuthenticatorAvailable().then(setPlatformAuthAvailable).catch(() => setPlatformAuthAvailable(false));
   }, []);
 
-  // If already authenticated with a completed profile, forward to the right
-  // portal or requested route.
+  // If already authenticated, forward to the right portal or requested route once profile is resolved.
   useEffect(() => {
-    if (isAuthenticated && isProfileComplete && step !== 'otp' && !mfaRequired) {
+    if (isAuthenticated && step !== 'otp' && !mfaRequired) {
+      if (isLoading || !profile) return;
       if (fromPath && fromPath !== '/login' && fromPath !== '/register' && fromPath !== '/') {
         navigate(fromPath, { replace: true });
-      } else if (profile?.role === 'super_admin') {
+      } else if (profile.role === 'super_admin') {
         navigate('/super', { replace: true });
-      } else if (profile?.role === 'admin') {
+      } else if (profile.role === 'admin') {
         navigate('/admin', { replace: true });
+      } else if (profile.role === 'lecturer') {
+        navigate('/lecturer', { replace: true });
       } else {
         navigate('/hub', { replace: true });
       }
     }
-  }, [isAuthenticated, isProfileComplete, profile, navigate, step, mfaRequired, fromPath]);
+  }, [isAuthenticated, profile, isLoading, navigate, step, mfaRequired, fromPath]);
 
   // Login handler
   const handleLogin = async (e: React.FormEvent) => {
@@ -969,9 +972,18 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
   if (isLoading) {
     return <BootFallback label="Restoring your session" />;
   }
-  if (isAuthenticated && isProfileComplete && step !== 'otp' && !mfaRequired) {
+  if (isAuthenticated && step !== 'otp' && !mfaRequired) {
+    if (!profile) {
+      return <BootFallback label="Resolving account role" />;
+    }
     const defaultTarget =
-      profile?.role === 'super_admin' ? '/super' : profile?.role === 'admin' ? '/admin' : '/hub';
+      profile.role === 'super_admin'
+        ? '/super'
+        : profile.role === 'admin'
+          ? '/admin'
+          : profile.role === 'lecturer'
+            ? '/lecturer'
+            : '/hub';
     const dest = fromPath && fromPath !== '/login' && fromPath !== '/register' && fromPath !== '/' ? fromPath : defaultTarget;
     return <Navigate to={dest} replace />;
   }

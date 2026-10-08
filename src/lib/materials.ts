@@ -444,8 +444,9 @@ export async function submitMaterial(input: {
   const isAdminUser =
     !!profile && (profile.role === 'admin' || profile.role === 'super_admin') &&
     (profile.role === 'super_admin' || profile.permissions.includes('upload_as_approved'));
+  const isLecturerUser = !!profile && profile.role === 'lecturer';
 
-  const status = isAdminUser ? 'approved' : 'pending';
+  const status = isAdminUser || isLecturerUser ? 'approved' : 'pending';
   const safeName = input.file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
   const path = `${user.id}/${Date.now()}-${safeName}`;
 
@@ -480,6 +481,7 @@ export async function submitMaterial(input: {
   }
 
   // 2. Insert the database row first.
+  const isAutoApproved = isAdminUser || isLecturerUser;
   const { data: inserted, error: insertError } = await client
     .from('materials')
     .insert({
@@ -496,7 +498,9 @@ export async function submitMaterial(input: {
       material_type: normalizeMaterialType(input.material_type),
       academic_session: input.academic_session?.trim() || '',
       status,
-      uploaded_by: user.id
+      uploaded_by: user.id,
+      approved_by: isAutoApproved ? user.id : null,
+      approved_at: isAutoApproved ? new Date().toISOString() : null
     })
     .select('*')
     .single();

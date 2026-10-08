@@ -312,6 +312,33 @@ export async function adjustInventory(productId: string, delta: number, note: st
   return data;
 }
 
+export async function uploadProductImage(file: File, vendorId: string): Promise<string> {
+  if (!file) throw new Error('No file selected.');
+  if (file.size > 5 * 1024 * 1024) {
+    throw new Error('Image size must be less than 5MB.');
+  }
+  const cleanExt = (file.name.split('.').pop() || 'jpg').toLowerCase();
+  const safeName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${cleanExt}`;
+  const filePath = `${vendorId}/${safeName}`;
+
+  const { error } = await supabase.storage
+    .from('marketplace-product-images')
+    .upload(filePath, file, {
+      contentType: file.type || 'image/jpeg',
+      upsert: true,
+    });
+
+  if (error) {
+    throw new Error(error.message || 'Failed to upload product image.');
+  }
+
+  const { data } = supabase.storage
+    .from('marketplace-product-images')
+    .getPublicUrl(filePath);
+
+  return data.publicUrl;
+}
+
 // =============================================================================
 // CART & CHECKOUT
 // =============================================================================
@@ -1256,7 +1283,16 @@ export async function fetchNotifications(): Promise<MarketplaceNotification[]> {
     .limit(30);
 
   if (error) throw error;
-  return (data as MarketplaceNotification[]) || [];
+  return ((data || []).map((row: any) => ({
+    id: row.id,
+    user_id: row.user_id,
+    type: row.type,
+    title: row.title,
+    body: row.message || row.body || '',
+    link: row.link,
+    is_read: Boolean(row.read_at || row.is_read),
+    created_at: row.created_at,
+  }))) as MarketplaceNotification[];
 }
 
 export async function markNotificationRead(notificationId?: string) {
@@ -1357,7 +1393,10 @@ export async function resolveReport(reportId: string, status: 'resolved' | 'dism
 
 export async function reviewVendorVerification(verificationId: string, approve: boolean, note: string) {
   const { data, error } = await supabase.rpc('mp_review_vendor_verification', {
-    p_verification_id: verificationId,
+    // The RPC signature is (p_request_id, p_approve, p_note). Passing the
+    // parameter under the old `p_verification_id` name made approve/reject
+    // fail with "function not found matching the given name and argument types".
+    p_request_id: verificationId,
     p_approve: approve,
     p_note: note,
   });
@@ -1376,6 +1415,48 @@ export async function fetchAdminVerifications() {
 
   if (error) throw error;
   return data || [];
+}
+
+/**
+ * Upload a vendor's verification evidence to the `marketplace-vendor-assets`
+ * bucket. The path must live under `<vendor_id>/verification/`, which is what
+ * the `mp_request_vendor_verification` RPC validates.
+ */
+export async function uploadVerificationEvidence(file: File, vendorId: string): Promise<string> {
+  if (!file) throw new Error('No file selected.');
+  if (file.size > 5 * 1024 * 1024) {
+    throw new Error('Evidence file must be less than 5MB.');
+  }
+  const cleanExt = (file.name.split('.').pop() || 'pdf').toLowerCase();
+  const safeName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${cleanExt}`;
+  const filePath = `${vendorId}/verification/${safeName}`;
+
+  const { error } = await supabase.storage
+    .from('marketplace-vendor-assets')
+    .upload(filePath, file, {
+      contentType: file.type || 'application/octet-stream',
+      upsert: false,
+    });
+
+  if (error) {
+    throw new Error(error.message || 'Failed to upload verification evidence.');
+  }
+  return filePath;
+}
+
+/**
+ * Best-effort signed URL for a stored evidence object. The storage bucket is
+ * private, so this only works for an object the current user is allowed to
+ * read (the vendor who owns it, or a staff member once an admin-read policy
+ * is in place).
+ */
+export async function getVerificationEvidenceUrl(evidencePath: string): Promise<string | null> {
+  if (!evidencePath) return null;
+  const { data, error } = await supabase.storage
+    .from('marketplace-vendor-assets')
+    .createSignedUrl(evidencePath, 600);
+  if (error || !data) return null;
+  return data.signedUrl;
 }
 
 // ── Adverts (PHASES 13-15) ───────────────────────────────────────────────────

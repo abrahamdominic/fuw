@@ -203,7 +203,7 @@ export function AdminPlansTab() {
             <h3>{p.name}</h3>
             <p className="plan-price">
               {p.price_kobo === 0 ? 'Free' : naira(p.price_kobo, p.currency)}
-              {p.price_kobo > 0 && <span className="muted"> / {p.duration_days} days</span>}
+              {p.price_kobo > 0 && <span className="muted"> / per semester</span>}
             </p>
             {p.description && <p className="plan-desc">{p.description}</p>}
             <ul className="plan-features">

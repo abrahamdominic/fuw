@@ -8,7 +8,9 @@ import {
   MessageSquare,
   CreditCard,
   Wallet,
+  Printer,
 } from 'lucide-react';
+import { DigitalReceiptModal } from '../components/DigitalReceiptModal';
 import {
   fetchBuyerOrders,
   confirmReceipt,
@@ -46,6 +48,7 @@ export const OrdersPage: React.FC = () => {
   const [reviewModalOrder, setReviewModalOrder] = useState<MarketplaceOrder | null>(null);
   const [confirmReceiptOrder, setConfirmReceiptOrder] = useState<MarketplaceOrder | null>(null);
   const [confirmingReceipt, setConfirmingReceipt] = useState(false);
+  const [receiptModalOrder, setReceiptModalOrder] = useState<MarketplaceOrder | null>(null);
 
   // Wallet balance, so a reserved order can be settled without leaving the page.
   const [wallet, setWallet] = useState<MarketplaceWallet | null>(null);
@@ -299,8 +302,29 @@ export const OrdersPage: React.FC = () => {
                         textDecoration: 'none',
                       }}
                     >
-                      Order Details & Receipt
+                      Order Details
                     </Link>
+
+                    <button
+                      type="button"
+                      onClick={() => setReceiptModalOrder(order)}
+                      style={{
+                        padding: '7px 12px',
+                        borderRadius: 8,
+                        border: '1px solid var(--border, #dcebe0)',
+                        background: '#ffffff',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 5,
+                        color: 'var(--green-900, #0d4a2f)',
+                      }}
+                    >
+                      <Printer size={14} />
+                      <span>Receipt</span>
+                    </button>
 
                     <button
                       type="button"
@@ -450,6 +474,40 @@ export const OrdersPage: React.FC = () => {
           orderId={reviewModalOrder.id}
           orderNumber={reviewModalOrder.order_number}
           onSuccess={loadOrders}
+        />
+      )}
+
+      {/* Digital Receipt Modal */}
+      {receiptModalOrder && (
+        <DigitalReceiptModal
+          isOpen={Boolean(receiptModalOrder)}
+          onClose={() => setReceiptModalOrder(null)}
+          orderNumber={receiptModalOrder.order_number}
+          orderDate={receiptModalOrder.created_at}
+          status={formatOrderStatus(receiptModalOrder.status).label}
+          paymentMethod="Campus Hub Escrow"
+          transactionRef={receiptModalOrder.id}
+          buyerName={receiptModalOrder.delivery_snapshot?.recipient_name || receiptModalOrder.buyer?.full_name}
+          buyerPhone={receiptModalOrder.delivery_snapshot?.phone || receiptModalOrder.buyer?.phone}
+          deliveryAddress={
+            receiptModalOrder.delivery_snapshot
+              ? `${receiptModalOrder.delivery_snapshot.campus_area || ''}, ${receiptModalOrder.delivery_snapshot.address_line || ''}`
+              : receiptModalOrder.campus_area
+          }
+          deliveryPin={receiptModalOrder.delivery_pin || undefined}
+          vendorName={receiptModalOrder.vendor?.store_name}
+          vendorLocation={receiptModalOrder.vendor?.campus_area}
+          items={(receiptModalOrder.items || []).map((it) => ({
+            id: it.id,
+            title: it.product_title,
+            variantLabel: it.variant_label,
+            quantity: it.quantity,
+            unitPriceKobo: it.unit_price_kobo,
+            lineTotalKobo: it.line_total_kobo,
+          }))}
+          subtotalKobo={receiptModalOrder.subtotal_kobo}
+          deliveryFeeKobo={receiptModalOrder.delivery_fee_kobo}
+          totalKobo={receiptModalOrder.total_kobo}
         />
       )}
     </div>

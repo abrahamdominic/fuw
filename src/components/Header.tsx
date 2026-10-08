@@ -12,9 +12,12 @@ import {
   Sun,
   Moon,
   Home,
-  LayoutGrid
+  LayoutGrid,
+  Search,
+  GraduationCap
 } from 'lucide-react';
 import { Logo } from './Logo';
+import { GlobalSearchModal } from './GlobalSearchModal';
 import { useStore } from '../lib/useStore';
 import { useAuth } from '../lib/AuthContext';
 import { useTheme } from '../lib/ThemeContext';
@@ -23,12 +26,25 @@ import { fx } from '../lib/motion';
 
 export function Header() {
   const [open, setOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const store = useStore();
   const { toast } = useToast();
-  const { isAuthenticated, isAdmin, profile, user, signOut } = useAuth();
+  const { isAuthenticated, isAdmin, isLecturer, profile, user, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
+
+  // Keyboard shortcut Cmd/Ctrl + K for Global Campus Search
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setSearchOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, []);
 
   const currentUser = store.getCurrentUser();
   const displayName =
@@ -96,6 +112,17 @@ export function Header() {
         </nav>
 
         <div className="nav-actions">
+          {/* Global Campus Search Button */}
+          <button
+            type="button"
+            className="theme-toggle-btn"
+            onClick={() => setSearchOpen(true)}
+            aria-label="Search FUW Ecosystem (Ctrl+K)"
+            title="Search FUW Ecosystem (Ctrl+K)"
+          >
+            <Search size={17} />
+          </button>
+
           {/* Theme Toggle Button */}
           <button
             type="button"
@@ -113,6 +140,11 @@ export function Header() {
                 <Link className="portal-pill-link admin-pill" to="/admin" title="Admin Repository Portal">
                   <ShieldCheck size={14} />
                   <span>Admin ({displayName})</span>
+                </Link>
+              ) : isLecturer ? (
+                <Link className="portal-pill-link lecturer-pill" to="/lecturer" title="Lecturer Portal">
+                  <GraduationCap size={14} />
+                  <span>Lecturer ({displayName})</span>
                 </Link>
               ) : (
                 <Link className="portal-pill-link" to="/student" title="Student Learning Dashboard">
@@ -177,7 +209,7 @@ export function Header() {
                 Library Collection
               </NavLink>
               <NavLink to="/accommodation" className={({ isActive }) => (isActive ? 'mobile-link active' : 'mobile-link')}>
-                Accommodation &amp; Hostels
+                Accomodation
               </NavLink>
               <NavLink to="/marketplace" className={({ isActive }) => (isActive ? 'mobile-link active' : 'mobile-link')}>
                 FUW Marketplace
@@ -217,6 +249,11 @@ export function Header() {
                     <ShieldCheck size={17} />
                     <span>Open Admin Portal</span>
                   </Link>
+                ) : isLecturer ? (
+                  <Link to="/lecturer" className="mobile-portal-btn lecturer">
+                    <GraduationCap size={17} />
+                    <span>Open Lecturer Portal</span>
+                  </Link>
                 ) : (
                   <Link to="/student" className="mobile-portal-btn student">
                     <LayoutDashboard size={17} />
@@ -243,6 +280,12 @@ export function Header() {
           </div>
         </div>
       )}
+
+      {/* Global Campus Search Modal */}
+      <GlobalSearchModal
+        isOpen={searchOpen}
+        onClose={() => setSearchOpen(false)}
+      />
     </>
   );
 }

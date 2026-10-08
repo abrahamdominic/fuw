@@ -156,8 +156,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // gates on `(isAdmin || isStaff)`.
       setMpStaff(Boolean(staffCheck.data) || admin);
     } catch (err) {
-      if (token !== loadToken.current) return;
-      console.error('Error loading Marketplace user data:', err);
+      if (typeof window === 'undefined' || token !== loadToken.current) return;
+      console.warn('Error loading Marketplace user data:', err);
       if (platform.profile) {
         setProfile({
           id: platform.profile.id,
@@ -173,7 +173,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
       }
     } finally {
-      if (token === loadToken.current) setMpLoading(false);
+      if (typeof window !== 'undefined' && token === loadToken.current) {
+        setMpLoading(false);
+      }
     }
   }, [platform.profile]);
 

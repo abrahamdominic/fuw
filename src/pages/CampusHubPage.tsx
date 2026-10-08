@@ -21,6 +21,8 @@ import { HubMotifLayer, hubBandStyle } from '../components/HubCardArt';
 import { useAuth } from '../lib/AuthContext';
 import { fx } from '../lib/motion';
 import { getLastActiveSection, setLastActiveSection, getMarketplaceUrl, HubSection } from '../lib/hub';
+import { CampusPersonalizedHubSection } from '../components/CampusPersonalizedHubSection';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 
 export function CampusHubPage() {
   const { user, profile, isAuthenticated } = useAuth();
@@ -710,6 +712,11 @@ export function CampusHubPage() {
             </div>
           </div>
         </div>
+
+        {/* Personalized Workspace (Authenticated Students) */}
+        <ErrorBoundary>
+          <CampusPersonalizedHubSection />
+        </ErrorBoundary>
 
         {/* Quick Portal Switcher & Academic Utilities */}
         <section

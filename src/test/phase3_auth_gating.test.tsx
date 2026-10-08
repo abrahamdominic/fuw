@@ -58,6 +58,7 @@ function buildMockAuth(overrides: Partial<AuthContextType> = {}): AuthContextTyp
     isAdmin: false,
     isSuperAdmin: false,
     isStudent: true,
+    isLecturer: false,
     role: null,
     permissions: [],
     hasPermission: () => true,
@@ -76,6 +77,9 @@ function buildMockAuth(overrides: Partial<AuthContextType> = {}): AuthContextTyp
     plan: null,
     hasPremium: false,
     refreshEntitlement: async () => {},
+    onboardingCompleted: true,
+    onboardingStep: 1,
+    setOnboardingState: async () => {},
     ...overrides
   };
 }

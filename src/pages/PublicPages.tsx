@@ -1087,13 +1087,27 @@ export function MaterialDetailPage({ onReadOnline }: PublicPagesProps) {
     }
     store.recordDownload(material.id);
     analyticsTracker.trackMaterialDownload(material.id, material.title);
-    toast(`Downloading ${material.fileName}`);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = material.fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    toast(`Downloading ${material.fileName}...`);
+    try {
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error('Download request failed');
+      const blob = await resp.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = material.fileName || 'material.pdf';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch {
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = material.fileName || 'material.pdf';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
   };
 
   const handleToggleSave = () => {
@@ -2477,6 +2491,9 @@ export function AdminLoginPage() {
     } else if (res.role === 'admin') {
       toast('Authorized Administrator access granted', 'success');
       navigate('/admin');
+    } else if (res.role === 'lecturer') {
+      toast('Lecturer account authenticated. Redirecting to Lecturer Portal...', 'info');
+      navigate('/lecturer');
     } else {
       // Account exists but is not an admin
       setErrorMsg('Access Denied: Your account does not have administrator privileges. Redirecting to student portal...');
@@ -2506,9 +2523,14 @@ export function AdminLoginPage() {
       if (profile?.role === 'super_admin') {
         toast('Super Administrator access granted', 'success');
         navigate('/super');
-      } else {
+      } else if (profile?.role === 'admin') {
         toast('Authorized Administrator access granted', 'success');
         navigate('/admin');
+      } else if (profile?.role === 'lecturer') {
+        toast('Lecturer access granted', 'info');
+        navigate('/lecturer');
+      } else {
+        navigate('/student');
       }
     } catch (err: any) {
       setOtpError(err?.message || 'That code was not accepted. Please check your Authenticator App and try again.');

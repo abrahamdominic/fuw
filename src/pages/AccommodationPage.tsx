@@ -148,13 +148,13 @@ export function AccommodationPage() {
           <div className="accommodation-hero-content">
             <div className="pill-badge" style={{ marginBottom: 12, display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 14px' }}>
               <Logo size={20} />
-              <span>OFFICIAL FUW CAMPUS HOUSING &amp; LODGES</span>
+              <span>VERIFIED OFF-CAMPUS STUDENT LODGES &amp; APARTMENTS</span>
             </div>
             <h1 className="hero-title" style={{ fontSize: 'clamp(26px, 4vw, 38px)', margin: '0 0 12px' }}>
-              Find Your Ideal Student Accommodation
+              Off-Campus Student Accommodation Directory
             </h1>
-            <p className="hero-sub" style={{ maxWidth: 680, margin: '0 0 20px', fontSize: 16, lineHeight: 1.6 }}>
-              Browse verified student lodges, self-contained rooms and shared apartments around Federal University Wukari. Compare locations, pricing, amenities, and contact verified caretakers directly.
+            <p className="hero-sub" style={{ maxWidth: 720, margin: '0 0 20px', fontSize: 16, lineHeight: 1.6 }}>
+              Browse verified off-campus student lodges, self-contained apartments, and private rooms in Wukari environs (Marmara, Hospital Road, New Site, Old Campus, Mission). These are private, off-campus housing facilities with verified landlords and caretakers — not university-owned on-campus hostels.
             </p>
           </div>
 
@@ -164,7 +164,7 @@ export function AccommodationPage() {
               <ShieldCheck size={24} color="#12603d" />
             </div>
             <div className="scam-alert-text">
-              <strong>Official FUW Safety Warning:</strong> Always inspect any lodge or hostel physically before making any financial commitment. Legitimate caretakers and agents will never demand money before showing you the room. Report suspicious listings immediately.
+              <strong>Off-Campus Housing Safety Notice:</strong> These listings represent private, off-campus student accommodation. Always visit and inspect the lodge compound physically with our campus ambassadors before making any rental payments to caretakers or landlords. Never pay unverified third parties.
             </div>
           </div>
 

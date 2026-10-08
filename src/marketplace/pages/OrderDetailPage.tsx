@@ -13,7 +13,9 @@ import {
   Loader2,
   CheckCircle,
   XCircle,
+  Printer,
 } from 'lucide-react';
+import { DigitalReceiptModal } from '../components/DigitalReceiptModal';
 import {
   fetchOrderDetails,
   fetchOrderPayment,
@@ -52,6 +54,7 @@ export const OrderDetailPage: React.FC = () => {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [confirmReceiptOpen, setConfirmReceiptOpen] = useState(false);
   const [confirmingReceipt, setConfirmingReceipt] = useState(false);
+  const [receiptModalOpen, setReceiptModalOpen] = useState(false);
 
   const [paymentReturn, setPaymentReturn] = useState<PaymentReturnState>('idle');
   const [paymentMessage, setPaymentMessage] = useState('');
@@ -292,6 +295,16 @@ export const OrderDetailPage: React.FC = () => {
           >
             <MessageSquare size={15} />
             <span>Chat Vendor</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setReceiptModalOpen(true)}
+            className="btn btn-secondary"
+            style={{ padding: '8px 14px', fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            <Printer size={15} />
+            <span>Digital Receipt</span>
           </button>
 
           {canConfirm && (
@@ -618,6 +631,38 @@ export const OrderDetailPage: React.FC = () => {
         orderId={order.id}
         orderNumber={order.order_number}
         onSuccess={loadOrder}
+      />
+
+      {/* Official Digital Receipt Modal */}
+      <DigitalReceiptModal
+        isOpen={receiptModalOpen}
+        onClose={() => setReceiptModalOpen(false)}
+        orderNumber={order.order_number}
+        orderDate={order.created_at}
+        status={formatOrderStatus(order.status).label}
+        paymentMethod={payment?.channel || 'Campus Hub Escrow'}
+        transactionRef={payment?.provider_reference || order.id}
+        buyerName={order.delivery_snapshot?.recipient_name || order.buyer?.full_name}
+        buyerPhone={order.delivery_snapshot?.phone || order.buyer?.phone}
+        deliveryAddress={
+          order.delivery_snapshot
+            ? `${order.delivery_snapshot.campus_area || ''}, ${order.delivery_snapshot.address_line || ''}`
+            : order.campus_area
+        }
+        deliveryPin={order.delivery_pin || undefined}
+        vendorName={order.vendor?.store_name}
+        vendorLocation={order.vendor?.campus_area}
+        items={(order.items || []).map((it) => ({
+          id: it.id,
+          title: it.product_title,
+          variantLabel: it.variant_label,
+          quantity: it.quantity,
+          unitPriceKobo: it.unit_price_kobo,
+          lineTotalKobo: it.line_total_kobo,
+        }))}
+        subtotalKobo={order.subtotal_kobo}
+        deliveryFeeKobo={order.delivery_fee_kobo}
+        totalKobo={order.total_kobo}
       />
     </div>
   );

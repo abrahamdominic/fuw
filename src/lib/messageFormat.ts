@@ -328,32 +328,67 @@ export function parseBlocks(body: string): Block[] {
       });
       return;
     }
-    segment.split(/\n{2,}/).forEach((rawPara) => {
+    const rawParas = segment.split(/\n{2,}/);
+    for (const rawPara of rawParas) {
       const para = rawPara.trim();
-      if (!para) return;
+      if (!para) continue;
+
       const lines = para.split('\n');
-      const heading = lines.length === 1 ? /^(#{1,3})\s+(.+)$/.exec(para) : null;
-      if (heading) {
-        blocks.push({
-          type: 'heading',
-          level: (heading[1].length + 1) as 2 | 3 | 4,
-          text: heading[2].trim()
-        });
-        return;
+      let currentListItems: { ordered: boolean; text: string }[] = [];
+      let currentParaLines: string[] = [];
+
+      const flushPara = () => {
+        if (currentParaLines.length > 0) {
+          blocks.push({ type: 'para', text: currentParaLines.join('\n') });
+          currentParaLines = [];
+        }
+      };
+
+      const flushList = () => {
+        if (currentListItems.length > 0) {
+          blocks.push({ type: 'list', items: [...currentListItems] });
+          currentListItems = [];
+        }
+      };
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+
+        // Check markdown heading (#, ##, ###, ####)
+        const headingMatch = /^(#{1,4})\s+(.+)$/.exec(trimmed);
+        if (headingMatch) {
+          flushPara();
+          flushList();
+          blocks.push({
+            type: 'heading',
+            level: (Math.min(headingMatch[1].length + 1, 4)) as 2 | 3 | 4,
+            text: headingMatch[2].trim(),
+          });
+          continue;
+        }
+
+        // Check list item (- item, * item, • item, 1. item, **1.** item)
+        const listMatch = /^\s*(?:\*\*(\d+[.)])\*\*|([-*•]|\d+[.)]))\s+(.*)$/.exec(line);
+        if (listMatch) {
+          flushPara();
+          const marker = listMatch[1] || listMatch[2];
+          currentListItems.push({
+            ordered: /\d/.test(marker),
+            text: (listMatch[3] || '').trim(),
+          });
+          continue;
+        }
+
+        // Standard text line
+        flushList();
+        currentParaLines.push(line);
       }
-      const markers = lines.map((l) => /^\s*([-*•]|\d+[.)])\s+(.*)$/.exec(l));
-      if (markers.every(Boolean)) {
-        blocks.push({
-          type: 'list',
-          items: markers.map((m) => ({
-            ordered: /\d/.test(m![1]),
-            text: (m![2] || '').trim(),
-          })),
-        });
-      } else {
-        blocks.push({ type: 'para', text: para });
-      }
-    });
+
+      flushPara();
+      flushList();
+    }
   });
   return blocks;
 }
@@ -362,7 +397,7 @@ export function parseBlocks(body: string): Block[] {
 export function parseInline(text: string): InlineNode[] {
   const nodes: InlineNode[] = [];
   let last = 0;
-  const re = /\*\*([^*]+)\*\*|__([^_]+)__|`([^`]+)`|\*([^*]+)\*|\[([^\]\n]+)\]\((\S+)\)/g;
+  const re = /\*\*([\s\S]+?)\*\*|__([^_]+)__|`([^`]+)`|\*([^*]+)\*|\[([^\]\n]+)\]\((\S+)\)/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text))) {
     if (m.index > last) nodes.push({ type: 'text', value: text.slice(last, m.index) });

@@ -119,3 +119,67 @@ export function aiProcessMaterial(materialId: string): Promise<{ status: string;
 export function aiConfiguredHint(err: unknown): boolean {
   return (err as any)?.code === 'AI_NOT_CONFIGURED';
 }
+
+export interface AiConversationSummary {
+  id: string;
+  title: string;
+  material_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AiSavedMessage {
+  id: string;
+  conversation_id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  citations?: AiCitation[] | null;
+  created_at: string;
+}
+
+export async function listAiConversations(limit = 30): Promise<AiConversationSummary[]> {
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from('ai_conversations')
+    .select('id, title, material_id, created_at, updated_at')
+    .order('updated_at', { ascending: false })
+    .limit(limit);
+  if (error) {
+    console.warn('Failed to list conversations:', error);
+    return [];
+  }
+  return (data || []) as AiConversationSummary[];
+}
+
+export async function loadConversationMessages(conversationId: string): Promise<AiSavedMessage[]> {
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from('ai_messages')
+    .select('id, conversation_id, role, content, citations, created_at')
+    .eq('conversation_id', conversationId)
+    .order('created_at', { ascending: true })
+    .limit(100);
+  if (error) {
+    console.warn('Failed to load conversation messages:', error);
+    return [];
+  }
+  return (data || []) as AiSavedMessage[];
+}
+
+export async function renameAiConversation(conversationId: string, newTitle: string): Promise<boolean> {
+  if (!supabase) return false;
+  const { error } = await supabase
+    .from('ai_conversations')
+    .update({ title: newTitle.trim(), updated_at: new Date().toISOString() })
+    .eq('id', conversationId);
+  return !error;
+}
+
+export async function deleteAiConversation(conversationId: string): Promise<boolean> {
+  if (!supabase) return false;
+  const { error } = await supabase
+    .from('ai_conversations')
+    .delete()
+    .eq('id', conversationId);
+  return !error;
+}

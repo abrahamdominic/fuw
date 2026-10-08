@@ -32,6 +32,7 @@ const ResetPasswordPage = lazy(() =>
 const AdminLoginPage = lazy(() => import('./pages/PublicPages').then((m) => ({ default: m.AdminLoginPage })));
 const AuthPage = lazy(() => import('./pages/AuthScreens').then((m) => ({ default: m.AuthPage })));
 const StudentPortal = lazy(() => import('./pages/StudentPortal').then((m) => ({ default: m.StudentPortal })));
+const LecturerPortal = lazy(() => import('./pages/LecturerPortal').then((m) => ({ default: m.LecturerPortal })));
 const AdminPortal = lazy(() => import('./pages/AdminPortal').then((m) => ({ default: m.AdminPortal })));
 const SuperAdminPortal = lazy(() =>
   import('./pages/SuperAdminPortal').then((m) => ({ default: m.SuperAdminPortal }))
@@ -84,6 +85,12 @@ const AccommodationDetailPage = lazy(() =>
 );
 const RoommateFinderPage = lazy(() =>
   import('./pages/RoommateFinderPage').then((m) => ({ default: m.RoommateFinderPage }))
+);
+const GlobalSearchPage = lazy(() =>
+  import('./pages/GlobalSearchPage').then((m) => ({ default: m.GlobalSearchPage }))
+);
+const OnboardingPage = lazy(() =>
+  import('./pages/OnboardingPage').then((m) => ({ default: m.OnboardingPage }))
 );
 // FUW Student Marketplace. Mounted under /marketplace/* so the whole platform
 // ships as one SPA with one dev server and one session (must.md Phase 10).
@@ -226,12 +233,14 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
  * correct destination is known.
  */
 function RootRedirect() {
-  const { isLoading, isAuthenticated, profile } = useAuth();
-  if (isLoading) return <BootFallback label="Restoring your session" />;
+  const { isLoading, isAuthenticated, profile, role, onboardingCompleted } = useAuth();
+  if (isLoading || (isAuthenticated && !profile)) return <BootFallback label="Restoring your session" />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (!onboardingCompleted) return <Navigate to="/onboarding" replace />;
   const destination =
-    profile?.role === 'super_admin' ? '/super' :
-    profile?.role === 'admin' ? '/admin' :
+    role === 'super_admin' ? '/super' :
+    role === 'admin' ? '/admin' :
+    role === 'lecturer' ? '/lecturer' :
     '/hub';
   return <Navigate to={destination} replace />;
 }
@@ -253,9 +262,13 @@ function RouteTransition({ children }: { children: React.ReactNode }) {
   );
 }
 
+// Captured once at module initialization: true ONLY if the tab was loaded
+// with an already active session in storage (cold-start restore).
+const HAD_STORED_SESSION_ON_BOOT = hasStoredSupabaseSession();
+
 function AppSplashBoundary() {
   const { isLoading } = useAuth();
-  return <AppSplash visible={isLoading && hasStoredSupabaseSession()} />;
+  return <AppSplash visible={isLoading && HAD_STORED_SESSION_ON_BOOT} />;
 }
 
 /**
@@ -315,13 +328,35 @@ export function App() {
             <Route path="/admin/login" element={<AdminLoginPage />} />
             <Route path="/super/login" element={<AdminLoginPage />} />
 
+            {/* Unified Personalized Onboarding Route */}
+            <Route
+              path="/onboarding"
+              element={
+                <RequireAuth>
+                  <OnboardingPage />
+                </RequireAuth>
+              }
+            />
+
             {/* Protected Student Portal Routes */}
             <Route
               path="/student/*"
               element={
                 <RequireAuth>
-                  <ProtectedRoute>
+                  <ProtectedRoute studentOnly>
                     <StudentPortal onReadOnline={handleReadOnline} />
+                  </ProtectedRoute>
+                </RequireAuth>
+              }
+            />
+
+            {/* Protected Lecturer Portal Routes */}
+            <Route
+              path="/lecturer/*"
+              element={
+                <RequireAuth>
+                  <ProtectedRoute lecturerOnly>
+                    <LecturerPortal onReadOnline={handleReadOnline} />
                   </ProtectedRoute>
                 </RequireAuth>
               }
@@ -435,6 +470,15 @@ export function App() {
             />
             <Route path="/campus-hub" element={<Navigate to="/hub" replace />} />
             <Route path="/campus" element={<Navigate to="/hub" replace />} />
+            {/* FUW Global Campus Search */}
+            <Route
+              path="/search"
+              element={
+                <PublicLayout onReadOnline={handleReadOnline}>
+                  <GlobalSearchPage />
+                </PublicLayout>
+              }
+            />
 
             {/* FUW Student Marketplace: integrated in-app section inside unified platform shell */}
             <Route

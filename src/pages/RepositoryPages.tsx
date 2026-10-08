@@ -41,6 +41,20 @@ export const REPOSITORY_TYPES: { value: ResearchItemType; label: string }[] = [
   { value: 'seminar_paper', label: 'Seminar Paper' }
 ];
 
+async function downloadFileFromUrl(url: string, filename: string): Promise<void> {
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error('Failed to download file from server.');
+  const blob = await resp.blob();
+  const blobUrl = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = blobUrl;
+  a.download = filename.trim().replace(/[/\\?%*:|"<>]/g, '_') || 'document.pdf';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  window.URL.revokeObjectURL(blobUrl);
+}
+
 export function RepositoryPage() {
   const navigate = useNavigate();
   const { isAuthenticated, profile, isAdmin } = useAuth();
@@ -111,7 +125,10 @@ export function RepositoryPage() {
       const url = await getResearchFileUrl(item);
       if (!url) { toast('This document could not be opened. Please try again.', 'error'); return; }
       void incrementResearchDownload(item.id);
-      window.open(url, '_blank', 'noopener,noreferrer');
+      const fileName = item.file_name || `${item.title || 'research'}.pdf`;
+      toast(`Downloading ${fileName}...`, 'info');
+      await downloadFileFromUrl(url, fileName);
+      toast(`Downloaded ${fileName}`, 'success');
     } catch (err: any) {
       toast(err.message || 'Download failed.', 'error');
     }
@@ -289,7 +306,10 @@ export function RepositoryDetailPage() {
       const url = await getResearchFileUrl(item);
       if (!url) { toast('This document could not be opened. Please try again.', 'error'); return; }
       void incrementResearchDownload(item.id);
-      window.open(url, '_blank', 'noopener,noreferrer');
+      const fileName = item.file_name || `${item.title || 'research'}.pdf`;
+      toast(`Downloading ${fileName}...`, 'info');
+      await downloadFileFromUrl(url, fileName);
+      toast(`Downloaded ${fileName}`, 'success');
     } catch (err: any) {
       toast(err.message || 'Download failed.', 'error');
     } finally {

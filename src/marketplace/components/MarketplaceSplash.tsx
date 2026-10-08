@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { ArrowRight } from 'lucide-react';
 import { Logo } from '../../components/Logo';
 
@@ -120,7 +121,7 @@ export function MarketplaceSplash() {
     '--splash-orb-small': '#5FC4D6'
   } as React.CSSProperties;
 
-  return (
+  const content = (
     <div
       className={`app-splash app-splash--marketplace${isVisible ? ' app-splash-visible' : ' app-splash-hidden'}`}
       role="dialog"
@@ -181,4 +182,15 @@ export function MarketplaceSplash() {
       </div>
     </div>
   );
+
+  // Portal to <body>. The splash sits inside `.route-transition.fx-page-in`
+  // in `src/main.tsx`, and that wrapper's `will-change: transform` + running
+  // keyframe animation turns it into a containing block for `position: fixed`
+  // descendants — which would lock this overlay to the page wrapper (it would
+  // slide with the page-in, scroll away instead of staying pinned, and be
+  // sized to the wrapper rather than the viewport). Mounting directly on
+  // <body> keeps the full-viewport, viewport-pinned behaviour intact.
+  return typeof document !== 'undefined'
+    ? createPortal(content, document.body)
+    : null;
 }

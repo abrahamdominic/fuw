@@ -73,9 +73,9 @@ export function HeroSection() {
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      navigate('/library?q=' + encodeURIComponent(searchQuery.trim()));
+      navigate('/search?q=' + encodeURIComponent(searchQuery.trim()));
     } else {
-      navigate('/library');
+      navigate('/search');
     }
   };
 

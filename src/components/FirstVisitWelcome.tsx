@@ -17,14 +17,21 @@ export function FirstVisitWelcome() {
   const [readingProgress, setReadingProgress] = useState<number>(0);
   const timerRef = useRef<number | null>(null);
   const progressIntervalRef = useRef<number | null>(null);
+  const exitTimerRef = useRef<number | null>(null);
 
   const handleDismiss = useCallback(() => {
     if (isExiting) return;
     markWelcomeSeen();
     setIsExiting(true);
 
-    if (timerRef.current) window.clearTimeout(timerRef.current);
-    if (progressIntervalRef.current) window.clearInterval(progressIntervalRef.current);
+    if (timerRef.current) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    if (progressIntervalRef.current) {
+      window.clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
 
     const isJsdom = typeof navigator !== 'undefined' && /jsdom/i.test(navigator.userAgent);
     if (isJsdom) {
@@ -32,10 +39,17 @@ export function FirstVisitWelcome() {
       return;
     }
 
-    timerRef.current = window.setTimeout(() => {
+    if (exitTimerRef.current) window.clearTimeout(exitTimerRef.current);
+    exitTimerRef.current = window.setTimeout(() => {
       setShouldRender(false);
     }, WELCOME_EXIT_TRANSITION_MS);
   }, [isExiting]);
+
+  useEffect(() => {
+    return () => {
+      if (exitTimerRef.current) window.clearTimeout(exitTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     // If user has already visited or welcome is dismissed, do nothing
@@ -79,8 +93,14 @@ export function FirstVisitWelcome() {
     window.addEventListener('keydown', handleKeyDown);
 
     return () => {
-      if (timerRef.current) window.clearTimeout(timerRef.current);
-      if (progressIntervalRef.current) window.clearInterval(progressIntervalRef.current);
+      if (timerRef.current) {
+        window.clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      if (progressIntervalRef.current) {
+        window.clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [shouldRender, isExiting, handleDismiss]);
@@ -95,6 +115,14 @@ export function FirstVisitWelcome() {
       role="dialog"
       aria-modal="true"
       aria-label="Welcome to FUW Campus Hub"
+      style={{
+        pointerEvents: isExiting ? 'none' : 'auto'
+      }}
+      onAnimationEnd={(e) => {
+        if (isExiting && e.target === e.currentTarget) {
+          setShouldRender(false);
+        }
+      }}
     >
       {/* Background Ambient Orbs */}
       <div className="fuw-welcome-orb fuw-welcome-orb-top" aria-hidden="true" />

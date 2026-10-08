@@ -507,6 +507,15 @@ export const PORTAL_ROUTES: Record<string, PageMeta> = {
     breadcrumbs: [HOME_CRUMB],
     schema: 'none'
   },
+  '/lecturer': {
+    title: 'Lecturer Portal | FUW E-Library',
+    description: 'Private academic lecturer dashboard and repository manager.',
+    path: '/lecturer',
+    keywords: [],
+    indexability: 'noindex',
+    breadcrumbs: [HOME_CRUMB],
+    schema: 'none'
+  },
   '/admin': {
     title: 'Administration Portal | FUW E-Library',
     description: 'Private library administration portal.',
@@ -520,6 +529,15 @@ export const PORTAL_ROUTES: Record<string, PageMeta> = {
     title: 'Platform Governance | FUW E-Library',
     description: 'Private platform governance portal.',
     path: '/super',
+    keywords: [],
+    indexability: 'noindex',
+    breadcrumbs: [HOME_CRUMB],
+    schema: 'none'
+  },
+  '/onboarding': {
+    title: 'Personalized Onboarding | FUW Campus Hub',
+    description: 'Private first-time user onboarding workspace.',
+    path: '/onboarding',
     keywords: [],
     indexability: 'noindex',
     breadcrumbs: [HOME_CRUMB],

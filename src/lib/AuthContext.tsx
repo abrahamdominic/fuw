@@ -41,6 +41,9 @@ export interface ProfileData {
   departmentLocked?: boolean;
   gender?: string;
   phoneNumber?: string;
+  onboardingCompleted?: boolean;
+  onboardingStarted?: boolean;
+  onboardingStep?: number;
 }
 
 // Maximum number of identity-field edits allowed while a profile is incomplete.
@@ -67,8 +70,12 @@ export interface AuthContextType {
   isAuthenticated: boolean;
   isAdmin: boolean;
   isSuperAdmin: boolean;
+  isLecturer: boolean;
   isStudent: boolean;
   isProfileComplete: boolean;
+  onboardingCompleted: boolean;
+  onboardingStep: number;
+  setOnboardingState: (step: number, completed: boolean) => Promise<void>;
   role: AppRole | null;
   permissions: string[];
   hasPermission: (permission: string) => boolean;
@@ -184,6 +191,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [mfaVerifiedFactor, setMfaVerifiedFactor] = useState<TOTPFactor | null>(null);
   const clearMfaRequired = () => { setMfaRequired(null); };
 
+  const inFlightProfileRef = useRef<Map<string, Promise<ProfileData | null>>>(new Map());
+
   // Sync profile to store currentUser whenever profile changes
   const syncToStore = (prof: ProfileData | null, authedUser: User | null) => {
     if (prof && authedUser) {
@@ -196,7 +205,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         faculty: prof.faculty || '',
         department: prof.department || '',
         level: prof.level || '',
-        role: prof.role === 'admin' || prof.role === 'super_admin' ? 'ADMIN' : 'STUDENT',
+        role: prof.role === 'admin' || prof.role === 'super_admin' ? 'ADMIN' : prof.role === 'lecturer' ? 'LECTURER' : 'STUDENT',
         bio: prof.bio || '',
         avatarUrl: prof.avatarUrl || '',
         isVerified: prof.isVerified === true,
@@ -206,6 +215,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (prof.role === 'admin' || prof.role === 'super_admin') {
         store.setAuthenticatedAdmin(storeUser);
+      } else if (prof.role === 'lecturer') {
+        store.setAuthenticatedLecturer(storeUser);
       } else {
         store.setAuthenticatedStudent(storeUser);
       }
@@ -249,171 +260,194 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Fetch user profile from Supabase profiles table
   const fetchProfile = async (userId: string, userEmail?: string): Promise<ProfileData | null> => {
-    if (!supabase) return null;
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
+    if (!supabase || !userId) return null;
 
-      if (error) {
-        console.warn('Profile fetch warning:', error.message);
-      }
+    const existingPromise = inFlightProfileRef.current.get(userId);
+    if (existingPromise) return existingPromise;
 
-      if (data) {
-        const loadedProfile: ProfileData = {
-          id: data.id,
-          fullName: data.full_name,
-          displayName: data.full_name?.split(' ')[0] || data.full_name,
-          email: data.email || userEmail || '',
-          matricNumber: data.matric_number || '',
-          faculty: data.faculty || '',
-          department: data.department || '',
-          level: data.level || '',
-          role: (data.role as AppRole) || 'student',
-          permissions: Array.isArray(data.permissions) ? data.permissions : [],
-          isActive: data.is_active !== false,
-          bio: data.bio || '',
-          avatarUrl: data.avatar_url || '',
-          isVerified: data.verified === true,
-          verificationStatus: (data.verification_status as ProfileData['verificationStatus']) || 'unsubmitted',
-          verificationReason: data.verification_reason || '',
-          verificationSubmittedAt: data.verification_submitted_at || undefined,
-          joinedDate: data.created_at ? new Date(data.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '2026',
-          matricChangesUsed: data.matric_changes_used ?? 0,
-          facultyChangesUsed: data.faculty_changes_used ?? 0,
-          departmentChangesUsed: data.department_changes_used ?? 0,
-          levelChangesUsed: data.level_changes_used ?? 0,
-          facultyLocked: !!data.faculty,
-          departmentLocked: !!data.department,
-          gender: data.gender || '',
-          phoneNumber: data.phone_number || ''
-        };
-        setProfile(loadedProfile);
-        return loadedProfile;
-      }
-
-      // Self-heal: If profile row is missing from profiles table, create it now for the authenticated user
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      if (currentUser && currentUser.id === userId) {
-        const meta = currentUser.user_metadata || {};
-        const fallbackProfile = {
-          id: userId,
-          email: userEmail || currentUser.email || '',
-          full_name: meta.full_name || userEmail?.split('@')[0] || 'Student',
-          display_name: meta.display_name || meta.full_name?.split(' ')[0] || 'Student',
-          username: meta.username || null,
-          matric_number: meta.matric_number || null,
-          faculty: meta.faculty || null,
-          department: meta.department || null,
-          level: meta.level || null,
-          gender: meta.gender || null,
-          phone_number: meta.phone_number || null,
-          role: 'student' as AppRole,
-          is_active: true,
-        };
-        const { data: created } = await supabase
+    const loadPromise = (async (): Promise<ProfileData | null> => {
+      try {
+        const { data, error } = await supabase
           .from('profiles')
-          .upsert(fallbackProfile, { onConflict: 'id' })
-          .select()
+          .select('*')
+          .eq('id', userId)
           .maybeSingle();
 
-        if (created) {
+        if (error) {
+          console.warn('Profile fetch warning:', error.message);
+        }
+
+        if (data) {
           const loadedProfile: ProfileData = {
-            id: created.id,
-            fullName: created.full_name,
-            displayName: created.full_name?.split(' ')[0] || created.full_name,
-            email: created.email || userEmail || '',
-            matricNumber: created.matric_number || '',
-            faculty: created.faculty || '',
-            department: created.department || '',
-            level: created.level || '',
-            role: (created.role as AppRole) || 'student',
-            permissions: Array.isArray(created.permissions) ? created.permissions : [],
-            isActive: created.is_active !== false,
-            bio: created.bio || '',
-            avatarUrl: created.avatar_url || '',
-            isVerified: created.verified === true,
-            verificationStatus: (created.verification_status as ProfileData['verificationStatus']) || 'unsubmitted',
-            verificationReason: created.verification_reason || '',
-            verificationSubmittedAt: created.verification_submitted_at || undefined,
-            joinedDate: created.created_at ? new Date(created.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '2026',
-            matricChangesUsed: created.matric_changes_used ?? 0,
-            facultyChangesUsed: created.faculty_changes_used ?? 0,
-            departmentChangesUsed: created.department_changes_used ?? 0,
-            levelChangesUsed: created.level_changes_used ?? 0,
-            facultyLocked: !!created.faculty,
-            departmentLocked: !!created.department,
-            gender: created.gender || '',
-            phoneNumber: created.phone_number || ''
+            id: data.id,
+            fullName: data.full_name,
+            displayName: data.full_name?.split(' ')[0] || data.full_name,
+            email: data.email || userEmail || '',
+            matricNumber: data.matric_number || '',
+            faculty: data.faculty || '',
+            department: data.department || '',
+            level: data.level || '',
+            role: (data.role as AppRole) || 'student',
+            permissions: Array.isArray(data.permissions) ? data.permissions : [],
+            isActive: data.is_active !== false,
+            bio: data.bio || '',
+            avatarUrl: data.avatar_url || '',
+            isVerified: data.verified === true,
+            verificationStatus: (data.verification_status as ProfileData['verificationStatus']) || 'unsubmitted',
+            verificationReason: data.verification_reason || '',
+            verificationSubmittedAt: data.verification_submitted_at || undefined,
+            joinedDate: data.created_at ? new Date(data.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '2026',
+            matricChangesUsed: data.matric_changes_used ?? 0,
+            facultyChangesUsed: data.faculty_changes_used ?? 0,
+            departmentChangesUsed: data.department_changes_used ?? 0,
+            levelChangesUsed: data.level_changes_used ?? 0,
+            facultyLocked: !!data.faculty,
+            departmentLocked: !!data.department,
+            gender: data.gender || '',
+            phoneNumber: data.phone_number || '',
+            onboardingCompleted: data.onboarding_completed ?? (data.role === 'student' ? Boolean(data.matric_number && data.department && data.level) : true),
+            onboardingStarted: data.onboarding_started ?? false,
+            onboardingStep: data.onboarding_step ?? 1
           };
           setProfile(loadedProfile);
           return loadedProfile;
         }
 
-        // Even if DB write fails, hydrate state with synthesized student profile
-        const synthesized: ProfileData = {
-          id: userId,
-          fullName: meta.full_name || meta.name || userEmail?.split('@')[0] || 'Student',
-          displayName: meta.display_name || meta.full_name?.split(' ')[0] || userEmail?.split('@')[0] || 'Student',
-          email: userEmail || currentUser.email || '',
-          matricNumber: meta.matric_number || '',
-          faculty: meta.faculty || '',
-          department: meta.department || '',
-          level: meta.level || '',
-          role: (meta.role as AppRole) || 'student',
-          permissions: Array.isArray(meta.permissions) ? meta.permissions : [],
-          isActive: true,
-          bio: meta.bio || '',
-          avatarUrl: meta.avatar_url || '',
-          isVerified: meta.verified === true,
-          verificationStatus: (meta.verification_status as ProfileData['verificationStatus']) || 'unsubmitted',
-          verificationReason: '',
-          verificationSubmittedAt: undefined,
-          joinedDate: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
-          matricChangesUsed: 0,
-          facultyChangesUsed: 0,
-          departmentChangesUsed: 0,
-          levelChangesUsed: 0,
-          facultyLocked: !!meta.faculty,
-          departmentLocked: !!meta.department,
-          gender: meta.gender || '',
-          phoneNumber: meta.phone_number || ''
-        };
-        setProfile(synthesized);
-        return synthesized;
+        // Self-heal: If profile row is missing from profiles table, create it now for the authenticated user
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        if (currentUser && currentUser.id === userId) {
+          const meta = currentUser.user_metadata || {};
+          const fallbackProfile = {
+            id: userId,
+            email: userEmail || currentUser.email || '',
+            full_name: meta.full_name || userEmail?.split('@')[0] || 'Member',
+            display_name: meta.display_name || meta.full_name?.split(' ')[0] || 'Member',
+            username: meta.username || null,
+            matric_number: meta.matric_number || null,
+            faculty: meta.faculty || null,
+            department: meta.department || null,
+            level: meta.level || null,
+            gender: meta.gender || null,
+            phone_number: meta.phone_number || null,
+            role: (meta.role as AppRole) || 'student',
+            is_active: true,
+          };
+          const { data: created } = await supabase
+            .from('profiles')
+            .upsert(fallbackProfile, { onConflict: 'id' })
+            .select()
+            .maybeSingle();
+
+          if (created) {
+            const loadedProfile: ProfileData = {
+              id: created.id,
+              fullName: created.full_name,
+              displayName: created.full_name?.split(' ')[0] || created.full_name,
+              email: created.email || userEmail || '',
+              matricNumber: created.matric_number || '',
+              faculty: created.faculty || '',
+              department: created.department || '',
+              level: created.level || '',
+              role: (created.role as AppRole) || 'student',
+              permissions: Array.isArray(created.permissions) ? created.permissions : [],
+              isActive: created.is_active !== false,
+              bio: created.bio || '',
+              avatarUrl: created.avatar_url || '',
+              isVerified: created.verified === true,
+              verificationStatus: (created.verification_status as ProfileData['verificationStatus']) || 'unsubmitted',
+              verificationReason: created.verification_reason || '',
+              verificationSubmittedAt: created.verification_submitted_at || undefined,
+              joinedDate: created.created_at ? new Date(created.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '2026',
+              matricChangesUsed: created.matric_changes_used ?? 0,
+              facultyChangesUsed: created.faculty_changes_used ?? 0,
+              departmentChangesUsed: created.department_changes_used ?? 0,
+              levelChangesUsed: created.level_changes_used ?? 0,
+              facultyLocked: !!created.faculty,
+              departmentLocked: !!created.department,
+              gender: created.gender || '',
+              phoneNumber: created.phone_number || '',
+              onboardingCompleted: created.onboarding_completed ?? false,
+              onboardingStarted: created.onboarding_started ?? false,
+              onboardingStep: created.onboarding_step ?? 1
+            };
+            setProfile(loadedProfile);
+            return loadedProfile;
+          }
+
+          // Even if DB write fails, hydrate state with synthesized profile
+          const synthesized: ProfileData = {
+            id: userId,
+            fullName: meta.full_name || meta.name || userEmail?.split('@')[0] || 'Member',
+            displayName: meta.display_name || meta.full_name?.split(' ')[0] || userEmail?.split('@')[0] || 'Member',
+            email: userEmail || currentUser.email || '',
+            matricNumber: meta.matric_number || '',
+            faculty: meta.faculty || '',
+            department: meta.department || '',
+            level: meta.level || '',
+            role: (meta.role as AppRole) || 'student',
+            permissions: Array.isArray(meta.permissions) ? meta.permissions : [],
+            isActive: true,
+            bio: meta.bio || '',
+            avatarUrl: meta.avatar_url || '',
+            isVerified: meta.verified === true,
+            verificationStatus: (meta.verification_status as ProfileData['verificationStatus']) || 'unsubmitted',
+            verificationReason: '',
+            verificationSubmittedAt: undefined,
+            joinedDate: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+            matricChangesUsed: 0,
+            facultyChangesUsed: 0,
+            departmentChangesUsed: 0,
+            levelChangesUsed: 0,
+            facultyLocked: !!meta.faculty,
+            departmentLocked: !!meta.department,
+            gender: meta.gender || '',
+            phoneNumber: meta.phone_number || '',
+            onboardingCompleted: false,
+            onboardingStarted: false,
+            onboardingStep: 1
+          };
+          setProfile(synthesized);
+          return synthesized;
+        }
+      } catch (err) {
+        console.error('Error fetching user profile:', err);
+        if (userId) {
+          const fallback: ProfileData = {
+            id: userId,
+            fullName: userEmail?.split('@')[0] || 'Member',
+            displayName: userEmail?.split('@')[0] || 'Member',
+            email: userEmail || '',
+            matricNumber: '',
+            faculty: '',
+            department: '',
+            level: '',
+            role: 'student',
+            permissions: [],
+            isActive: true,
+            bio: '',
+            avatarUrl: '',
+            isVerified: false,
+            verificationStatus: 'unsubmitted',
+            joinedDate: '2026',
+            facultyLocked: false,
+            departmentLocked: false,
+            gender: '',
+            phoneNumber: '',
+            onboardingCompleted: true,
+            onboardingStarted: true,
+            onboardingStep: 1
+          };
+          setProfile(fallback);
+          return fallback;
+        }
+      } finally {
+        inFlightProfileRef.current.delete(userId);
       }
-    } catch (err) {
-      console.error('Error fetching user profile:', err);
-      if (userId) {
-        const fallback: ProfileData = {
-          id: userId,
-          fullName: userEmail?.split('@')[0] || 'Student',
-          displayName: userEmail?.split('@')[0] || 'Student',
-          email: userEmail || '',
-          matricNumber: '',
-          faculty: '',
-          department: '',
-          level: '',
-          role: 'student',
-          permissions: [],
-          isActive: true,
-          bio: '',
-          avatarUrl: '',
-          isVerified: false,
-          verificationStatus: 'unsubmitted',
-          joinedDate: '2026',
-          facultyLocked: false,
-          departmentLocked: false,
-          gender: '',
-          phoneNumber: ''
-        };
-        setProfile(fallback);
-        return fallback;
-      }
-    }
-    return null;
+      return null;
+    })();
+
+    inFlightProfileRef.current.set(userId, loadPromise);
+    return loadPromise;
   };
 
   // Initial session restoration & onAuthStateChange listener
@@ -510,19 +544,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (!isSilentRefresh) {
             setIsLoading(true);
           }
-          const prof = await fetchProfile(currentSession.user.id, currentSession.user.email);
-          if (prof && !prof.isActive && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
-            await authClient.auth.signOut();
-            setProfile(null);
-            syncToStore(null, null);
-          } else {
-            if (prof && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
-              await afterAuthenticated(prof);
+          try {
+            const prof = await fetchProfile(currentSession.user.id, currentSession.user.email);
+            if (prof && !prof.isActive && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
+              await authClient.auth.signOut();
+              setProfile(null);
+              syncToStore(null, null);
+            } else {
+              if (prof && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
+                await afterAuthenticated(prof);
+              }
+              syncToStore(prof, currentSession.user);
             }
-            syncToStore(prof, currentSession.user);
-          }
-          if (!isSilentRefresh) {
-            setIsLoading(false);
+          } catch (profileErr) {
+            console.error('Profile hydration error during auth state change:', profileErr);
+          } finally {
+            if (!isSilentRefresh && mounted) {
+              setIsLoading(false);
+            }
           }
         } else {
           setProfile(null);
@@ -1193,16 +1232,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Role is derived solely from the server-fetched profile (DB). Never from
   // sessionStorage: that flag is only a legacy UI hint and must not influence
   // authorization decisions.
-  const role: AppRole | null = profile?.role || (user ? 'student' : null);
+  const role: AppRole | null = profile?.role || (user && !isLoading ? 'student' : null);
   const isSuperAdmin = role === 'super_admin';
   const isAdmin = role === 'admin' || isSuperAdmin;
+  const isLecturer = role === 'lecturer';
+  const isStudent = role === 'student';
   const permissions = profile?.permissions ?? [];
   const hasPermission = (permission: string) =>
     can({ role, permissions, isActive: profile?.isActive !== false }, permission);
-  const isStudent = role === 'student';
   const isAuthenticated = !!user && profile?.isActive !== false;
   // A profile is complete once academic identity details have been saved
   const isProfileComplete = !!(profile && profile.matricNumber && profile.faculty && profile.department);
+
+  const onboardingCompleted = useMemo(() => {
+    if (!profile) return false;
+    if (profile.onboardingCompleted !== undefined) return Boolean(profile.onboardingCompleted);
+    if (profile.role === 'student') {
+      return Boolean(profile.matricNumber && profile.department && profile.level);
+    }
+    return true;
+  }, [profile]);
+
+  const onboardingStep = profile?.onboardingStep ?? 1;
+
+  const setOnboardingState = useCallback(async (step: number, completed: boolean) => {
+    if (!user || !supabase) return;
+    try {
+      await supabase.rpc('complete_user_onboarding', {
+        p_step: step,
+        p_completed: completed
+      });
+      setProfile((prev) => prev ? {
+        ...prev,
+        onboardingStep: step,
+        onboardingStarted: true,
+        onboardingCompleted: completed ? true : prev.onboardingCompleted
+      } : null);
+    } catch (err) {
+      console.warn('Failed to persist onboarding state:', err);
+    }
+  }, [user]);
 
   // Verification + entitlement live on the server, so they are resolved with a
   // dedicated call rather than being derived from the cached profile row. Both
@@ -1244,8 +1313,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isAuthenticated,
       isAdmin,
       isSuperAdmin,
+      isLecturer,
       isStudent,
       isProfileComplete,
+      onboardingCompleted,
+      onboardingStep,
+      setOnboardingState,
       role,
       permissions,
       hasPermission,
@@ -1265,7 +1338,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       hasPremium,
       refreshEntitlement
     }),
-    [user, session, profile, isLoading, isAuthenticated, isAdmin, isSuperAdmin, isStudent, isProfileComplete, role, permissions, mfaRequired, mfaVerifiedFactor, plan, hasPremium, refreshEntitlement]
+    [user, session, profile, isLoading, isAuthenticated, isAdmin, isSuperAdmin, isLecturer, isStudent, isProfileComplete, onboardingCompleted, onboardingStep, setOnboardingState, role, permissions, mfaRequired, mfaVerifiedFactor, plan, hasPremium, refreshEntitlement]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

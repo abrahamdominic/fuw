@@ -219,7 +219,7 @@ export const ProfilePage: React.FC = () => {
                 </h4>
                 <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary, #55675b)' }}>
                   {vendor
-                    ? `Status: ${vendor.status.toUpperCase()} · ${vendor.completed_orders_count || 0} completed orders`
+                    ? `Status: ${vendor.status.replace(/_/g, ' ').toUpperCase()} · ${vendor.completed_orders_count || 0} completed orders`
                     : 'Sell products or campus services to students across Federal University Wukari'}
                 </p>
               </div>

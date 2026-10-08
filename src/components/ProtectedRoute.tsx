@@ -9,13 +9,23 @@ interface ProtectedRouteProps {
   adminOnly?: boolean;
   /** Requires a super admin account (used by the /super portal). */
   superAdminOnly?: boolean;
+  /** Requires a lecturer account (used by the /lecturer portal). */
+  lecturerOnly?: boolean;
+  /** Requires a student account (used by the /student portal). */
+  studentOnly?: boolean;
 }
 
-export function ProtectedRoute({ children, adminOnly = false, superAdminOnly = false }: ProtectedRouteProps) {
-  const { user, profile, isLoading, isAuthenticated, isAdmin, isSuperAdmin, refreshProfile, signOut } = useAuth();
+export function ProtectedRoute({
+  children,
+  adminOnly = false,
+  superAdminOnly = false,
+  lecturerOnly = false,
+  studentOnly = false
+}: ProtectedRouteProps) {
+  const { user, profile, isLoading, isAuthenticated, isAdmin, isSuperAdmin, isLecturer, refreshProfile, signOut } = useAuth();
   const location = useLocation();
 
-  if (isLoading || (user && !profile)) {
+  if (isLoading) {
     return (
       <div className="auth-loading-screen">
         <div className="auth-loading-card">
@@ -30,7 +40,7 @@ export function ProtectedRoute({ children, adminOnly = false, superAdminOnly = f
 
   // Unauthenticated user -> redirect to login
   if (!isAuthenticated || !user) {
-    const loginTarget = superAdminOnly ? '/admin/login' : adminOnly ? '/admin/login' : '/login';
+    const loginTarget = superAdminOnly || adminOnly ? '/admin/login' : '/login';
     return <Navigate to={loginTarget} state={{ from: location }} replace />;
   }
 
@@ -59,7 +69,7 @@ export function ProtectedRoute({ children, adminOnly = false, superAdminOnly = f
   }
 
   // Deactivated accounts are blocked everywhere.
-  if (profile?.isActive === false) {
+  if (profile.isActive === false) {
     return (
       <div className="auth-loading-screen">
         <div className="auth-loading-card">
@@ -71,15 +81,29 @@ export function ProtectedRoute({ children, adminOnly = false, superAdminOnly = f
     );
   }
 
+  // First-time onboarding redirection: ensure new users complete role-specific onboarding
+  if (profile.onboardingCompleted === false && !location.pathname.startsWith('/onboarding')) {
+    return <Navigate to="/onboarding" replace />;
+  }
+
   // Super Admin portal
   if (superAdminOnly && !isSuperAdmin) {
-    return <Navigate to={isAdmin ? '/admin' : '/student'} replace />;
+    return <Navigate to={isAdmin ? '/admin' : isLecturer ? '/lecturer' : '/student'} replace />;
   }
 
   // If page requires Admin privileges
   if (adminOnly && !isAdmin) {
-    // Normal student attempting to access /admin -> redirect to student portal
-    return <Navigate to="/student" replace />;
+    return <Navigate to={isLecturer ? '/lecturer' : '/student'} replace />;
+  }
+
+  // If page requires Lecturer privileges
+  if (lecturerOnly && !isLecturer) {
+    return <Navigate to={isAdmin ? '/admin' : '/student'} replace />;
+  }
+
+  // Student routes: redirect lecturers to their own portal
+  if (studentOnly && isLecturer) {
+    return <Navigate to="/lecturer" replace />;
   }
 
   return <>{children}</>;

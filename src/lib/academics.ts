@@ -766,6 +766,106 @@ export async function adminUpsertLecturer(input: {
   throwOn(error);
 }
 
+export async function adminOnboardLecturer(input: {
+  fullName: string;
+  staffEmail: string;
+  phone?: string | null;
+  staffId?: string | null;
+  academicRank?: string | null;
+  officeLocation?: string | null;
+  bio?: string | null;
+  facultyId?: string | null;
+  departmentId?: string | null;
+  departmentIds?: string[] | null;
+}): Promise<string> {
+  const { data, error } = await requireSupabase().rpc('admin_onboard_lecturer', {
+    p_full_name: input.fullName,
+    p_staff_email: input.staffEmail,
+    p_phone: input.phone ?? null,
+    p_staff_id: input.staffId ?? null,
+    p_academic_rank: input.academicRank ?? null,
+    p_office_location: input.officeLocation ?? null,
+    p_bio: input.bio ?? null,
+    p_faculty_id: input.facultyId ?? null,
+    p_department_id: input.departmentId ?? null,
+    p_department_ids: input.departmentIds ?? null
+  });
+  throwOn(error);
+  return data;
+}
+
+export async function adminConvertUserToLecturer(input: {
+  userId: string;
+  staffId?: string | null;
+  academicRank?: string | null;
+  officeLocation?: string | null;
+  facultyId?: string | null;
+  departmentId?: string | null;
+  departmentIds?: string[] | null;
+  fullName?: string | null;
+}): Promise<string> {
+  const { data, error } = await requireSupabase().rpc('admin_convert_user_to_lecturer', {
+    p_user_id: input.userId,
+    p_staff_id: input.staffId ?? null,
+    p_academic_rank: input.academicRank ?? null,
+    p_office_location: input.officeLocation ?? null,
+    p_faculty_id: input.facultyId ?? null,
+    p_department_id: input.departmentId ?? null,
+    p_department_ids: input.departmentIds ?? null,
+    p_full_name: input.fullName ?? null
+  });
+  throwOn(error);
+  return data;
+}
+
+export async function lecturerBroadcastAnnouncement(input: {
+  title: string;
+  body: string;
+  facultyId?: string | null;
+  departmentIds?: string[] | null;
+  announcementType?: 'general' | 'important' | 'assignment' | 'exam';
+}): Promise<string> {
+  const { data, error } = await requireSupabase().rpc('lecturer_broadcast_announcement', {
+    p_title: input.title,
+    p_body: input.body,
+    p_target_faculty_id: input.facultyId ?? null,
+    p_target_department_ids: input.departmentIds ?? null,
+    p_announcement_type: input.announcementType ?? 'general'
+  });
+  throwOn(error);
+  return data;
+}
+
+export async function completeUserOnboarding(
+  step: number = 1,
+  completed: boolean = false
+): Promise<{
+  onboarding_started: boolean;
+  onboarding_step: number;
+  onboarding_completed: boolean;
+  onboarding_completed_at: string | null;
+}> {
+  const { data, error } = await requireSupabase().rpc('complete_user_onboarding', {
+    p_step: step,
+    p_completed: completed
+  });
+  throwOn(error);
+  return data;
+}
+
+export async function lecturerUpdateOwnProfile(input: {
+  bio: string;
+  phone: string;
+  officeLocation: string;
+}): Promise<void> {
+  const { error } = await requireSupabase().rpc('lecturer_update_own_profile', {
+    p_bio: input.bio,
+    p_phone: input.phone,
+    p_office_location: input.officeLocation
+  });
+  throwOn(error);
+}
+
 export async function adminDeleteLecturer(id: string): Promise<void> {
   const { error } = await requireSupabase().rpc('admin_delete_lecturer', { p_id: id });
   throwOn(error);

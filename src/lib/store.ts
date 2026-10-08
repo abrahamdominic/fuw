@@ -1,5 +1,6 @@
 import { catalogue, materialTypes, normalizeLevel } from '../data/catalogue';
 import { supabase } from './supabase';
+import { logUserActivity } from './activity';
 
 // Timezone-aware helpers: the browser always reports the visitor's local
 // timezone, so formatting through Intl gives each student their real local time.
@@ -200,7 +201,7 @@ export interface UserProfile {
   displayName: string;
   email: string;
   matricNumber: string;
-  role: 'STUDENT' | 'ADMIN' | 'LIBRARIAN';
+  role: 'STUDENT' | 'ADMIN' | 'LIBRARIAN' | 'LECTURER';
   faculty: string;
   department: string;
   level: string;
@@ -442,11 +443,21 @@ class MaterialsStore {
     this.notify();
   }
 
+  public setAuthenticatedLecturer(user: UserProfile) {
+    this.isAdminAuthenticated = false;
+    this.isStudentAuthenticated = false;
+    this.currentUser = user;
+    localStorage.setItem('fuw_lecturer_session', 'true');
+    this.saveUser();
+    this.notify();
+  }
+
   public clearAuthentication() {
     this.isStudentAuthenticated = false;
     this.isAdminAuthenticated = false;
     this.currentUser = GUEST_USER;
     localStorage.removeItem('fuw_student_session');
+    localStorage.removeItem('fuw_lecturer_session');
     localStorage.removeItem('fuw_user_profile');
     this.notify();
   }
@@ -457,6 +468,10 @@ class MaterialsStore {
 
   public isLoggedInAdmin(): boolean {
     return this.isAdminAuthenticated;
+  }
+
+  public isLoggedInLecturer(): boolean {
+    return this.currentUser?.role === 'LECTURER';
   }
 
   // NOTE: All sign-in / sign-out flows are handled exclusively through
@@ -934,6 +949,14 @@ class MaterialsStore {
     this.downloadHistory.unshift(record);
     this.saveDownloads();
     this.notify();
+
+    logUserActivity({
+      activityType: 'material_downloaded',
+      entityType: 'elibrary_material',
+      entityId: materialId,
+      entityTitle: material.title,
+      metadata: { course: material.course, fileSize: material.fileSize }
+    }).catch(() => {});
   }
 
   public getDownloadHistory(): DownloadRecord[] {
@@ -945,6 +968,14 @@ class MaterialsStore {
     if (material) {
       material.views += 1;
       this.saveMaterials();
+
+      logUserActivity({
+        activityType: 'material_viewed',
+        entityType: 'elibrary_material',
+        entityId: materialId,
+        entityTitle: material.title,
+        metadata: { course: material.course }
+      }).catch(() => {});
     }
 
     // Add to recent views (prevent duplicate immediate repeats)
@@ -996,6 +1027,16 @@ class MaterialsStore {
     this.readingHistory.unshift(record);
     this.saveReading();
     this.notify();
+
+    if (percentage >= 100) {
+      logUserActivity({
+        activityType: 'material_completed',
+        entityType: 'elibrary_material',
+        entityId: materialId,
+        entityTitle: material.title,
+        metadata: { course: material.course, totalPages }
+      }).catch(() => {});
+    }
   }
 
   public getReadingHistory(): ReadingProgressRecord[] {

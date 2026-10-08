@@ -165,3 +165,62 @@ export function plannerStats(tasks: PlannerTask[]): {
     completionRate: total === 0 ? 0 : Math.round((completed / total) * 100)
   };
 }
+
+/**
+ * Generate structured study tasks using the FUW AI engine.
+ */
+export async function generateAiPlannerTasks(input: {
+  courseCode: string;
+  goal: string;
+  daysAvailable: number;
+  hoursPerDay?: number;
+}): Promise<PlannerTaskInput[]> {
+  const { aiAsk } = await import('./ai');
+  const prompt = `Create a realistic ${input.daysAvailable}-day study task breakdown for a university student.
+Course: "${input.courseCode}"
+Goal: "${input.goal}"
+Available study time: ${input.hoursPerDay || 2} hours/day.
+
+Format strictly as a valid JSON array of objects without Markdown formatting or fences:
+[
+  {
+    "title": "Concise task title",
+    "description": "Specific action items and topics to read",
+    "taskType": "study",
+    "priority": "normal",
+    "dayOffset": 1
+  }
+]`;
+
+  const res = await aiAsk({
+    message: prompt,
+    mode: 'exam'
+  });
+
+  const tasks: PlannerTaskInput[] = [];
+  try {
+    const jsonMatch = res.answer.match(/\[[\s\S]*\]/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (Array.isArray(parsed)) {
+        for (const item of parsed) {
+          const due = new Date();
+          due.setDate(due.getDate() + (Number(item.dayOffset) || 1));
+          tasks.push({
+            title: String(item.title || 'Study Session').slice(0, 100),
+            description: String(item.description || ''),
+            courseCode: input.courseCode.toUpperCase(),
+            taskType: (['study', 'assignment', 'exam_prep', 'revision'].includes(item.taskType) ? item.taskType : 'study') as PlannerTaskType,
+            priority: (['low', 'normal', 'high', 'urgent'].includes(item.priority) ? item.priority : 'normal') as PlannerPriority,
+            status: 'pending',
+            dueDate: due.toISOString().split('T')[0]
+          });
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Could not parse AI planner tasks JSON:', err);
+  }
+
+  return tasks;
+}

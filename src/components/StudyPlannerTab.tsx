@@ -12,7 +12,9 @@ import {
   Pencil,
   X,
   Flag,
-  AlertTriangle
+  AlertTriangle,
+  Sparkles,
+  Loader2
 } from 'lucide-react';
 import { fx, staggerDelay } from '../lib/motion';
 import {
@@ -22,6 +24,7 @@ import {
   deletePlannerTask,
   plannerStats,
   sortPlannerTasks,
+  generateAiPlannerTasks,
   type PlannerTask,
   type PlannerTaskInput,
   type PlannerTaskType,
@@ -82,6 +85,64 @@ export function StudyPlannerTab() {
   const [filter, setFilter] = useState<'all' | 'pending' | 'in_progress' | 'completed'>('all');
   const [advancedPlansEnabled, setAdvancedPlansEnabled] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  // AI Plan Generator state
+  const [showAiModal, setShowAiModal] = useState(false);
+  const [aiCourse, setAiCourse] = useState('');
+  const [aiGoal, setAiGoal] = useState('');
+  const [aiDays, setAiDays] = useState(7);
+  const [aiHours, setAiHours] = useState(2);
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiGeneratedTasks, setAiGeneratedTasks] = useState<{ task: PlannerTaskInput; selected: boolean }[]>([]);
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  const handleGenerateAiTasks = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!aiCourse.trim() || !aiGoal.trim()) return;
+    if (!advancedPlansEnabled) {
+      setAiError('AI-Assisted Study Planning is a Premium feature. Please upgrade to unlock.');
+      return;
+    }
+    setAiGenerating(true);
+    setAiError(null);
+    try {
+      const generated = await generateAiPlannerTasks({
+        courseCode: aiCourse,
+        goal: aiGoal,
+        daysAvailable: aiDays,
+        hoursPerDay: aiHours
+      });
+      if (generated.length === 0) {
+        throw new Error('No tasks could be generated. Please refine your goal.');
+      }
+      setAiGeneratedTasks(generated.map((task) => ({ task, selected: true })));
+    } catch (err: any) {
+      setAiError(err?.message || 'Failed to generate plan.');
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
+  const handleAcceptAiTasks = async () => {
+    const selected = aiGeneratedTasks.filter((t) => t.selected).map((t) => t.task);
+    if (selected.length === 0) return;
+    setSaving(true);
+    try {
+      for (const t of selected) {
+        await createPlannerTask(t);
+      }
+      toast(`Added ${selected.length} AI study tasks to your planner.`, 'success');
+      setShowAiModal(false);
+      setAiGeneratedTasks([]);
+      setAiCourse('');
+      setAiGoal('');
+      await load();
+    } catch {
+      toast('Could not add some tasks. Please try again.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -194,12 +255,23 @@ export function StudyPlannerTab() {
             Break your courses into focused tasks, set priorities, and track progress.
           </p>
         </div>
-        {!showForm ? (
-          <button type="button" className="primary" onClick={openAddForm}>
-            <Plus size={16} />
-            <span>Add task</span>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="secondary-btn"
+            onClick={() => setShowAiModal(true)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            <Sparkles size={15} color="#9333ea" />
+            <span>AI Auto-Plan</span>
           </button>
-        ) : null}
+          {!showForm ? (
+            <button type="button" className="primary" onClick={openAddForm}>
+              <Plus size={16} />
+              <span>Add task</span>
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {/* Progress overview */}
@@ -420,6 +492,155 @@ export function StudyPlannerTab() {
       {!loading && !showForm && tasks.length > 0 && visibleTasks.length === 0 && (
         <div className="portal-empty">
           <p>No tasks in this section.</p>
+        </div>
+      )}
+
+      {/* Modal: AI Auto-Plan */}
+      {showAiModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'grid', placeItems: 'center', zIndex: 9999, padding: 20 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, maxWidth: 520, width: '100%', padding: 24, boxShadow: 'var(--shadow-lg)', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Sparkles size={18} color="#9333ea" />
+                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>AI Study Task Planner</h3>
+              </div>
+              <button type="button" onClick={() => setShowAiModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            {aiError && (
+              <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(239, 68, 68, 0.1)', color: '#dc2626', fontSize: 12, marginBottom: 14 }}>
+                {aiError}
+              </div>
+            )}
+
+            {aiGeneratedTasks.length === 0 ? (
+              <form onSubmit={handleGenerateAiTasks} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Course Code:</label>
+                  <input
+                    type="text"
+                    required
+                    value={aiCourse}
+                    onChange={(e) => setAiCourse(e.target.value.toUpperCase())}
+                    placeholder="e.g. CSC 201, MTH 101, CHM 101"
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface-alt)' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Study Goal:</label>
+                  <input
+                    type="text"
+                    required
+                    value={aiGoal}
+                    onChange={(e) => setAiGoal(e.target.value)}
+                    placeholder="e.g. Catch up on mid-semester topics, prepare for upcoming exam"
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface-alt)' }}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Plan Duration:</label>
+                    <select
+                      value={aiDays}
+                      onChange={(e) => setAiDays(Number(e.target.value))}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface-alt)' }}
+                    >
+                      <option value={3}>3 Days</option>
+                      <option value={7}>7 Days (1 Week)</option>
+                      <option value={14}>14 Days (2 Weeks)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Daily Study Hours:</label>
+                    <select
+                      value={aiHours}
+                      onChange={(e) => setAiHours(Number(e.target.value))}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface-alt)' }}
+                    >
+                      <option value={1}>1 hour / day</option>
+                      <option value={2}>2 hours / day</option>
+                      <option value={4}>4 hours / day</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
+                  <button type="button" className="btn btn-secondary" onClick={() => setShowAiModal(false)} style={{ fontSize: 13 }}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn btn-primary" disabled={aiGenerating} style={{ fontSize: 13 }}>
+                    {aiGenerating ? <><Loader2 size={14} className="spin-icon" /> Generating Tasks...</> : 'Generate Tasks'}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div>
+                <p style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--text-secondary)' }}>
+                  Review and select the tasks you would like to add to your plan:
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto', marginBottom: 16 }}>
+                  {aiGeneratedTasks.map((item, idx) => (
+                    <label
+                      key={idx}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: 10,
+                        padding: '10px 12px',
+                        borderRadius: 8,
+                        background: 'var(--surface-alt)',
+                        border: '1px solid var(--border)',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={item.selected}
+                        onChange={(e) => {
+                          const val = e.target.checked;
+                          setAiGeneratedTasks((prev) =>
+                            prev.map((t, i) => (i === idx ? { ...t, selected: val } : t))
+                          );
+                        }}
+                        style={{ marginTop: 3 }}
+                      />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700 }}>{item.task.title}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                          {item.task.description || item.task.courseCode} · Due: {item.task.dueDate}
+                        </div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setAiGeneratedTasks([])}
+                    style={{ fontSize: 12 }}
+                  >
+                    Back / Regenerate
+                  </button>
+
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={handleAcceptAiTasks}
+                    disabled={saving || !aiGeneratedTasks.some((t) => t.selected)}
+                    style={{ fontSize: 13 }}
+                  >
+                    {saving ? 'Adding...' : 'Add Selected to Study Plan'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

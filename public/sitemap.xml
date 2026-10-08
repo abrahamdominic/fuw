@@ -806,6 +806,30 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://fuwtest.netlify.app/materials/5f1fb912-9af4-49cf-8a84-7e49f8aa5277</loc>
+    <lastmod>2026-10-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://fuwtest.netlify.app/materials/eb9baf47-96e7-4fb1-8fbd-4d21b9c80685</loc>
+    <lastmod>2026-10-07</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://fuwtest.netlify.app/materials/0baaeafa-ba19-4b2d-b488-51291a6914f0</loc>
+    <lastmod>2026-10-07</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://fuwtest.netlify.app/materials/dd352a4f-7b5a-499e-924b-0d6063d1f178</loc>
+    <lastmod>2026-10-07</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://fuwtest.netlify.app/materials/62f57716-842d-4f4f-acdf-5840cb3ac15b</loc>
     <lastmod>2026-10-03</lastmod>
     <changefreq>monthly</changefreq>
@@ -998,12 +1022,6 @@
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://fuwtest.netlify.app/materials/5f1fb912-9af4-49cf-8a84-7e49f8aa5277</loc>
-    <lastmod>2026-10-03</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
     <loc>https://fuwtest.netlify.app/materials/b9f609d4-9c72-4aee-be81-658378f76d66</loc>
     <lastmod>2026-10-03</lastmod>
     <changefreq>monthly</changefreq>
@@ -1017,12 +1035,6 @@
   </url>
   <url>
     <loc>https://fuwtest.netlify.app/materials/473d0bac-d1df-481d-99a7-bfaffd3a2e22</loc>
-    <lastmod>2026-10-03</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>https://fuwtest.netlify.app/materials/dd352a4f-7b5a-499e-924b-0d6063d1f178</loc>
     <lastmod>2026-10-03</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
@@ -1053,12 +1065,6 @@
   </url>
   <url>
     <loc>https://fuwtest.netlify.app/materials/4b74e073-0b55-4a32-98b9-24308cbcb90e</loc>
-    <lastmod>2026-10-03</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>https://fuwtest.netlify.app/materials/0baaeafa-ba19-4b2d-b488-51291a6914f0</loc>
     <lastmod>2026-10-03</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
@@ -1190,19 +1196,7 @@
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://fuwtest.netlify.app/materials/eb9baf47-96e7-4fb1-8fbd-4d21b9c80685</loc>
-    <lastmod>2026-09-16</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>https://fuwtest.netlify.app/accommodation/scholars-court-affordable-single-rooms</loc>
-    <lastmod>2026-10-04</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>https://fuwtest.netlify.app/accommodation/silver-crest-luxury-student-lodge</loc>
+    <loc>https://fuwtest.netlify.app/accommodation/apex-two-bedroom-student-shared-flat</loc>
     <lastmod>2026-10-04</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
@@ -1214,13 +1208,19 @@
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://fuwtest.netlify.app/accommodation/apex-two-bedroom-student-shared-flat</loc>
+    <loc>https://fuwtest.netlify.app/accommodation/scholars-court-affordable-single-rooms</loc>
     <lastmod>2026-10-04</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
     <loc>https://fuwtest.netlify.app/accommodation/unity-executive-hostels-female-wing</loc>
+    <lastmod>2026-10-04</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://fuwtest.netlify.app/accommodation/silver-crest-luxury-student-lodge</loc>
     <lastmod>2026-10-04</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>

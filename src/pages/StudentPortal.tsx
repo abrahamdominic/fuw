@@ -62,7 +62,12 @@ import {
   Smartphone as SmartphoneIcon,
   ShoppingBag,
   ExternalLink,
-  Wallet
+  Wallet,
+  Activity,
+  TrendingUp,
+  Layers,
+  Brain,
+  Sparkles
 } from 'lucide-react';
 import { useStore } from '../lib/useStore';
 import { getMarketplaceUrl } from '../lib/hub';
@@ -75,10 +80,17 @@ import { StudyInsightsPanel } from '../components/StudyInsightsPanel';
 import { StudyPlannerTab } from '../components/StudyPlannerTab';
 import { StudentNotesTab } from '../components/StudentNotesTab';
 import { ReadingListsTab, ReadingListDetailTab } from '../components/ReadingListsTabs';
+import { UnifiedSavedItemsTab } from '../components/UnifiedSavedItemsTab';
+import { CampusActivityTimeline } from '../components/CampusActivityTimeline';
+import { AiTutorWorkspace } from '../components/AiTutorWorkspace';
+import { QuestionAnalyzerTab } from '../components/QuestionAnalyzerTab';
+import { ExamPrepWorkspace } from '../components/ExamPrepWorkspace';
+import { FlashcardsWorkspace } from '../components/FlashcardsWorkspace';
+import { StudyGuidesWorkspace } from '../components/StudyGuidesWorkspace';
 import { CatalogueFilters, FilterState } from '../components/CatalogueFilters';
 import { MultiDepartmentPicker, MultiDepartmentState, EMPTY_MULTI_DEPARTMENT } from '../components/MultiDepartmentPicker';
-import { catalogue, facultyByName, departmentByName, levelsFor, materialTypes, courseTitleByCode } from '../data/catalogue';
-import { submitMaterial as submitMaterialDb, fetchMyMaterials, deleteMaterial as deleteMaterialDb } from '../lib/materials';
+import { catalogue, facultyByName, departmentByName, levelsFor, materialTypes, courseTitleByCode, normalizeLevel } from '../data/catalogue';
+import { submitMaterial as submitMaterialDb, fetchMyMaterials, deleteMaterial as deleteMaterialDb, getSecureFileUrl } from '../lib/materials';
 import {
   fetchNotifications,
   markNotificationRead,
@@ -160,10 +172,21 @@ const studentNavGroups = [
       { label: 'Upload material', path: '/student/upload', icon: Upload },
       { label: 'My uploads', path: '/student/uploads', icon: FileText },
       { label: 'Study assistant', path: '/student/assistant', icon: Compass },
-      { label: 'Saved materials', path: '/student/saved', icon: Heart },
+      { label: 'Saved items', path: '/student/saved', icon: Bookmark },
+      { label: 'Campus activity', path: '/student/activity', icon: Activity },
       { label: 'Recently viewed', path: '/student/recent', icon: Clock },
       { label: 'Downloads', path: '/student/downloads', icon: Download },
       { label: 'Reading lists', path: '/student/reading-lists', icon: Bookmark },
+    ]
+  },
+  {
+    label: 'AI & Study Tools',
+    items: [
+      { label: 'AI Campus Tutor', path: '/student/assistant', icon: Brain },
+      { label: 'Question Analyzer', path: '/student/question-analyzer', icon: Sparkles },
+      { label: 'Exam Readiness & Prep', path: '/student/exam-prep', icon: TrendingUp },
+      { label: 'Smart Flashcards', path: '/student/flashcards', icon: Layers },
+      { label: 'AI Study Guides', path: '/student/study-guides', icon: FileText }
     ]
   },
   {
@@ -196,12 +219,12 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { signOut, profile, user } = useAuth();
+  const { signOut, profile, user, plan, hasPremium } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  // Notification centre state
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifFilter, setNotifFilter] = useState('');
+  const [selectedAnnouncement, setSelectedAnnouncement] = useState<NotificationItem | null>(null);
   // Server-side paginated + searched "My Uploads"
   const [uploadsPage, setUploadsPage] = useState(0);
   const [pagedUploads, setPagedUploads] = useState<MaterialItem[]>([]);
@@ -236,7 +259,10 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
       | 'REJECTED',
     joinedDate: profile?.joinedDate || storeUser.joinedDate || '2026'
   };
-  const approvedMaterials = store.getApprovedMaterialsForDepartment(currentUser.department);
+  const rawDeptMaterials = store.getApprovedMaterialsForDepartment(currentUser.department);
+  const approvedMaterials = currentUser.level
+    ? rawDeptMaterials.filter((m) => !m.level || normalizeLevel(m.level) === normalizeLevel(currentUser.level))
+    : rawDeptMaterials;
   const studentUploads = store.getStudentUploads(currentUser.id);
   const savedMaterials = store.getSavedMaterials();
   const recentMaterials = store.getRecentMaterials();
@@ -451,6 +477,57 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
 
       {/* Main Content Viewport */}
       <main className="portal-main">
+        {/* Premium Expiration Alert Banner */}
+        {(() => {
+          const daysLeft = hasPremium && plan?.expires_at
+            ? Math.ceil((new Date(plan.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+            : null;
+          const isExpiringSoon = daysLeft !== null && daysLeft <= 7 && daysLeft > 0;
+          const isExpired = daysLeft !== null && daysLeft <= 0;
+
+          if (!isExpiringSoon && !isExpired) return null;
+
+          return (
+            <div
+              style={{
+                background: isExpired ? '#fef2f2' : '#fffbeb',
+                border: isExpired ? '1px solid #f87171' : '1px solid #f59e0b',
+                borderRadius: 10,
+                padding: '10px 16px',
+                marginBottom: 18,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: 10,
+                fontSize: 13,
+                color: isExpired ? '#991b1b' : '#92400e',
+              }}
+              role="alert"
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <AlertTriangle size={16} color={isExpired ? '#dc2626' : '#d97706'} />
+                <span>
+                  {isExpired
+                    ? 'Your Campus Hub Plus pass has expired.'
+                    : `Your Campus Hub Plus pass expires in ${daysLeft} ${daysLeft === 1 ? 'day' : 'days'}.`}
+                </span>
+              </div>
+              <Link
+                to="/student/subscription"
+                style={{
+                  fontWeight: 700,
+                  color: isExpired ? '#991b1b' : '#92400e',
+                  textDecoration: 'underline',
+                  fontSize: 12,
+                }}
+              >
+                Renew Pass Now →
+              </Link>
+            </div>
+          );
+        })()}
+
         {/* Notification centre */}
         <div className="notif-bell-wrap">
           <button
@@ -532,7 +609,11 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
                               await markNotificationRead(n.id);
                               setNotifications((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
                             }
-                            if (n.link) navigate(n.link);
+                            if (n.type === 'announcement' || !n.link) {
+                              setSelectedAnnouncement(n);
+                            } else if (n.link) {
+                              navigate(n.link);
+                            }
                             setNotifOpen(false);
                           }}
                         >
@@ -677,21 +758,31 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
               navigate('/student/uploads');
             }}
           />
-        ) : currentPath.startsWith('/student/assistant') ? (
+        ) : currentPath.startsWith('/student/assistant') || currentPath.startsWith('/student/ai') ? (
           <StudentAiChatTab
             focusMaterial={aiFocusMaterial}
             onClearFocus={() => setAiFocusMaterial(null)}
           />
+        ) : currentPath.startsWith('/student/question-analyzer') ? (
+          <QuestionAnalyzerTab />
+        ) : currentPath.startsWith('/student/exam-prep') ? (
+          <ExamPrepWorkspace />
+        ) : currentPath.startsWith('/student/flashcards') ? (
+          <FlashcardsWorkspace />
+        ) : currentPath.startsWith('/student/study-guides') ? (
+          <StudyGuidesWorkspace />
         ) : currentPath.startsWith('/student/saved') ? (
-          <StudentSavedTab
+          <UnifiedSavedItemsTab
             savedMaterials={savedMaterials}
             onReadOnline={onReadOnline}
             onAskAi={handleAskAi}
-            onRemove={(id) => {
+            onRemoveMaterial={(id) => {
               store.toggleBookmark(id);
               toast('Removed from saved materials.', 'info');
             }}
           />
+        ) : currentPath.startsWith('/student/activity') ? (
+          <CampusActivityTimeline />
         ) : currentPath.startsWith('/student/recent') ? (
           <StudentRecentTab
             recentMaterials={recentMaterials}
@@ -771,6 +862,69 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
             void store.syncMaterialsFromSupabase();
           }}
         />
+
+        <AnimatedModal
+          open={Boolean(selectedAnnouncement)}
+          onClose={() => setSelectedAnnouncement(null)}
+          dialogClassName="conv-modal announcement-detail-modal"
+          labelledBy="announcement-detail-title"
+        >
+          {selectedAnnouncement && (
+            <div className="announcement-modal-card">
+              <div className="modal-header">
+                <div className="modal-header-title">
+                  <span className="modal-head-icon"><Bell size={17} /></span>
+                  <div>
+                    <h3 id="announcement-detail-title">{selectedAnnouncement.title || 'Announcement'}</h3>
+                    <p className="modal-header-sub">
+                      {selectedAnnouncement.senderName ? `From ${selectedAnnouncement.senderName} • ` : ''}
+                      {new Date(selectedAnnouncement.createdAt).toLocaleDateString(undefined, {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric'
+                      })}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="link-btn"
+                  onClick={() => setSelectedAnnouncement(null)}
+                  aria-label="Close"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="modal-body">
+                <MessageText body={selectedAnnouncement.body || ''} />
+                {selectedAnnouncement.link && (
+                  <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid var(--border, #e2e8f0)' }}>
+                    <button
+                      type="button"
+                      className="primary"
+                      onClick={() => {
+                        const link = selectedAnnouncement.link!;
+                        setSelectedAnnouncement(null);
+                        navigate(link);
+                      }}
+                    >
+                      <ExternalLink size={14} /> Open Related Page
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', padding: '0.85rem 1.25rem', borderTop: '1px solid var(--border, #e2e8f0)' }}>
+                <button
+                  type="button"
+                  className="secondary-btn"
+                  onClick={() => setSelectedAnnouncement(null)}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          )}
+        </AnimatedModal>
       </main>
     </div>
   );
@@ -1536,422 +1690,18 @@ function StudentAiChatTab({
   focusMaterial?: MaterialItem | null;
   onClearFocus?: () => void;
 }) {
-  const { profile, hasPremium } = useAuth();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [conversationId, setConversationId] = useState<string | null>(null);
-  const [materialId, setMaterialId] = useState<string | null>(focusMaterial?.id ?? null);
-  const [scopeCleared, setScopeCleared] = useState(false);
-  const [historyLoaded, setHistoryLoaded] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [notConfigured, setNotConfigured] = useState(false);
-  const [mode, setMode] = useState<'explainer' | 'exam' | 'summary' | 'quiz'>('summary');
-  const [premiumConfig, setPremiumConfig] = useState<PremiumPublicConfiguration | null>(null);
-  const [copiedId, setCopiedId] = useState<number | null>(null);
-  // Monotonic generation counter: stale in-flight responses (e.g. after a
-  // "New conversation" reset) are dropped instead of resurrecting old state.
-  const genRef = useRef(0);
-  const listRef = React.useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  // Tracks the most recent question so the "Try Again" action can resend it.
-  const lastQuestionRef = useRef('');
-
-  useEffect(() => {
-    let cancelled = false;
-    fetchPremiumPublicConfiguration()
-      .then((config) => {
-        if (!cancelled) setPremiumConfig(config);
-      })
-      .catch((cause) => {
-        if (!cancelled) setError(cause instanceof Error ? cause.message : 'Could not load AI feature availability.');
-      });
-    return () => { cancelled = true; };
-  }, []);
-
-  useEffect(() => {
-    if (mode === 'explainer' && (!hasPremium || !premiumConfig?.features.some((feature) => feature.feature_key === 'ai_explanations'))) {
-      setMode('summary');
-    }
-    if (mode === 'exam' &&
-      (!hasPremium ||
-        !premiumConfig?.features.some((feature) => feature.feature_key === 'advanced_exam_preparation') ||
-        !premiumConfig?.features.some((feature) => feature.feature_key === 'advanced_question_analysis'))) {
-      setMode('summary');
-    }
-    if (mode === 'quiz' &&
-      (!hasPremium || !premiumConfig?.features.some((feature) => feature.feature_key === 'advanced_exam_preparation'))) {
-      setMode('summary');
-    }
-  }, [hasPremium, mode, premiumConfig]);
-
-  const copyAnswer = async (index: number, text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopiedId(index);
-      window.setTimeout(() => setCopiedId(null), 1600);
-    } catch {
-      // Clipboard access may be blocked; quietly ignore.
-    }
-  };
-
-  // Keep the scoped material in sync when the student uses "Ask AI" elsewhere.
-  useEffect(() => {
-    if (focusMaterial) setMaterialId(focusMaterial.id);
-  }, [focusMaterial]);
-
-  // Restore the most recent conversation (and its messages) from the database
-  // so history survives page refreshes — Supabase is the source of truth.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const client = requireSupabase();
-        const { data: convs } = await client
-          .from('ai_conversations')
-          .select('id, material_id')
-          .order('updated_at', { ascending: false })
-          .limit(1);
-        const conv = convs?.[0];
-        if (!conv || cancelled) {
-          if (!cancelled) setHistoryLoaded(true);
-          return;
-        }
-        const { data: msgs } = await client
-          .from('ai_messages')
-          .select('role, content, citations')
-          .eq('conversation_id', conv.id)
-          .order('created_at', { ascending: true })
-          .limit(60);
-        if (cancelled) return;
-        if (msgs && msgs.length > 0) {
-          setConversationId(conv.id);
-          // Restore the conversation's scope so follow-ups keep using (and the
-          // UI keeps showing) the material this conversation is about.
-          if (conv.material_id) setMaterialId(conv.material_id);
-          setMessages(
-            msgs.map((row) => ({
-              role: row.role === 'assistant' ? ('assistant' as const) : ('user' as const),
-              content: String(row.content ?? ''),
-              citations: Array.isArray(row.citations) ? (row.citations as AiCitation[]) : []
-            }))
-          );
-        }
-      } catch {
-        // History restore is best-effort only.
-      } finally {
-        if (!cancelled) setHistoryLoaded(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const suggestions = focusMaterial
-    ? [
-        'What are the main concepts discussed in this material?',
-        'Summarize this document for exam revision.',
-        'Create 5 practice questions from this document.'
-      ]
-    : [
-        'Explain the difference between RAM and ROM using my CSC materials.',
-        'Summarise key points from recent GST past questions.',
-        'Give me revision questions on organic chemistry reactions.'
-      ];
-
-  const quickActions = [
-    { label: 'Summarize', prompt: 'Summarize this material into clear exam-ready revision points.', icon: FileText as React.ComponentType<{ size?: number }> },
-    { label: 'Key points', prompt: 'List the most important key points, definitions and formulas from this material.', icon: List as React.ComponentType<{ size?: number }> },
-    { label: 'Practice quiz', prompt: 'Generate 10 practice questions with answers from this material.', icon: GraduationCap as React.ComponentType<{ size?: number }> },
-    { label: 'Revision notes', prompt: 'Create concise revision notes covering every major topic in this material.', icon: Pencil as React.ComponentType<{ size?: number }> }
-  ];
-
-  const scrollToBottom = () => {
-    requestAnimationFrame(() => {
-      listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' });
-    });
-  };
-
-  React.useEffect(() => {
-    scrollToBottom();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages.length, busy]);
-
-  const send = async (text: string) => {
-    const question = text.trim();
-    if (!question || busy || !historyLoaded) return;
-    lastQuestionRef.current = question;
-    const gen = ++genRef.current;
-    const clear = scopeCleared;
-    setScopeCleared(false);
-    setError(null);
-    setInput('');
-    setMessages((prev) => [...prev, { role: 'user', content: question }, { role: 'assistant', content: '…' }]);
-    setBusy(true);
-    try {
-      const res = await aiAsk({ message: question, conversationId, materialId, clearScope: clear, mode });
-      if (genRef.current !== gen) return; // conversation was reset mid-flight
-      setNotConfigured(false);
-      setConversationId(res.conversationId);
-      setMessages((prev) => {
-        const copy = [...prev];
-        if (copy.length === 0) return copy;
-        copy[copy.length - 1] = { role: 'assistant', content: res.answer, citations: res.citations };
-        return copy;
-      });
-    } catch (err: any) {
-      if (genRef.current !== gen) return;
-      // Drop the placeholder bubble and surface a friendly error.
-      setMessages((prev) => prev.slice(0, -1));
-      if (aiConfiguredHint(err)) setNotConfigured(true);
-      setError(friendlyError(err, 'The AI assistant is unavailable right now.'));
-    } finally {
-      setBusy(false);
-      scrollToBottom();
-    }
-  };
-
-  const clearConversation = () => {
-    genRef.current++; // invalidate any in-flight response
-    setMessages([]);
-    setConversationId(null);
-    setMaterialId(null);
-    setScopeCleared(false);
-    setError(null);
-    setNotConfigured(false);
-    onClearFocus?.();
-  };
-
   return (
     <div className="portal-view-fade">
       <div className="portal-top">
         <div>
           <p className="kicker">POWERED BY THE E-LIBRARY COLLECTION</p>
-          <h1>Study assistant</h1>
+          <h1>FUW AI Campus Tutor</h1>
           <p className="subtitle">
-            Ask questions about your courses. Answers are grounded in the approved materials in this library, with links to sources.
+            Engage with your personal academic tutor. Grounded in approved university course packs and lecture materials with citation links.
           </p>
         </div>
-        {(conversationId || messages.length > 0) && (
-          <button type="button" className="secondary-btn" onClick={clearConversation} disabled={busy}>
-            <RefreshCw size={15} />
-            <span>New conversation</span>
-          </button>
-        )}
       </div>
-
-      <div className="ai-chat-shell">
-        {/* Scoped-material context banner */}
-        <div className={`ai-context-chip ${materialId ? '' : 'hidden'}`}>
-          <BookOpen size={14} />
-          <span>
-            Asking about: <b>{focusMaterial?.title || 'Selected material'}</b>
-          </span>
-          <button
-            type="button"
-            onClick={() => {
-              // Ask the whole library instead — explicit scope clear.
-              setMaterialId(null);
-              setScopeCleared(true);
-              onClearFocus?.();
-            }}
-            disabled={busy}
-            aria-label="Stop focusing on this material"
-            title="Ask about the whole library instead"
-          >
-            <X size={13} />
-          </button>
-        </div>
-
-        <div className="ai-chat-window" ref={listRef}>
-          {!historyLoaded ? (
-            <div className="chat-typing">
-              <span className="chat-typing-dot" />
-              <span className="chat-typing-dot" />
-              <span className="chat-typing-dot" />
-              Loading your conversation…
-            </div>
-          ) : (
-            messages.length === 0 && (
-              <div className="ai-chat-empty">
-                <div className="ai-empty-hero" aria-hidden="true">
-                  <Compass size={30} />
-                </div>
-                <span className="ai-empty-badge">
-                  <BookOpen size={11} /> Grounded in your e-library
-                </span>
-                <b>How can I help you study today?</b>
-                <span>{focusMaterial ? 'Try one of these about your selected material:' : 'Try one of these:'}</span>
-                <div className="ai-suggestions">
-                  {suggestions.map((s) => (
-                    <button key={s} type="button" onClick={() => send(s)} disabled={busy}>
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )
-          )}
-
-          {messages.map((m, i) =>
-            m.role === 'user' ? (
-              <div key={i} className={`chat-row user ${fx.listRow}`}>
-                <div className="chat-bubble user">{m.content}</div>
-                <div className="chat-avatar user" aria-hidden="true">
-                  {(profile?.fullName?.charAt(0) || 'S').toUpperCase()}
-                </div>
-              </div>
-            ) : (
-              <div key={i} className={`chat-row assistant ${fx.listRow}`}>
-                <div className="chat-avatar assistant" aria-hidden="true">
-                  <Bot size={15} />
-                </div>
-                <div className="chat-bubble assistant">
-                  <div className="chat-bubble-head">
-                    <span className="chat-bubble-role">Study assistant</span>
-                    <button
-                      type="button"
-                      className="chat-copy-btn"
-                      onClick={() => copyAnswer(i, m.content)}
-                      aria-label="Copy answer to clipboard"
-                      title="Copy answer"
-                    >
-                      {copiedId === i ? <Check size={13} /> : <Copy size={13} />}
-                    </button>
-                  </div>
-                  <AssistantText content={m.content} />
-                  {m.citations && m.citations.length > 0 && (
-                    <div className="chat-citations">
-                      <small>Sources from your e-library:</small>
-                      <div className="chat-citation-chips">
-                        {m.citations.map((c, ci) => (
-                          <Link key={`${c.material_id}-${ci}`} to={`/materials/${c.material_id}`}>
-                            📄 {c.title}{c.page ? ` · p.${c.page}` : ''}
-                          </Link>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )
-          )}
-
-          {busy && (
-            <div className="chat-typing">
-              <span className="chat-typing-dot" />
-              <span className="chat-typing-dot" />
-              <span className="chat-typing-dot" />
-              Assistant is thinking…
-            </div>
-          )}
-        </div>
-
-        {(error || notConfigured) && (
-          <div className="form-feedback-box error ai-error-box">
-            <AlertCircle size={18} />
-            <p>{error || 'Sorry, the AI Assistant is temporarily unavailable. Please try again later.'}</p>
-            {lastQuestionRef.current && (
-              <button
-                type="button"
-                className="ai-error-retry"
-                onClick={() => {
-                  setNotConfigured(false);
-                  void send(lastQuestionRef.current);
-                }}
-              >
-                Try Again
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Study mode selector — shapes how the assistant responds */}
-        <div className="ai-mode-row" role="group" aria-label="Study mode">
-          {(
-            [
-              { key: 'explainer', label: 'Explain', icon: BookOpen },
-              { key: 'summary', label: 'Summarise', icon: List },
-              { key: 'exam', label: 'Exam prep', icon: GraduationCap },
-              { key: 'quiz', label: 'Quiz me', icon: HelpCircle }
-            ] as const
-          ).filter((m) => {
-            if (!premiumConfig?.enabled) return false;
-            if (m.key === 'summary') return premiumConfig.features.some((feature) => feature.feature_key === 'ai_assistant');
-            if (!hasPremium) return false;
-            const requiredFeatures = m.key === 'explainer'
-              ? ['ai_explanations']
-              : m.key === 'exam'
-                ? ['advanced_exam_preparation', 'advanced_question_analysis']
-                : ['advanced_exam_preparation'];
-            return requiredFeatures.every((key) => premiumConfig.features.some((feature) => feature.feature_key === key));
-          }).map((m) => (
-            <button
-              key={m.key}
-              type="button"
-              className={`ai-mode-chip ${mode === m.key ? 'active' : ''}`}
-              onClick={() => setMode(m.key)}
-              disabled={busy}
-            >
-              <m.icon size={13} /> {m.label}
-            </button>
-          ))}
-        </div>
-        {!hasPremium && premiumConfig?.enabled && (
-          <p className="ai-premium-hint">
-            Basic summaries are available on Free. <Link to="/student/subscription">Premium access</Link> unlocks explanation, exam-prep and quiz modes.
-          </p>
-        )}
-
-        {/* One-tap study actions for the focused material / whole library */}
-        <div className="ai-quick-actions">
-          {quickActions.map((qa) => (
-            <button key={qa.label} type="button" onClick={() => send(qa.prompt)} disabled={busy || !historyLoaded}>
-              <qa.icon size={13} /> {qa.label}
-            </button>
-          ))}
-        </div>
-
-        <form
-          className="ai-chat-input-row"
-          onSubmit={(e) => {
-            e.preventDefault();
-            send(input);
-          }}
-        >
-          <button
-            type="button"
-            className="ai-composer-add"
-            onClick={() => inputRef.current?.focus()}
-            aria-label="Focus the message box"
-          >
-            <Plus size={16} />
-          </button>
-          <input
-            ref={inputRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask anything about your course materials…"
-            maxLength={2000}
-            disabled={busy || !historyLoaded}
-            aria-label="Message the AI assistant"
-          />
-          <button type="submit" className="ai-composer-send" disabled={busy || !historyLoaded || !input.trim()}>
-            {busy ? <Loader2 size={16} className="spin-icon" /> : <Send size={16} />}
-            <span className="ai-send-label">Send</span>
-          </button>
-        </form>
-        <div className="ai-chat-hints">
-          <span>
-            <Info size={12} /> Answers cite e-library sources where possible.
-          </span>
-          <span className="ai-chat-hint-key">
-            <CornerDownLeft size={12} /> Enter to send &middot; {input.length}/2000
-          </span>
-        </div>
-      </div>
+      <AiTutorWorkspace focusMaterial={focusMaterial} onClearFocus={onClearFocus} />
     </div>
   );
 }
@@ -2096,7 +1846,34 @@ function StudentDownloadsTab({ downloadHistory }: { downloadHistory: any[] }) {
               <span>
                 <button
                   className="table-action-btn"
-                  onClick={() => toast(`Re-downloading ${item.materialTitle}`)}
+                  onClick={async () => {
+                    try {
+                      toast(`Preparing download for ${item.materialTitle}...`, 'info');
+                      const url = await getSecureFileUrl({
+                        filePath: item.filePath,
+                        fileUrl: item.fileUrl,
+                        fileName: item.fileName,
+                      });
+                      if (!url) {
+                        toast('Could not generate download link. Please check your subscription.', 'error');
+                        return;
+                      }
+                      const resp = await fetch(url);
+                      if (!resp.ok) throw new Error('Download failed');
+                      const blob = await resp.blob();
+                      const blobUrl = window.URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = blobUrl;
+                      a.download = item.fileName || `${item.materialTitle || 'material'}.pdf`;
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      window.URL.revokeObjectURL(blobUrl);
+                      toast(`Downloaded ${item.materialTitle}`, 'success');
+                    } catch (err: any) {
+                      toast(err?.message || 'Download failed. Please try again.', 'error');
+                    }
+                  }}
                 >
                   <Download size={14} /> Re-download
                 </button>

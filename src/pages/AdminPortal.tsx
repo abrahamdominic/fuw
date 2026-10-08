@@ -41,6 +41,7 @@ import {
   Save,
   AlertTriangle,
   Shield,
+  Store,
   Check,
   Info,
   Globe,
@@ -65,7 +66,8 @@ import {
   CalendarRange,
   Briefcase,
   SearchX,
-  BookOpen
+  BookOpen,
+  UserPlus
 } from 'lucide-react';
 import { fx, staggerDelay } from '../lib/motion';
 import { AnimatedModal } from '../components/animations/AnimatedModal';
@@ -95,6 +97,7 @@ import { aiProcessMaterial } from '../lib/ai';
 import { ConfirmDialog, ConfirmDialogState, PromptDialog } from '../components/ConfirmDialog';
 import ProtectedActionModal from '../components/ProtectedActionModal';
 import { AdminAcademicsModule } from '../components/AdminAcademics';
+import { LecturerOnboardModal, type LecturerOnboardTarget } from '../components/LecturerOnboardModal';
 import { AuthenticatorAppCard } from '../components/AuthenticatorAppCard';
 import { PasskeysManager } from '../components/PasskeysManager';
 import { DashboardSearch } from '../components/DashboardSearch';
@@ -168,6 +171,30 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
   const { signOut, profile, hasPermission, role, isSuperAdmin } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [auditActors, setAuditActors] = useState<Record<string, AuditActorProfile>>({});
+  // Marketplace staff grants come from `marketplace_admin_staff` (a separate
+  // authority from the platform admin role). Vendor-verification requests are
+  // reviewed in the Marketplace Admin Portal, so only show the link to admins
+  // who actually hold a marketplace staff grant.
+  const [isMarketplaceStaff, setIsMarketplaceStaff] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        if (!supabase) {
+          if (mounted) setIsMarketplaceStaff(false);
+          return;
+        }
+        const res = await supabase.rpc('mp_is_staff');
+        if (mounted) setIsMarketplaceStaff(Boolean(res.data));
+      } catch {
+        if (mounted) setIsMarketplaceStaff(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
   // Confirmation dialog for destructive actions
   const [confirmState, setConfirmState] = useState<{
     open: boolean;
@@ -352,6 +379,17 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
               </NavLink>
             );
           })}
+          {isMarketplaceStaff && (
+            <NavLink
+              to="/marketplace/admin?tab=verifications"
+              className={`side-link ${currentPath.startsWith('/marketplace/admin') ? 'active' : ''}`}
+              onClick={() => setMobileMenuOpen(false)}
+              title="Review vendor verification requests in the Marketplace Admin Portal"
+            >
+              <Store size={17} />
+              <span>Vendor verification</span>
+            </NavLink>
+          )}
         </nav>
 
         <div className="side-footer-actions">
@@ -1690,7 +1728,7 @@ interface AdminUserRow {
   faculty: string | null;
   department: string | null;
   level: string | null;
-  role: 'student' | 'admin';
+  role: 'student' | 'admin' | 'lecturer' | 'super_admin';
   verified: boolean | null;
   created_at: string;
 }
@@ -1703,6 +1741,8 @@ function AdminUsersTab() {
   const [searchTerm, setSearchTerm] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [roleChangeTarget, setRoleChangeTarget] = useState<AdminUserRow | null>(null);
+  const [onboardModalOpen, setOnboardModalOpen] = useState(false);
+  const [convertTarget, setConvertTarget] = useState<LecturerOnboardTarget | null>(null);
 
   const loadUsers = async () => {
     if (!supabase) {
@@ -1741,22 +1781,26 @@ function AdminUsersTab() {
   // roles without the update being silently rejected.
   const handleToggleRole = async (u: AdminUserRow) => {
     if (!supabase) return;
-    const nextRole = u.role === 'admin' ? 'student' : 'admin';
-
     setBusyId(u.id);
     try {
-      const { error } =
-        nextRole === 'admin'
-          ? await supabase.rpc('promote_to_admin', { target_user_id: u.id, admin_permissions: [] })
-          : await supabase.rpc('demote_admin', { target_user_id: u.id });
-      if (error) {
-        toast('Role update was blocked by database security policies.', 'error');
+      if (u.role === 'admin') {
+        const { error } = await supabase.rpc('demote_admin', { target_user_id: u.id });
+        if (error) throw error;
+        setUsers((prev) => prev.map((row) => (row.id === u.id ? { ...row, role: 'student' } : row)));
+        toast(`${u.full_name || u.email} is now a student.`, 'success');
+      } else if (u.role === 'lecturer') {
+        const { error } = await supabase.rpc('admin_demote_lecturer', { target_user_id: u.id });
+        if (error) throw error;
+        setUsers((prev) => prev.map((row) => (row.id === u.id ? { ...row, role: 'student' } : row)));
+        toast(`${u.full_name || u.email} lecturer role removed. Account set to student.`, 'success');
       } else {
-        setUsers((prev) => prev.map((row) => (row.id === u.id ? { ...row, role: nextRole } : row)));
-        toast(`${u.full_name || u.email} is now ${nextRole === 'admin' ? 'an administrator' : 'a student'}.`, 'success');
+        const { error } = await supabase.rpc('promote_to_admin', { target_user_id: u.id, admin_permissions: [] });
+        if (error) throw error;
+        setUsers((prev) => prev.map((row) => (row.id === u.id ? { ...row, role: 'admin' } : row)));
+        toast(`${u.full_name || u.email} is now an administrator.`, 'success');
       }
-    } catch {
-      toast('Network error while updating the user role.', 'error');
+    } catch (err: any) {
+      toast(err?.message || 'Role update was blocked by database security policies.', 'error');
     } finally {
       setBusyId(null);
     }
@@ -1806,11 +1850,24 @@ function AdminUsersTab() {
         <div>
           <p className="kicker">ACADEMIC COMMUNITY</p>
           <h1>Students & user accounts ({users.length})</h1>
-          <p className="subtitle">Live registered accounts from the university database with librarian permission controls.</p>
+          <p className="subtitle">Live registered accounts from the university database with librarian and lecturer management.</p>
         </div>
-        <button type="button" className="outline-btn" onClick={loadUsers} disabled={isLoading}>
-          <RefreshCw size={15} className={isLoading ? 'spin-icon' : ''} /> Refresh List
-        </button>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <button
+            type="button"
+            className="primary"
+            onClick={() => {
+              setConvertTarget(null);
+              setOnboardModalOpen(true);
+            }}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <UserPlus size={15} /> Onboard Lecturer
+          </button>
+          <button type="button" className="outline-btn" onClick={loadUsers} disabled={isLoading}>
+            <RefreshCw size={15} className={isLoading ? 'spin-icon' : ''} /> Refresh List
+          </button>
+        </div>
       </div>
 
       <div className="manage-tools">
@@ -1885,14 +1942,52 @@ function AdminUsersTab() {
                   </span>
                 </span>
                 <span className="table-action-stack">
-                  <button
-                    className="table-action-btn"
-                    disabled={busyId === u.id}
-                    onClick={() => setRoleChangeTarget(u)}
-                    title={u.role === 'admin' ? 'Demote this account to student' : 'Promote this account to administrator'}
-                  >
-                    {busyId === u.id ? 'Updating…' : u.role === 'admin' ? 'Set as Student' : 'Make Admin'}
-                  </button>
+                  {u.role === 'admin' ? (
+                    <button
+                      className="table-action-btn"
+                      disabled={busyId === u.id}
+                      onClick={() => setRoleChangeTarget(u)}
+                      title="Demote this account to student"
+                    >
+                      {busyId === u.id ? 'Updating…' : 'Set as Student'}
+                    </button>
+                  ) : u.role === 'lecturer' ? (
+                    <button
+                      className="table-action-btn"
+                      disabled={busyId === u.id}
+                      onClick={() => setRoleChangeTarget(u)}
+                      title="Demote lecturer account to student"
+                    >
+                      {busyId === u.id ? 'Updating…' : 'Demote to Student'}
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        className="table-action-btn"
+                        disabled={busyId === u.id}
+                        onClick={() => setRoleChangeTarget(u)}
+                        title="Promote this account to administrator"
+                      >
+                        {busyId === u.id ? 'Updating…' : 'Make Admin'}
+                      </button>
+                      <button
+                        className="table-action-btn outline"
+                        disabled={busyId === u.id}
+                        onClick={() =>
+                          setConvertTarget({
+                            id: u.id,
+                            fullName: u.full_name,
+                            email: u.email,
+                            faculty: u.faculty,
+                            department: u.department
+                          })
+                        }
+                        title="Convert this account to a Lecturer"
+                      >
+                        Make Lecturer
+                      </button>
+                    </>
+                  )}
                   <button
                     className={`table-action-btn ${verified ? 'outline' : ''}`}
                     disabled={busyId === u.id}
@@ -1911,12 +2006,22 @@ function AdminUsersTab() {
       {/* Role change confirmation */}
       <ConfirmDialog
         open={!!roleChangeTarget}
-        title={roleChangeTarget?.role === 'admin' ? 'Demote this account?' : 'Grant administrator rights?'}
-        tone={roleChangeTarget?.role === 'admin' ? 'danger' : 'default'}
-        confirmLabel={roleChangeTarget?.role === 'admin' ? 'Set as Student' : 'Make Admin'}
+        title={
+          roleChangeTarget?.role === 'admin'
+            ? 'Demote administrator account?'
+            : roleChangeTarget?.role === 'lecturer'
+              ? 'Demote lecturer account?'
+              : 'Grant administrator rights?'
+        }
+        tone={roleChangeTarget?.role === 'admin' || roleChangeTarget?.role === 'lecturer' ? 'danger' : 'default'}
+        confirmLabel={
+          roleChangeTarget?.role === 'admin' || roleChangeTarget?.role === 'lecturer'
+            ? 'Set as Student'
+            : 'Make Admin'
+        }
         message={
           roleChangeTarget
-            ? `Change ${roleChangeTarget.full_name || roleChangeTarget.email} from "${roleChangeTarget.role}" to "${roleChangeTarget.role === 'admin' ? 'student' : 'admin'}"? Database security policies still protect this action.`
+            ? `Change ${roleChangeTarget.full_name || roleChangeTarget.email} from "${roleChangeTarget.role}" to "student"? Database security policies protect this action.`
             : ''
         }
         onConfirm={() => {
@@ -1924,6 +2029,17 @@ function AdminUsersTab() {
           setRoleChangeTarget(null);
         }}
         onClose={() => setRoleChangeTarget(null)}
+      />
+
+      {/* Lecturer Onboarding / Conversion Modal */}
+      <LecturerOnboardModal
+        isOpen={onboardModalOpen || !!convertTarget}
+        targetUser={convertTarget}
+        onClose={() => {
+          setOnboardModalOpen(false);
+          setConvertTarget(null);
+        }}
+        onSuccess={() => void loadUsers()}
       />
     </div>
   );

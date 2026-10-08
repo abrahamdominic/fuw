@@ -15,7 +15,9 @@ import {
   RefreshCw,
   ExternalLink,
   MapPin,
-  Clock
+  Clock,
+  Upload,
+  Loader2
 } from 'lucide-react';
 import { requireSupabase } from '../lib/supabase';
 import { useToast } from '../components/Toast';
@@ -59,8 +61,50 @@ export function AdminAccommodationTab() {
   const [contactPhone, setContactPhone] = useState('');
   const [contactWhatsapp, setContactWhatsapp] = useState('');
   const [imageUrl, setImageUrl] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>(['Running Water', 'Prepaid Meter / Light', 'Fenced & Gated']);
   const [rulesNotes, setRulesNotes] = useState('');
+
+  const handleImageFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!['image/jpeg', 'image/png', 'image/webp', 'image/avif'].includes(file.type)) {
+      toast('Please upload a valid image file (JPG, PNG, WebP, or AVIF)', 'error');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast('Image file size must be less than 5MB', 'error');
+      return;
+    }
+
+    setUploadingImage(true);
+    try {
+      const ext = file.name.split('.').pop() || 'jpg';
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${ext}`;
+      const filePath = `properties/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('accommodation-images')
+        .upload(filePath, file, { cacheControl: '3600', upsert: false });
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage
+        .from('accommodation-images')
+        .getPublicUrl(filePath);
+
+      setImageUrl(data.publicUrl);
+      toast('Property photo uploaded successfully', 'success');
+    } catch (err: any) {
+      console.error('Image upload failed:', err);
+      toast(err.message || 'Failed to upload photo', 'error');
+    } finally {
+      setUploadingImage(false);
+      e.target.value = '';
+    }
+  };
 
   // Delete confirmation
   const [deleteTarget, setDeleteTarget] = useState<AccommodationProperty | null>(null);
@@ -747,7 +791,39 @@ export function AdminAccommodationTab() {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Photo URL (Direct Image Link)</label>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Property Photo</label>
+                
+                {/* Upload from Device */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', marginBottom: 8 }}>
+                  <label
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '8px 14px',
+                      background: 'var(--green-50, #f0fdf4)',
+                      border: '1px solid var(--green-600, #16a34a)',
+                      borderRadius: 8,
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: 'var(--green-800, #166534)',
+                      cursor: uploadingImage ? 'not-allowed' : 'pointer',
+                      opacity: uploadingImage ? 0.7 : 1
+                    }}
+                  >
+                    {uploadingImage ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+                    {uploadingImage ? 'Uploading photo...' : 'Upload Photo from Device'}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/avif"
+                      onChange={handleImageFileUpload}
+                      disabled={uploadingImage}
+                      style={{ display: 'none' }}
+                    />
+                  </label>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted, #888)' }}>or enter direct image URL below</span>
+                </div>
+
                 <input
                   type="url"
                   placeholder="https://images.unsplash.com/..."
@@ -756,6 +832,18 @@ export function AdminAccommodationTab() {
                   className="form-input"
                   style={{ width: '100%' }}
                 />
+
+                {imageUrl ? (
+                  <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <img
+                      src={imageUrl}
+                      alt="Property preview"
+                      style={{ width: 80, height: 60, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border, #ccc)' }}
+                      onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                    />
+                    <span style={{ fontSize: 11, color: 'var(--text-muted, #888)' }}>Photo preview</span>
+                  </div>
+                ) : null}
               </div>
 
               <div>

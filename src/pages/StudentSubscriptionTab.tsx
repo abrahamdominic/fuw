@@ -237,6 +237,85 @@ export function StudentSubscriptionTab() {
         </p>
       )}
 
+      {/* Premium Expiration Alert Banner */}
+      {(() => {
+        const daysLeft = hasPremium && plan?.expires_at
+          ? Math.ceil((new Date(plan.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+          : null;
+        const isExpiringSoon = daysLeft !== null && daysLeft <= 7 && daysLeft > 0;
+        const isExpired = daysLeft !== null && daysLeft <= 0;
+
+        if (!isExpiringSoon && !isExpired) return null;
+
+        return (
+          <section
+            style={{
+              background: isExpired ? '#fef2f2' : '#fffbeb',
+              border: isExpired ? '1.5px solid #f87171' : '1.5px solid #f59e0b',
+              borderRadius: 12,
+              padding: '16px 20px',
+              marginBottom: 20,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 12,
+              boxShadow: '0 4px 12px rgba(245, 158, 11, 0.1)',
+            }}
+            role="alert"
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div
+                style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: '50%',
+                  background: isExpired ? '#fee2e2' : '#fef3c7',
+                  color: isExpired ? '#dc2626' : '#d97706',
+                  display: 'grid',
+                  placeItems: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <ShieldAlert size={22} />
+              </div>
+              <div>
+                <strong style={{ fontSize: 15, color: isExpired ? '#991b1b' : '#92400e', display: 'block' }}>
+                  {isExpired
+                    ? 'Your Campus Hub Plus Plan Has Expired'
+                    : `Plan Expiring Soon: ${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} remaining`}
+                </strong>
+                <p style={{ margin: '2px 0 0', fontSize: 13, color: isExpired ? '#7f1d1d' : '#78350f' }}>
+                  {isExpired
+                    ? 'Renew your subscription to restore offline study vaults, AI Exam Tutor, and revision summaries.'
+                    : 'Renew your pass now to keep uninterrupted access to encrypted downloads, AI Exam Tutor, and revision summaries.'}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const renewalPlan = plans.find((p) => p.is_premium && p.price_kobo > 0);
+                if (renewalPlan) setSelectedPlan(renewalPlan.slug);
+                const element = document.querySelector('.plan-grid');
+                element?.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="btn btn-primary"
+              style={{
+                padding: '9px 18px',
+                fontSize: 13,
+                fontWeight: 700,
+                background: isExpired ? '#dc2626' : '#d97706',
+                border: 'none',
+                color: '#ffffff',
+              }}
+            >
+              Renew Pass Now
+            </button>
+          </section>
+        );
+      })()}
+
       {loading ? (
         <div className="card" role="status">
           <p className="muted-row">
@@ -253,7 +332,7 @@ export function StudentSubscriptionTab() {
                 <h3>{p.name}</h3>
                 <p className="plan-price">
                   {p.price_kobo === 0 ? 'Free' : naira(p.price_kobo, p.currency)}
-                  {p.price_kobo > 0 && <span className="muted"> / {p.duration_days} days</span>}
+                  {p.price_kobo > 0 && <span className="muted"> / per semester</span>}
                 </p>
                 {p.description && <p className="plan-desc">{p.description}</p>}
                 <ul className="plan-features">

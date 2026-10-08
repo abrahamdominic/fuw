@@ -25,6 +25,8 @@ Allow: /contact
 
 Disallow: /student
 Disallow: /student/
+Disallow: /lecturer
+Disallow: /lecturer/
 Disallow: /admin
 Disallow: /admin/
 Disallow: /super
@@ -33,6 +35,9 @@ Disallow: /super-admin
 Disallow: /superadmin
 Disallow: /campus-hub
 Disallow: /campus
+Disallow: /dashboard
+Disallow: /wallet
+Disallow: /notifications
 Disallow: /login
 Disallow: /register
 Disallow: /forgot-password

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import {
   ShieldAlert,
   CheckCircle,
@@ -10,6 +10,7 @@ import {
   fetchAdminDisputes,
   fetchAdminReports,
   fetchAdminVerifications,
+  getVerificationEvidenceUrl,
   resolveDispute,
   resolveReport,
   reviewVendorVerification,
@@ -35,14 +36,57 @@ import { EmptyState } from '../components/EmptyState';
 import { SupportInbox } from './SupportPage';
 import { mpPath } from '../lib/routes';
 
+/**
+ * Lazily resolves a stored verification-evidence object to a signed URL. The
+ * vendor-assets bucket is private, so this only yields a link for an object the
+ * current user may read (the owning vendor, or a staff member once an
+ * admin-read storage policy exists). Otherwise the file name is shown with a
+ * muted note instead of a broken link.
+ */
+function VerificationEvidence({ evidencePath }: { evidencePath?: string | null }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!evidencePath) return;
+    let mounted = true;
+    getVerificationEvidenceUrl(evidencePath)
+      .then((u) => {
+        if (mounted) setUrl(u);
+      })
+      .catch(() => {
+        if (mounted) setUrl(null);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [evidencePath]);
+
+  if (!evidencePath) return null;
+  return (
+    <div style={{ fontSize: 12, marginTop: 6 }}>
+      <strong>Evidence: </strong>
+      {url ? (
+        <a href={url} target="_blank" rel="noreferrer" style={{ color: 'var(--primary, #12603d)', fontWeight: 700 }}>
+          View uploaded file
+        </a>
+      ) : (
+        <span style={{ color: 'var(--text-secondary, #55675b)' }}>
+          {evidencePath.split('/').pop()} (stored privately for review)
+        </span>
+      )}
+    </div>
+  );
+}
+
 export const AdminPortalPage: React.FC = () => {
   const { isAdmin, isStaff, isLoading } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
+  const tabFromQuery = searchParams.get('tab') as 'kpis' | 'transfers' | 'disputes' | 'verifications' | 'reports' | 'adverts' | 'support' | 'settings' | null;
   const [activeTab, setActiveTab] = useState<
     'kpis' | 'transfers' | 'disputes' | 'verifications' | 'reports' | 'adverts' | 'support' | 'settings'
-  >('kpis');
+  >(tabFromQuery && ['kpis', 'transfers', 'disputes', 'verifications', 'reports', 'adverts', 'support', 'settings'].includes(tabFromQuery) ? tabFromQuery : 'kpis');
   const [supportWaiting, setSupportWaiting] = useState(0);
   const [stats, setStats] = useState<any>(null);
   const [transfers, setTransfers] = useState<PendingManualTransfer[]>([]);
@@ -52,6 +96,9 @@ export const AdminPortalPage: React.FC = () => {
   const [disputes, setDisputes] = useState<any[]>([]);
   const [reports, setReports] = useState<any[]>([]);
   const [verifications, setVerifications] = useState<any[]>([]);
+  const [verifNotes, setVerifNotes] = useState<Record<string, string>>({});
+  const [verifFilter, setVerifFilter] = useState<'all' | 'pending' | 'verified' | 'rejected'>('pending');
+  const [busyVerif, setBusyVerif] = useState<string | null>(null);
   const [settings, setSettings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -282,13 +329,27 @@ export const AdminPortalPage: React.FC = () => {
     }
   };
 
-  const handleReviewVerification = async (verificationId: string, approve: boolean) => {
+  const handleReviewVerification = async (verificationId: string, approve: boolean, defaultNote: string) => {
+    const note = (verifNotes[verificationId] || '').trim() || defaultNote;
+    if (!approve && note.length < 10) {
+      toast('Enter a reason (at least 10 characters) for the rejection', 'error');
+      return;
+    }
+    setBusyVerif(verificationId);
     try {
-      await reviewVendorVerification(verificationId, approve, approve ? 'Approved verified status' : 'Verification rejected');
-      toast(`Vendor verification ${approve ? 'approved' : 'rejected'}`, 'info');
+      await reviewVendorVerification(verificationId, approve, note);
+      toast(
+        approve
+          ? 'Vendor verification approved — badge granted'
+          : 'Vendor verification rejected — vendor notified',
+        'success',
+      );
+      setVerifNotes((prev) => ({ ...prev, [verificationId]: '' }));
       loadData();
     } catch (err: any) {
       toast(err.message || 'Failed to update verification', 'error');
+    } finally {
+      setBusyVerif(null);
     }
   };
 
@@ -584,34 +645,101 @@ export const AdminPortalPage: React.FC = () => {
       {/* TAB 3: VERIFICATIONS */}
       {activeTab === 'verifications' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {verifications.length === 0 ? (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {(
+              [
+                { key: 'all', label: `All (${verifications.length})` },
+                { key: 'pending', label: `Pending (${verifications.filter((v) => v.status === 'pending').length})` },
+                { key: 'verified', label: `Verified (${verifications.filter((v) => v.status === 'verified').length})` },
+                { key: 'rejected', label: `Rejected (${verifications.filter((v) => v.status === 'rejected').length})` },
+              ] as const
+            ).map((f) => (
+              <button
+                key={f.key}
+                type="button"
+                onClick={() => setVerifFilter(f.key)}
+                style={{
+                  padding: '7px 12px',
+                  borderRadius: 999,
+                  border: verifFilter === f.key ? '1px solid var(--green-800, #12603d)' : '1px solid var(--border, #dcebe0)',
+                  background: verifFilter === f.key ? '#e8f5ec' : '#ffffff',
+                  fontWeight: 700,
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  color: verifFilter === f.key ? 'var(--green-900, #0d4a2f)' : 'var(--text-secondary, #55675b)',
+                }}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          {verifications.filter((v) => verifFilter === 'all' || v.status === verifFilter).length === 0 ? (
             <EmptyState icon={<CheckCircle size={32} />} title="No Verification Requests" description="No vendors are currently waiting for verification review." />
           ) : (
-            verifications.map((v) => (
-              <div key={v.id} style={{ background: 'var(--surface, #ffffff)', borderRadius: 12, border: '1px solid var(--border, #dcebe0)', padding: 18, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
-                <div>
-                  <strong style={{ fontSize: 15, display: 'block' }}>{v.vendor?.store_name}</strong>
-                  <span style={{ fontSize: 13, color: 'var(--text-secondary, #55675b)' }}>
-                    Proof note: "{v.notes || 'FUW Student verification requested'}" · Applied: {formatDate(v.created_at)}
-                  </span>
-                </div>
-
-                {v.status === 'pending' ? (
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button type="button" onClick={() => handleReviewVerification(v.id, true)} className="btn btn-primary" style={{ padding: '7px 12px', fontSize: 12 }}>
-                      Approve Badge
-                    </button>
-                    <button type="button" onClick={() => handleReviewVerification(v.id, false)} style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid #fca5a5', background: '#fee2e2', color: '#991b1b', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                      Reject
-                    </button>
+            verifications
+              .filter((v) => verifFilter === 'all' || v.status === verifFilter)
+              .map((v) => (
+                <div key={v.id} style={{ background: 'var(--surface, #ffffff)', borderRadius: 12, border: '1px solid var(--border, #dcebe0)', padding: 18, display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
+                  <div style={{ flex: '1 1 300px', minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                      <strong style={{ fontSize: 15 }}>{v.vendor?.store_name || 'Unknown store'}</strong>
+                      <span style={{ padding: '3px 8px', borderRadius: 4, background: v.status === 'verified' ? '#d1fae5' : v.status === 'rejected' ? '#fee2e2' : '#fef3c7', color: v.status === 'verified' ? '#065f46' : v.status === 'rejected' ? '#991b1b' : '#92400e', fontSize: 12, fontWeight: 700, textTransform: 'uppercase' }}>
+                        {v.status}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 13, color: 'var(--text-secondary, #55675b)', marginTop: 6 }}>
+                      Applied: {formatDate(v.created_at)}
+                    </div>
+                    <p style={{ margin: '8px 0 0', fontSize: 13, lineHeight: 1.5 }}>
+                      <strong>Request note: </strong>
+                      {v.note || '(No note provided)'}
+                    </p>
+                    <VerificationEvidence evidencePath={v.evidence_path} />
+                    {v.reviewer_note && (
+                      <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--text-secondary, #55675b)' }}>
+                        <strong>Reviewer note: </strong>
+                        {v.reviewer_note}
+                      </p>
+                    )}
                   </div>
-                ) : (
-                  <span style={{ fontWeight: 700, textTransform: 'uppercase', fontSize: 12, color: v.status === 'approved' ? '#065f46' : '#991b1b' }}>
-                    {v.status}
-                  </span>
-                )}
-              </div>
-            ))
+
+                  {v.status === 'pending' ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: '0 0 260px' }}>
+                      <textarea
+                        rows={2}
+                        value={verifNotes[v.id] || ''}
+                        onChange={(e) => setVerifNotes((prev) => ({ ...prev, [v.id]: e.target.value }))}
+                        placeholder="Optional note for approve · required reason (10+ chars) for reject"
+                        style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border, #dcebe0)', fontSize: 13, resize: 'vertical' }}
+                      />
+                      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                        <button
+                          type="button"
+                          disabled={busyVerif === v.id}
+                          onClick={() => handleReviewVerification(v.id, true, 'Verified by FUW marketplace admin')}
+                          className="btn btn-primary"
+                          style={{ padding: '7px 12px', fontSize: 12, opacity: busyVerif === v.id ? 0.6 : 1 }}
+                        >
+                          {busyVerif === v.id ? 'Working...' : 'Approve Badge'}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busyVerif === v.id}
+                          onClick={() => handleReviewVerification(v.id, false, '')}
+                          style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid #fca5a5', background: '#fee2e2', color: '#991b1b', fontSize: 12, fontWeight: 600, cursor: 'pointer', opacity: busyVerif === v.id ? 0.6 : 1 }}
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <span style={{ fontWeight: 700, textTransform: 'uppercase', fontSize: 12, color: v.status === 'verified' ? '#065f46' : '#991b1b' }}>
+                      {v.status}
+                    </span>
+                  )}
+                </div>
+              ))
           )}
         </div>
       )}

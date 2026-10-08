@@ -15,7 +15,7 @@ const RETURNING_READ_MS = 2600;
 const SAFETY_MAX_TIMEOUT_MS = 6500;
 const SPLASH_SESSION_KEY = 'fuw_splash_welcomed_v1';
 
-type SplashVariant = 'library' | 'marketplace' | 'accommodation' | 'hub';
+type SplashVariant = 'library' | 'marketplace' | 'accommodation' | 'hub' | 'lecturer';
 
 const VARIANT_COPY: Record<SplashVariant, { title: string; subtitle: string; desc: string; loading: string }> = {
   hub: {
@@ -41,6 +41,12 @@ const VARIANT_COPY: Record<SplashVariant, { title: string; subtitle: string; des
     subtitle: 'Find. Connect. Move In.',
     desc: 'Verified student hostels, lodges and roommate matching across campus.',
     loading: 'Preparing campus housing'
+  },
+  lecturer: {
+    title: 'FUW Lecturer Portal',
+    subtitle: 'Educate. Inspire. Publish.',
+    desc: 'The official digital dissemination and course material repository for Federal University Wukari faculty.',
+    loading: 'Preparing academic workspace'
   }
 };
 
@@ -53,10 +59,12 @@ const VARIANT_ACCENTS: Record<
   hub: { accent: '#6EE7B7', accentSoft: '#A7F3D0', orbLarge: '#064E3B', orbSmall: '#047857' },
   library: { accent: '#8CE6AD', accentSoft: '#B8EFCB', orbLarge: '#0B6B3A', orbSmall: '#57C785' },
   marketplace: { accent: '#7FD4C9', accentSoft: '#BFEAE3', orbLarge: '#0E5E7B', orbSmall: '#5FC4D6' },
-  accommodation: { accent: '#F0C579', accentSoft: '#F6DCB0', orbLarge: '#7A5A12', orbSmall: '#E0B45C' }
+  accommodation: { accent: '#F0C579', accentSoft: '#F6DCB0', orbLarge: '#7A5A12', orbSmall: '#E0B45C' },
+  lecturer: { accent: '#34D399', accentSoft: '#6EE7B7', orbLarge: '#064E3B', orbSmall: '#059669' }
 };
 
 function variantFor(pathname: string): SplashVariant {
+  if (pathname.startsWith('/lecturer')) return 'lecturer';
   if (pathname.startsWith('/marketplace')) return 'marketplace';
   if (pathname.startsWith('/accommodation')) return 'accommodation';
   if (

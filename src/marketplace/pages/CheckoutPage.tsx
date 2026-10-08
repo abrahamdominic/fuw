@@ -8,7 +8,14 @@ import {
   ArrowRight,
   ExternalLink,
   Wallet,
+  CheckCircle2,
+  Package,
+  Printer,
+  Clock,
+  MapPin,
+  Sparkles,
 } from 'lucide-react';
+import { DigitalReceiptModal } from '../components/DigitalReceiptModal';
 import { useCart } from '../lib/cart';
 import { useAuth } from '../lib/auth';
 import { useToast } from '../components/Toast';
@@ -34,6 +41,28 @@ interface CheckoutResult {
   orders?: Array<{ id: string; order_number: string; payment_id?: string; total_kobo?: number }>;
 }
 
+interface CompletedOrderSnapshot {
+  orderNumbers: string[];
+  isPaid: boolean;
+  paymentMethod: string;
+  items: Array<{
+    title: string;
+    variantLabel?: string | null;
+    quantity: number;
+    unitPriceKobo: number;
+    lineTotalKobo: number;
+    image?: string;
+    vendorName?: string;
+  }>;
+  subtotalKobo: number;
+  deliveryFeeKobo: number;
+  totalKobo: number;
+  recipientName: string;
+  phone: string;
+  deliveryAddress: string;
+  deliveryPin: string;
+}
+
 export const CheckoutPage: React.FC = () => {
   const { items, clearCart, groupedByVendor, subtotalKobo } = useCart();
   const { user, profile, isLoading } = useAuth();
@@ -56,6 +85,8 @@ export const CheckoutPage: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'bank_transfer' | 'wallet'>('card');
   const [submitting, setSubmitting] = useState(false);
   const [createdOrderNumbers, setCreatedOrderNumbers] = useState<string[] | null>(null);
+  const [orderSnapshot, setOrderSnapshot] = useState<CompletedOrderSnapshot | null>(null);
+  const [receiptModalOpen, setReceiptModalOpen] = useState(false);
   const [wallet, setWallet] = useState<MarketplaceWallet | null>(null);
 
   useEffect(() => {
@@ -98,39 +129,193 @@ export const CheckoutPage: React.FC = () => {
     );
   }
 
-  // Reservation screen. Reached when payment still has to happen, which is
-  // deliberately NOT described as a paid order.
-  if (createdOrderNumbers) {
+  // Customized Order Confirmation and Item Receipt View
+  if (orderSnapshot || createdOrderNumbers) {
+    const isPaid = orderSnapshot?.isPaid ?? false;
+    const orderNumbers = orderSnapshot?.orderNumbers || createdOrderNumbers || [];
+    const orderedItems = orderSnapshot?.items || [];
+
     return (
-      <div style={{ maxWidth: 540, margin: '40px auto', textAlign: 'center', padding: '40px 24px', background: 'var(--surface, #ffffff)', borderRadius: 16, border: '1px solid var(--border, #dcebe0)', boxShadow: 'var(--shadow-md, 0 6px 18px rgba(18, 41, 28, 0.1))' }}>
-        <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#fef3c7', color: '#92400e', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px' }}>
-          <Lock size={32} />
+      <div style={{ maxWidth: 680, margin: '40px auto', padding: '32px 24px', background: 'var(--surface, #ffffff)', borderRadius: 18, border: '1px solid var(--border, #dcebe0)', boxShadow: '0 10px 30px rgba(18, 41, 28, 0.08)' }}>
+        {/* Header Badge */}
+        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+          <div
+            style={{
+              width: 68,
+              height: 68,
+              borderRadius: '50%',
+              background: isPaid ? 'linear-gradient(135deg, #e8f5ec, #c8ebd3)' : '#fef3c7',
+              color: isPaid ? '#12603d' : '#92400e',
+              display: 'grid',
+              placeItems: 'center',
+              margin: '0 auto 16px',
+              boxShadow: isPaid ? '0 8px 20px rgba(18, 96, 61, 0.2)' : '0 8px 20px rgba(146, 64, 14, 0.15)',
+            }}
+          >
+            {isPaid ? <CheckCircle2 size={38} strokeWidth={2.4} /> : <Clock size={36} />}
+          </div>
+          <h2 style={{ fontSize: 24, fontWeight: 900, margin: '0 0 6px', color: '#0d4a2f' }}>
+            {isPaid ? 'Order Placed & Escrow Protected!' : 'Order Reserved: Payment Pending'}
+          </h2>
+          <p style={{ color: 'var(--text-secondary, #55675b)', margin: 0, fontSize: 14 }}>
+            {isPaid
+              ? 'Your funds are held safely in campus escrow until you confirm delivery.'
+              : 'Complete payment from your orders dashboard to notify the vendor to fulfill your items.'}
+          </p>
         </div>
-        <h2 style={{ fontSize: 24, fontWeight: 800, margin: '0 0 10px', color: 'var(--text-primary, #17231d)' }}>
-          Order Reserved: Payment Not Yet Received
-        </h2>
-        <p style={{ color: 'var(--text-secondary, #55675b)', margin: '0 0 20px', fontSize: 15, lineHeight: 1.5 }}>
-          Your items are held for you, but the vendor has not been notified to start
-          fulfilment because no money has arrived yet. Complete payment from your
-          orders page to release the order.
-        </p>
 
-        <div style={{ background: 'var(--surface-alt, #f4f8f5)', padding: '14px', borderRadius: 10, marginBottom: 24, fontSize: 14 }}>
-          <strong>Order Reference: </strong>
-          <span style={{ color: 'var(--green-900, #0d4a2f)', fontWeight: 700 }}>
-            {createdOrderNumbers.join(', ')}
-          </span>
+        {/* Order Meta Bar */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, background: 'var(--surface-alt, #f4f8f5)', padding: '12px 18px', borderRadius: 10, border: '1px solid var(--border, #dcebe0)', marginBottom: 20 }}>
+          <div>
+            <span style={{ fontSize: 11, textTransform: 'uppercase', color: 'var(--text-secondary, #55675b)', fontWeight: 700 }}>
+              Order Reference
+            </span>
+            <div style={{ fontWeight: 800, color: 'var(--green-900, #0d4a2f)', fontSize: 15 }}>
+              #{orderNumbers.join(', #')}
+            </div>
+          </div>
+          {orderSnapshot?.deliveryPin && (
+            <div style={{ background: '#fffbeb', border: '1px dashed #f59e0b', padding: '6px 14px', borderRadius: 8, textAlign: 'right' }}>
+              <span style={{ fontSize: 10, textTransform: 'uppercase', color: '#92400e', fontWeight: 800, display: 'block' }}>
+                Delivery PIN
+              </span>
+              <strong style={{ fontSize: 18, color: '#92400e', letterSpacing: 3 }}>
+                {orderSnapshot.deliveryPin}
+              </strong>
+            </div>
+          )}
         </div>
 
+        {/* Customized Ordered Items List */}
+        {orderedItems.length > 0 && (
+          <div style={{ marginBottom: 24 }}>
+            <h4 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 12px', color: 'var(--text-primary, #17231d)' }}>
+              Ordered Items ({orderedItems.length})
+            </h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {orderedItems.map((item, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '12px 14px',
+                    borderRadius: 10,
+                    border: '1px solid var(--border, #edf4f0)',
+                    background: '#ffffff',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    {item.image ? (
+                      <img
+                        src={item.image}
+                        alt={item.title}
+                        style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 8, border: '1px solid #dcebe0' }}
+                      />
+                    ) : (
+                      <div style={{ width: 44, height: 44, borderRadius: 8, background: '#e8f5ec', color: '#12603d', display: 'grid', placeItems: 'center' }}>
+                        <Package size={20} />
+                      </div>
+                    )}
+                    <div>
+                      <strong style={{ fontSize: 14, color: 'var(--text-primary, #17231d)', display: 'block' }}>
+                        {item.title}
+                      </strong>
+                      <span style={{ fontSize: 12, color: 'var(--text-secondary, #55675b)' }}>
+                        Qty: {item.quantity} {item.variantLabel ? `(${item.variantLabel})` : ''} · {item.vendorName ? `Store: ${item.vendorName}` : ''}
+                      </span>
+                    </div>
+                  </div>
+                  <strong style={{ fontSize: 14, color: 'var(--green-900, #0d4a2f)' }}>
+                    {formatNaira(item.lineTotalKobo)}
+                  </strong>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Delivery Details */}
+        {orderSnapshot?.deliveryAddress && (
+          <div style={{ background: '#f8faf9', padding: '12px 16px', borderRadius: 10, border: '1px solid #edf4f0', marginBottom: 24, fontSize: 13, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <MapPin size={18} color="#12603d" style={{ flexShrink: 0 }} />
+            <div>
+              <span style={{ color: 'var(--text-secondary, #55675b)' }}>Delivery Destination: </span>
+              <strong>{orderSnapshot.deliveryAddress}</strong>
+              {orderSnapshot.phone && <span style={{ color: 'var(--text-secondary, #55675b)' }}> (Recipient: {orderSnapshot.recipientName}, {orderSnapshot.phone})</span>}
+            </div>
+          </div>
+        )}
+
+        {/* Action Buttons */}
         <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-          <Link to={mpPath("/orders")} className="btn btn-primary" style={{ padding: '11px 22px' }}>
-            <span>Complete Payment</span>
+          <button
+            type="button"
+            onClick={() => setReceiptModalOpen(true)}
+            className="btn btn-secondary"
+            style={{
+              padding: '11px 20px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              fontWeight: 700,
+              fontSize: 14,
+            }}
+          >
+            <Printer size={16} />
+            <span>View Official Digital Receipt</span>
+          </button>
+          <Link
+            to={mpPath('/orders')}
+            className="btn btn-primary"
+            style={{
+              padding: '11px 22px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              fontWeight: 700,
+              fontSize: 14,
+            }}
+          >
+            <span>View Orders &amp; Track</span>
             <ArrowRight size={16} />
           </Link>
-          <Link to={mpPath("/browse")} className="btn btn-secondary" style={{ padding: '11px 22px' }}>
+          <Link
+            to={mpPath('/browse')}
+            className="btn btn-secondary"
+            style={{ padding: '11px 20px', fontSize: 14 }}
+          >
             Continue Shopping
           </Link>
         </div>
+
+        {/* Digital Receipt Modal */}
+        {orderSnapshot && (
+          <DigitalReceiptModal
+            isOpen={receiptModalOpen}
+            onClose={() => setReceiptModalOpen(false)}
+            orderNumber={orderNumbers[0] || 'ORD'}
+            orderDate={new Date()}
+            status={isPaid ? 'Paid · Escrow Secured' : 'Reserved · Pending Payment'}
+            paymentMethod={orderSnapshot.paymentMethod}
+            buyerName={orderSnapshot.recipientName}
+            buyerPhone={orderSnapshot.phone}
+            deliveryAddress={orderSnapshot.deliveryAddress}
+            deliveryPin={orderSnapshot.deliveryPin}
+            vendorName={orderSnapshot.items[0]?.vendorName || 'Campus Merchant'}
+            items={orderSnapshot.items.map((it) => ({
+              title: it.title,
+              variantLabel: it.variantLabel,
+              quantity: it.quantity,
+              unitPriceKobo: it.unitPriceKobo,
+              lineTotalKobo: it.lineTotalKobo,
+            }))}
+            subtotalKobo={orderSnapshot.subtotalKobo}
+            deliveryFeeKobo={orderSnapshot.deliveryFeeKobo}
+            totalKobo={orderSnapshot.totalKobo}
+          />
+        )}
       </div>
     );
   }
@@ -211,6 +396,35 @@ export const CheckoutPage: React.FC = () => {
         : [];
 
       const paymentId = String(result?.payment_id ?? '');
+
+      const deliveryPin = Math.floor(1000 + Math.random() * 9000).toString();
+      const snapshot: CompletedOrderSnapshot = {
+        orderNumbers,
+        isPaid: paymentMethod === 'wallet',
+        paymentMethod:
+          paymentMethod === 'wallet'
+            ? 'Campus Hub Wallet'
+            : paymentMethod === 'card'
+              ? 'Debit Card / Paystack'
+              : 'Campus Bank Transfer',
+        items: items.map((it) => ({
+          title: it.product.title,
+          variantLabel: it.variant ? `${it.variant.name}: ${it.variant.value}` : undefined,
+          quantity: it.quantity,
+          unitPriceKobo: it.variant?.price_kobo ?? it.product.price_kobo,
+          lineTotalKobo: (it.variant?.price_kobo ?? it.product.price_kobo) * it.quantity,
+          image: it.product.images?.[0]?.url,
+          vendorName: it.product.vendor?.store_name,
+        })),
+        subtotalKobo,
+        deliveryFeeKobo: totalDeliveryFee,
+        totalKobo: grandTotal,
+        recipientName: recipientName.trim(),
+        phone: phone.trim(),
+        deliveryAddress: deliveryType === 'delivery' ? `${campusArea}, ${addressLine.trim()}` : 'Self Pickup on Campus',
+        deliveryPin,
+      };
+      setOrderSnapshot(snapshot);
 
       if (paymentMethod === 'wallet') {
         // Every order from this checkout carries its own payment row, and each

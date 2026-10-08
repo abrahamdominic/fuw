@@ -101,7 +101,7 @@ export const VendorRegisterPage: React.FC = () => {
         </div>
         <h2 style={{ fontSize: 22, fontWeight: 800, margin: '0 0 8px' }}>You already have an active storefront!</h2>
         <p style={{ color: 'var(--text-secondary, #55675b)', margin: '0 0 24px', fontSize: 14 }}>
-          Store: <strong>{vendor.store_name}</strong> ({vendor.status})
+          Store: <strong>{vendor.store_name}</strong> ({vendor.status.replace(/_/g, ' ').toUpperCase()})
         </p>
         <Link to={mpPath("/vendor/dashboard")} className="btn btn-primary" style={{ padding: '10px 22px' }}>
           Open Vendor Dashboard

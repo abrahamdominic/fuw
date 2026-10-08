@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Wallet,
   ArrowDownLeft,
@@ -16,6 +16,7 @@ import {
   Building,
   Check,
 } from 'lucide-react';
+import { WalletFundSuccessModal, WalletWithdrawSuccessModal } from '../components/WalletTransactionModals';
 import {
   fetchMyWallet,
   fetchWalletStatement,
@@ -44,7 +45,27 @@ const PRESET_AMOUNTS = [1000, 2000, 5000, 10000, 20000];
 
 export const WalletPage: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+
+  // Customized modal states for funding & withdrawal celebrations
+  const [fundingSuccessModal, setFundingSuccessModal] = useState<{
+    open: boolean;
+    amountKobo: number;
+    newBalanceKobo?: number;
+    reference: string;
+  } | null>(null);
+
+  const [withdrawalSuccessModal, setWithdrawalSuccessModal] = useState<{
+    open: boolean;
+    amountKobo: number;
+    feeKobo: number;
+    netKobo: number;
+    bankName: string;
+    accountName: string;
+    accountNumber: string;
+    reference: string;
+  } | null>(null);
 
   const [wallet, setWallet] = useState<MarketplaceWallet | null>(null);
   const [entries, setEntries] = useState<MarketplaceLedgerEntry[]>([]);
@@ -98,11 +119,20 @@ export const WalletPage: React.FC = () => {
     message: string;
   } | null>(null);
 
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   const load = useCallback(async (from: number) => {
     const [w, page] = await Promise.all([
       fetchMyWallet(),
       fetchWalletStatement(PAGE_SIZE, from),
     ]);
+    if (!isMountedRef.current || typeof window === 'undefined') return;
     setWallet(w);
     setTotal(page.total);
     setEntries((prev) => (from === 0 ? page.entries : [...prev, ...page.entries]));
@@ -113,8 +143,12 @@ export const WalletPage: React.FC = () => {
     setLoading(true);
     setError(null);
     load(0)
-      .catch((e) => setError(e?.message || 'Could not load your wallet.'))
-      .finally(() => setLoading(false));
+      .catch((e) => {
+        if (isMountedRef.current && typeof window !== 'undefined') setError(e?.message || 'Could not load your wallet.');
+      })
+      .finally(() => {
+        if (isMountedRef.current && typeof window !== 'undefined') setLoading(false);
+      });
   }, [user, load]);
 
   // Handle callback return from Paystack (Section 13, 14)
@@ -126,9 +160,16 @@ export const WalletPage: React.FC = () => {
     verifyWalletFunding(reference)
       .then((res) => {
         if (res.status === 'succeeded') {
+          const creditedKobo = res.amount_kobo ?? Math.round(Number(fundAmount || '2000') * 100);
+          setFundingSuccessModal({
+            open: true,
+            amountKobo: creditedKobo,
+            newBalanceKobo: (wallet?.available_kobo ?? 0) + creditedKobo,
+            reference,
+          });
           setVerificationNotice({
             type: 'success',
-            message: `Payment confirmed! ₦${((res.amount_kobo ?? 0) / 100).toLocaleString()} credited to your wallet.`,
+            message: `Payment confirmed! ₦${(creditedKobo / 100).toLocaleString()} credited to your wallet.`,
           });
           // Refresh wallet balance and statement
           load(0).catch(() => undefined);
@@ -340,6 +381,21 @@ export const WalletPage: React.FC = () => {
       if (res.status === 'failed') {
         setWithdrawError(res.message || 'The transfer was rejected by the bank. Your wallet has been refunded in full.');
       } else {
+        const feeNaira = getWithdrawalFee(amountNaira);
+        const feeKobo = feeNaira * 100;
+        const netKobo = Math.max(0, amountKobo - feeKobo);
+
+        setWithdrawalSuccessModal({
+          open: true,
+          amountKobo,
+          feeKobo,
+          netKobo,
+          bankName: selectedBankName || 'Nigerian Bank',
+          accountName: accountName.trim(),
+          accountNumber: accountNumber.trim(),
+          reference: res.reference,
+        });
+
         const statusNote = res.status === 'successful'
           ? 'Withdrawal completed and has been sent to your bank account.'
           : 'Withdrawal received. Funds are held while the bank transfer is confirmed.';
@@ -1432,6 +1488,35 @@ export const WalletPage: React.FC = () => {
             )}
           </section>
         </>
+      )}
+
+      {/* Customized Modals for Wallet Funding and Bank Withdrawal */}
+      {fundingSuccessModal && (
+        <WalletFundSuccessModal
+          isOpen={fundingSuccessModal.open}
+          onClose={() => setFundingSuccessModal(null)}
+          amountKobo={fundingSuccessModal.amountKobo}
+          newBalanceKobo={fundingSuccessModal.newBalanceKobo}
+          reference={fundingSuccessModal.reference}
+          onExploreMarketplace={() => {
+            setFundingSuccessModal(null);
+            navigate(mpPath('/browse'));
+          }}
+        />
+      )}
+
+      {withdrawalSuccessModal && (
+        <WalletWithdrawSuccessModal
+          isOpen={withdrawalSuccessModal.open}
+          onClose={() => setWithdrawalSuccessModal(null)}
+          amountKobo={withdrawalSuccessModal.amountKobo}
+          feeKobo={withdrawalSuccessModal.feeKobo}
+          netKobo={withdrawalSuccessModal.netKobo}
+          bankName={withdrawalSuccessModal.bankName}
+          accountName={withdrawalSuccessModal.accountName}
+          accountNumber={withdrawalSuccessModal.accountNumber}
+          reference={withdrawalSuccessModal.reference}
+        />
       )}
     </div>
   );

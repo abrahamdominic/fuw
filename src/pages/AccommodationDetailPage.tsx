@@ -17,8 +17,11 @@ import {
   Info,
   Send,
   Home,
-  Eye
+  Eye,
+  Bookmark
 } from 'lucide-react';
+import { saveUnifiedItem, removeUnifiedItem, checkIsItemSaved } from '../lib/savedItems';
+import { logUserActivity } from '../lib/activity';
 import { SEO } from '../components/SEO';
 import { Breadcrumbs } from '../components/Breadcrumbs';
 import { Logo } from '../components/Logo';
@@ -74,6 +77,7 @@ export function AccommodationDetailPage() {
 
   const { isAuthenticated, user, profile } = useAuth();
   const { toast } = useToast();
+  const [isSaved, setIsSaved] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
@@ -87,10 +91,52 @@ export function AccommodationDetailPage() {
         recordAccommodationView(data.id).then((total) => {
           if (total !== null) setViewCount(total);
         });
+        checkIsItemSaved('accommodation', data.id).then(setIsSaved);
+        void logUserActivity({
+          activityType: 'accommodation_viewed',
+          entityType: 'accommodation',
+          entityId: data.id,
+          entityTitle: data.title,
+          metadata: { location: data.location_area, price: data.price_annual }
+        });
       }
       setLoading(false);
     });
   }, [slug]);
+
+  const handleToggleSave = async () => {
+    if (!property) return;
+    if (!isAuthenticated) {
+      toast('Please sign in to save accommodations.', 'info');
+      return;
+    }
+    if (isSaved) {
+      const ok = await removeUnifiedItem('accommodation', property.id);
+      if (ok) {
+        setIsSaved(false);
+        toast('Removed from saved items.', 'info');
+      }
+    } else {
+      const saved = await saveUnifiedItem({
+        itemType: 'accommodation',
+        itemId: property.id,
+        title: property.title,
+        subtitle: `${property.location_area} · ₦${formatNaira(property.price_annual)}/yr`,
+        url: `/accommodation/${property.slug}`,
+        metadata: { location: property.location_area, price: property.price_annual }
+      });
+      if (saved) {
+        setIsSaved(true);
+        toast('Saved to your unified saved items!', 'success');
+        void logUserActivity({
+          activityType: 'item_saved',
+          entityType: 'accommodation',
+          entityId: property.id,
+          entityTitle: property.title
+        });
+      }
+    }
+  };
 
   useEffect(() => {
     if (profile) {
@@ -588,14 +634,25 @@ export function AccommodationDetailPage() {
                 )}
 
                 {isAuthenticated ? (
-                  <button
-                    type="button"
-                    onClick={() => setShowInquiryModal(true)}
-                    className="btn btn-secondary"
-                    style={{ width: '100%', justifyContent: 'center', padding: '11px 16px', gap: 8, fontSize: 14 }}
-                  >
-                    <Send size={15} /> Send Move-in Inquiry
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setShowInquiryModal(true)}
+                      className="btn btn-secondary"
+                      style={{ width: '100%', justifyContent: 'center', padding: '11px 16px', gap: 8, fontSize: 14 }}
+                    >
+                      <Send size={15} /> Send Move-in Inquiry
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleToggleSave}
+                      className="btn btn-secondary"
+                      style={{ width: '100%', justifyContent: 'center', padding: '11px 16px', gap: 8, fontSize: 14 }}
+                    >
+                      <Bookmark size={16} fill={isSaved ? "currentColor" : "none"} color={isSaved ? "var(--green-800)" : "currentColor"} />
+                      <span>{isSaved ? 'Saved to Bookmarks' : 'Save Lodge'}</span>
+                    </button>
+                  </>
                 ) : (
                   <Link
                     to="/login"

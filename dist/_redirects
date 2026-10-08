@@ -175,6 +175,7 @@
 /forgot-password  /index.html  200
 /help  /index.html  200
 /hub  /index.html  200
+/lecturer  /index.html  200
 /library  /index.html  200
 /login  /index.html  200
 /maintenance  /index.html  200
@@ -249,6 +250,7 @@
 /materials/f5e7e143-ebd9-42c0-ab64-d8bee46318b5  /index.html  200
 /materials/f74a5fac-e817-4f13-b83b-8d9f261c39df  /index.html  200
 /materials/fa9da340-66d2-4998-bd01-795c0e268d47  /index.html  200
+/onboarding  /index.html  200
 /profile  /index.html  200
 /register  /index.html  200
 /report-copyright  /index.html  200
@@ -256,6 +258,7 @@
 /repository  /index.html  200
 /repository/submit  /index.html  200
 /reset-password  /index.html  200
+/search  /index.html  200
 /settings  /index.html  200
 /student  /index.html  200
 /super  /index.html  200
@@ -266,4 +269,5 @@
 /student/*  /index.html  200
 /admin/*  /index.html  200
 /super/*  /index.html  200
+/lecturer/*  /index.html  200
 /marketplace/*  /index.html  200

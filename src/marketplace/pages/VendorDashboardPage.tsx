@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Package,
@@ -8,12 +8,18 @@ import {
   Edit,
   ExternalLink,
   Store,
+  Upload,
+  Image as ImageIcon,
+  X,
+  Loader2,
+  Clock,
 } from 'lucide-react';
 import {
   fetchVendorOrders,
   fetchProducts,
   fetchCategories,
   upsertProduct,
+  uploadProductImage,
   setListingStatus,
   adjustInventory,
   transitionOrder,
@@ -23,6 +29,7 @@ import {
   fetchVendorWalletSummary,
   fetchWalletStatement,
   requestVendorVerification,
+  uploadVerificationEvidence,
   saveVendor,
   fetchAdvertPackages,
   fetchMyAdverts,
@@ -86,6 +93,8 @@ export const VendorDashboardPage: React.FC = () => {
   const [prodMeetingPoint, setProdMeetingPoint] = useState('');
   const [prodImageUrl, setProdImageUrl] = useState('');
   const [prodBusy, setProdBusy] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Stock adjust modal
   const [stockModalOpen, setStockModalOpen] = useState(false);
@@ -114,7 +123,14 @@ export const VendorDashboardPage: React.FC = () => {
   // Verification request modal
   const [verificationModalOpen, setVerificationModalOpen] = useState(false);
   const [verificationNote, setVerificationNote] = useState('');
+  const [verificationFile, setVerificationFile] = useState<File | null>(null);
   const [verificationBusy, setVerificationBusy] = useState(false);
+
+  const closeVerificationModal = () => {
+    setVerificationModalOpen(false);
+    setVerificationNote('');
+    setVerificationFile(null);
+  };
 
   // Store settings form
   const [settingsName, setSettingsName] = useState(vendor?.store_name || '');
@@ -277,6 +293,33 @@ export const VendorDashboardPage: React.FC = () => {
     setProductModalOpen(true);
   };
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      toast('Please upload a valid image file (JPG, PNG, or WebP).', 'error');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast('Image file size must be less than 5MB.', 'error');
+      return;
+    }
+
+    setUploadingImage(true);
+    try {
+      const url = await uploadProductImage(file, vendor?.id || user?.id || 'general');
+      setProdImageUrl(url);
+      toast('Product photo uploaded successfully!', 'success');
+    } catch (err: any) {
+      console.error('Image upload failed:', err);
+      toast(err.message || 'Failed to upload product photo.', 'error');
+    } finally {
+      setUploadingImage(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!prodTitle.trim() || !prodDesc.trim() || !prodPrice) {
@@ -386,10 +429,14 @@ export const VendorDashboardPage: React.FC = () => {
       return;
     }
     setVerificationBusy(true);
+    let evidencePath: string | undefined;
     try {
-      await requestVendorVerification(note);
+      if (verificationFile && vendor) {
+        evidencePath = await uploadVerificationEvidence(verificationFile, vendor.id);
+      }
+      await requestVendorVerification(note, evidencePath);
       toast('Verification request submitted for admin review.', 'success');
-      setVerificationModalOpen(false);
+      closeVerificationModal();
       refreshAuth();
     } catch (err: any) {
       toast(err.message || 'Failed to submit verification request', 'error');
@@ -484,6 +531,10 @@ export const VendorDashboardPage: React.FC = () => {
             {vendor.is_verified ? (
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#d1fae5', color: '#065f46', padding: '3px 8px', borderRadius: 6, fontSize: 12, fontWeight: 700 }}>
                 <CheckCircle2 size={14} /> Verified Vendor
+              </span>
+            ) : (vendor as any).verification === 'pending' || (vendor as any).verification_status === 'pending' || vendor.status === 'pending_review' ? (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
+                <Clock size={13} /> PENDING REVIEW
               </span>
             ) : (
               <button
@@ -1251,8 +1302,93 @@ export const VendorDashboardPage: React.FC = () => {
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Image URL</label>
-            <input type="url" value={prodImageUrl} onChange={(e) => setProdImageUrl(e.target.value)} placeholder="https://example.com/product-photo.jpg" style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border, #dcebe0)', fontSize: 14 }} />
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+              Product Picture / Photo
+            </label>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  accept="image/jpeg,image/png,image/webp"
+                  style={{ display: 'none' }}
+                  onChange={handleImageUpload}
+                />
+                <button
+                  type="button"
+                  disabled={uploadingImage || prodBusy}
+                  onClick={() => fileInputRef.current?.click()}
+                  className="btn btn-secondary"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '8px 14px',
+                    fontSize: 13,
+                    fontWeight: 600,
+                  }}
+                >
+                  {uploadingImage ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      <span>Uploading photo...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload size={16} />
+                      <span>Upload Product Picture</span>
+                    </>
+                  )}
+                </button>
+
+                {prodImageUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setProdImageUrl('')}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#b91c1c',
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      padding: 4,
+                    }}
+                  >
+                    <X size={14} /> Clear Image
+                  </button>
+                )}
+              </div>
+
+              {prodImageUrl && (
+                <div style={{ position: 'relative', width: 90, height: 90, borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border, #dcebe0)', background: '#f8faf9' }}>
+                  <img
+                    src={prodImageUrl}
+                    alt="Product preview"
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    onError={(e) => {
+                      (e.target as HTMLElement).style.display = 'none';
+                    }}
+                  />
+                </div>
+              )}
+
+              <div style={{ marginTop: 2 }}>
+                <span style={{ fontSize: 11, color: 'var(--text-secondary, #55675b)', display: 'block', marginBottom: 4 }}>
+                  Or enter direct image URL:
+                </span>
+                <input
+                  type="url"
+                  value={prodImageUrl}
+                  onChange={(e) => setProdImageUrl(e.target.value)}
+                  placeholder="https://example.com/product-photo.jpg"
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border, #dcebe0)', fontSize: 13 }}
+                />
+              </div>
+            </div>
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
@@ -1310,7 +1446,7 @@ export const VendorDashboardPage: React.FC = () => {
       </Modal>
 
       {/* VERIFICATION MODAL */}
-      <Modal isOpen={verificationModalOpen} onClose={() => setVerificationModalOpen(false)} title="Apply for Verified Student Seller Badge" maxWidth="480px">
+      <Modal isOpen={verificationModalOpen} onClose={closeVerificationModal} title="Apply for Verified Student Seller Badge" maxWidth="480px">
         <form onSubmit={handleApplyVerification} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary, #55675b)' }}>
             Verified vendors get a trust badge on all product listings, higher ranking in search, and lower dispute hold times.
@@ -1321,8 +1457,23 @@ export const VendorDashboardPage: React.FC = () => {
             <textarea rows={3} required value={verificationNote} onChange={(e) => setVerificationNote(e.target.value)} placeholder="Provide your FUW student ID details, matriculation number, or shop location for verification..." style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border, #dcebe0)', fontSize: 14 }} />
           </div>
 
+          <div>
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Supporting Evidence (optional)</label>
+            <input
+              type="file"
+              accept="image/*,application/pdf"
+              onChange={(e) => setVerificationFile(e.target.files?.[0] ?? null)}
+              style={{ width: '100%', fontSize: 13 }}
+            />
+            {verificationFile && (
+              <span style={{ display: 'block', fontSize: 12, color: 'var(--text-secondary, #55675b)', marginTop: 4 }}>
+                {verificationFile.name} ({(verificationFile.size / 1024 / 1024).toFixed(2)} MB)
+              </span>
+            )}
+          </div>
+
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-            <button type="button" onClick={() => setVerificationModalOpen(false)} style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid var(--border, #dcebe0)', background: '#ffffff', cursor: 'pointer' }}>Cancel</button>
+            <button type="button" onClick={closeVerificationModal} style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid var(--border, #dcebe0)', background: '#ffffff', cursor: 'pointer' }}>Cancel</button>
             <button type="submit" disabled={verificationBusy} className="btn btn-primary" style={{ padding: '8px 16px' }}>{verificationBusy ? 'Submitting...' : 'Submit Verification'}</button>
           </div>
         </form>

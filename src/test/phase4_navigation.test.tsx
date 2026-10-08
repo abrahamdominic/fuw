@@ -42,6 +42,7 @@ function buildMockAuth(): AuthContextType {
     isAdmin: false,
     isSuperAdmin: false,
     isStudent: true,
+    isLecturer: false,
     role: 'student' as any,
     permissions: [],
     hasPermission: () => true,
@@ -59,7 +60,10 @@ function buildMockAuth(): AuthContextType {
     refreshProfile: async () => null,
     plan: null,
     hasPremium: false,
-    refreshEntitlement: async () => {}
+    refreshEntitlement: async () => {},
+    onboardingCompleted: true,
+    onboardingStep: 1,
+    setOnboardingState: async () => {}
   };
 }
 

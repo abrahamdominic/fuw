@@ -238,6 +238,8 @@ function renderSitemap(entries: SitemapEntry[]): string {
 const PRIVATE_PREFIXES = [
   '/student',
   '/student/',
+  '/lecturer',
+  '/lecturer/',
   '/admin',
   '/admin/',
   '/super',
@@ -246,6 +248,9 @@ const PRIVATE_PREFIXES = [
   '/superadmin',
   '/campus-hub',
   '/campus',
+  '/dashboard',
+  '/wallet',
+  '/notifications',
   '/login',
   '/register',
   '/forgot-password',
@@ -346,6 +351,8 @@ const PORTAL_ALIASES = [
   '/course-upload',
   '/campus',
   '/campus-hub',
+  '/search',
+  '/onboarding',
   '/accommodation/roommates/post',
   '/accommodation/roommates/create'
 ];
@@ -354,7 +361,7 @@ const PORTAL_ALIASES = [
  * Client-routed subtrees of the authenticated portals. Wildcards are safe here
  * because every one of them sits behind `RequireAuth` and `noindex`.
  */
-const PORTAL_WILDCARDS = ['/student/*', '/admin/*', '/super/*'];
+const PORTAL_WILDCARDS = ['/student/*', '/admin/*', '/super/*', '/lecturer/*'];
 
 /**
  * The FUW Student Marketplace, mounted at /marketplace/* in this SPA
