@@ -67,7 +67,9 @@ import {
   TrendingUp,
   Layers,
   Brain,
-  Sparkles
+  Sparkles,
+  Award,
+  Calculator
 } from 'lucide-react';
 import { useStore } from '../lib/useStore';
 import { getMarketplaceUrl } from '../lib/hub';
@@ -87,6 +89,9 @@ import { QuestionAnalyzerTab } from '../components/QuestionAnalyzerTab';
 import { ExamPrepWorkspace } from '../components/ExamPrepWorkspace';
 import { FlashcardsWorkspace } from '../components/FlashcardsWorkspace';
 import { StudyGuidesWorkspace } from '../components/StudyGuidesWorkspace';
+import { MockCbtWorkspace } from '../components/MockCbtWorkspace';
+import { CgpaForecaster } from '../components/CgpaForecaster';
+import { VerifiedScholarBadge } from '../components/VerifiedScholarBadge';
 import { CatalogueFilters, FilterState } from '../components/CatalogueFilters';
 import { MultiDepartmentPicker, MultiDepartmentState, EMPTY_MULTI_DEPARTMENT } from '../components/MultiDepartmentPicker';
 import { catalogue, facultyByName, departmentByName, levelsFor, materialTypes, courseTitleByCode, normalizeLevel } from '../data/catalogue';
@@ -184,6 +189,8 @@ const studentNavGroups = [
     items: [
       { label: 'AI Campus Tutor', path: '/student/assistant', icon: Brain },
       { label: 'Question Analyzer', path: '/student/question-analyzer', icon: Sparkles },
+      { label: 'Mock CBT Exam Simulator', path: '/student/cbt', icon: Award },
+      { label: 'Target CGPA Forecaster', path: '/student/forecaster', icon: Calculator },
       { label: 'Exam Readiness & Prep', path: '/student/exam-prep', icon: TrendingUp },
       { label: 'Smart Flashcards', path: '/student/flashcards', icon: Layers },
       { label: 'AI Study Guides', path: '/student/study-guides', icon: FileText }
@@ -204,7 +211,7 @@ const studentNavGroups = [
       { label: 'My profile', path: '/student/profile', icon: Users },
       { label: 'Premium access', path: '/student/subscription', icon: Crown },
       {
-        label: 'FUW Wallet',
+        label: 'Campus Wallet',
         path: '/marketplace/wallet',
         icon: Wallet,
       },
@@ -378,7 +385,7 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
       {/* Sidebar Navigation */}
       <aside className={`side ${mobileMenuOpen ? 'mobile-open' : ''}`}>
         <div className="side-header">
-          <Link className="brand" to="/home" onClick={() => setMobileMenuOpen(false)}>
+          <Link className="brand" to="/student" onClick={() => setMobileMenuOpen(false)} title="Student Dashboard">
             <Logo size={32} />
             <b>FUW</b> E-Library
           </Link>
@@ -765,6 +772,10 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
           />
         ) : currentPath.startsWith('/student/question-analyzer') ? (
           <QuestionAnalyzerTab />
+        ) : currentPath.startsWith('/student/cbt') ? (
+          <MockCbtWorkspace />
+        ) : currentPath.startsWith('/student/forecaster') ? (
+          <CgpaForecaster />
         ) : currentPath.startsWith('/student/exam-prep') ? (
           <ExamPrepWorkspace />
         ) : currentPath.startsWith('/student/flashcards') ? (
@@ -1952,7 +1963,7 @@ function StudentReadingTab({
 function StudentProfileTab({ currentUser }: { currentUser: any }) {
   const store = useStore();
   const { toast } = useToast();
-  const { updateProfile, user, profile } = useAuth();
+  const { updateProfile, user, profile, hasPremium } = useAuth();
   const [busy, setBusy] = useState(false);
   const [formData, setFormData] = useState({
     fullName: currentUser.fullName || '',
@@ -2039,9 +2050,12 @@ function StudentProfileTab({ currentUser }: { currentUser: any }) {
             <div>
               <h2>{formData.fullName}</h2>
               <p className="profile-sub">{formData.department} · {formData.level}</p>
-              <div className="verification-pill verified">
-                <ShieldCheck size={14} />
-                <span>Verified FUW Student</span>
+              <div style={{ marginTop: 6 }}>
+                <VerifiedScholarBadge
+                  isVerified={Boolean(profile?.verificationStatus === 'verified' || profile?.isVerified)}
+                  isPremium={Boolean(hasPremium)}
+                  size="md"
+                />
               </div>
             </div>
           </div>

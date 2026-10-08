@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Heart, Star, CheckCircle, MapPin, ShoppingBag } from 'lucide-react';
 import type { MarketplaceProduct } from '../lib/types';
-import { formatNaira, formatCondition } from '../lib/format';
+import { formatNaira, formatCondition, resolveProductImageUrl } from '../lib/format';
 import { useCart } from '../lib/cart';
 import { useToast } from './Toast';
 import { toggleFavourite } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { mpPath } from '../lib/routes';
+import { VerifiedScholarBadge } from './VerifiedScholarBadge';
 
 interface ProductCardProps {
   product: MarketplaceProduct;
@@ -47,7 +48,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   const [favLoading, setFavLoading] = useState(false);
 
   const fallback = getProductFallbackImage(product);
-  const initialThumbnail = product.thumbnail_url || product.images?.[0]?.url || fallback;
+  const resolved = resolveProductImageUrl(
+    product.thumbnail_url || (product as any).thumbnail_path || product.images?.[0]?.url || (product.images?.[0] as any)?.storage_path
+  );
+  const initialThumbnail = resolved || fallback;
   const [imgSrc, setImgSrc] = useState(initialThumbnail);
 
   const handleToggleFav = async (e: React.MouseEvent) => {
@@ -188,9 +192,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             }}
           >
             <span>{product.vendor?.store_name || 'Vendor'}</span>
-            {product.vendor?.is_verified && (
-              <CheckCircle size={13} color="#12603d" fill="#e8f5ec" />
-            )}
+            <VerifiedScholarBadge
+              isVerified={Boolean(product.vendor?.is_verified || (product.vendor as any)?.verification === 'verified')}
+              isPremium={Boolean((product.vendor as any)?.is_premium)}
+              size="sm"
+            />
           </Link>
 
           {/* Rating */}

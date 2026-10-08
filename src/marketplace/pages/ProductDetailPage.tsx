@@ -15,13 +15,14 @@ import {
 } from 'lucide-react';
 import { fetchProductByIdOrSlug, fetchProductReviews, startConversation, toggleFavourite, createReport } from '../lib/api';
 import type { MarketplaceProduct, MarketplaceReview, MarketplaceProductVariant } from '../lib/types';
-import { formatNaira, formatCondition, formatDate } from '../lib/format';
+import { formatNaira, formatCondition, formatDate, resolveProductImageUrl } from '../lib/format';
 import { useCart } from '../lib/cart';
 import { useToast } from '../components/Toast';
 import { useAuth } from '../lib/auth';
 import { Skeleton } from '../components/Skeleton';
 import { Modal } from '../components/Modal';
 import { getProductFallbackImage } from '../components/ProductCard';
+import { VerifiedScholarBadge } from '../components/VerifiedScholarBadge';
 import { mpPath, PLATFORM_PATHS } from '../lib/routes';
 import { scrollToTop } from '../lib/scroll';
 
@@ -99,11 +100,16 @@ export const ProductDetailPage: React.FC = () => {
     );
   }
 
-  const images = product.images && product.images.length > 0
+  const rawImages = product.images && product.images.length > 0
     ? product.images
-    : product.thumbnail_url
-    ? [{ id: 'thumb', url: product.thumbnail_url, is_primary: true, sort_order: 0, product_id: product.id, storage_path: '' }]
+    : (product.thumbnail_url || (product as any).thumbnail_path)
+    ? [{ id: 'thumb', url: product.thumbnail_url || '', is_primary: true, sort_order: 0, product_id: product.id, storage_path: (product as any).thumbnail_path || '' }]
     : [];
+
+  const images = rawImages.map((img: any) => ({
+    ...img,
+    resolvedUrl: resolveProductImageUrl(img.url || img.storage_path)
+  }));
 
   const currentPrice = selectedVariant?.price_kobo ?? product.price_kobo;
   const currentCompareAt = selectedVariant?.compare_at_kobo ?? product.compare_at_kobo;
@@ -226,7 +232,7 @@ export const ProductDetailPage: React.FC = () => {
           >
             {(() => {
               const fallback = getProductFallbackImage(product);
-              const src = images[activeImageIndex]?.url || fallback;
+              const src = images[activeImageIndex]?.resolvedUrl || images[activeImageIndex]?.url || fallback;
               return (
                 <img
                   src={src}
@@ -269,7 +275,7 @@ export const ProductDetailPage: React.FC = () => {
                     flexShrink: 0,
                   }}
                 >
-                  <img src={img.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <img src={img.resolvedUrl || img.url || getProductFallbackImage(product)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 </button>
               ))}
             </div>
@@ -530,9 +536,11 @@ export const ProductDetailPage: React.FC = () => {
                     >
                       {product.vendor.store_name}
                     </Link>
-                    {product.vendor.is_verified && (
-                      <CheckCircle size={15} color="#12603d" fill="#e8f5ec" />
-                    )}
+                    <VerifiedScholarBadge
+                      isVerified={Boolean(product.vendor.is_verified || (product.vendor as any).verification === 'verified')}
+                      isPremium={Boolean((product.vendor as any).is_premium)}
+                      size="sm"
+                    />
                   </div>
                   <span style={{ fontSize: 12, color: 'var(--text-secondary, #55675b)' }}>
                     {product.vendor.campus_area || 'FUW Campus'} · {product.vendor.completed_orders_count || 0} completed orders

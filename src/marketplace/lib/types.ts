@@ -638,6 +638,12 @@ export interface PlatformSettings {
   payment_channels: string[];
   payment_provider: string;
   payments_enabled: boolean;
+  escrow_fee_kobo?: number;
+  premium_escrow_credit_kobo?: number;
+  premium_escrow_discount_pct?: number;
+  premium_marketplace_benefits_enabled?: boolean;
+  verified_scholar_badge_enabled?: boolean;
+  premium_visibility_enabled?: boolean;
 }
 
 export interface ProductFilters {

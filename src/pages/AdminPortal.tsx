@@ -328,7 +328,7 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
       {/* Sidebar Navigation */}
       <aside className={`side admin-side ${mobileMenuOpen ? 'mobile-open' : ''}`}>
         <div className="side-header">
-          <Link className="brand" to="/home" onClick={() => setMobileMenuOpen(false)}>
+          <Link className="brand" to="/admin" onClick={() => setMobileMenuOpen(false)} title="Admin Portal">
             <Logo size={32} />
             <b>FUW</b> Admin Portal
           </Link>

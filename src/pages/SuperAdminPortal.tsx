@@ -172,7 +172,7 @@ export function SuperAdminPortal() {
       {/* Sidebar Navigation */}
       <aside className={`side admin-side ${mobileMenuOpen ? 'mobile-open' : ''}`}>
         <div className="side-header">
-          <Link className="brand" to="/home" onClick={() => setMobileMenuOpen(false)}>
+          <Link className="brand" to="/super" onClick={() => setMobileMenuOpen(false)} title="Super Admin Portal">
             <Logo size={32} />
             <b>FUW</b> Super Admin
           </Link>

@@ -26,6 +26,8 @@ import {
   initializePayment,
   fetchMyWallet,
   payOrderFromWallet,
+  previewCheckoutEscrow,
+  type EscrowPreviewResult,
 } from '../lib/api';
 import { formatNaira } from '../lib/format';
 import type { MarketplaceAddress, MarketplaceWallet } from '../lib/types';
@@ -88,6 +90,15 @@ export const CheckoutPage: React.FC = () => {
   const [orderSnapshot, setOrderSnapshot] = useState<CompletedOrderSnapshot | null>(null);
   const [receiptModalOpen, setReceiptModalOpen] = useState(false);
   const [wallet, setWallet] = useState<MarketplaceWallet | null>(null);
+  const [escrowPreview, setEscrowPreview] = useState<EscrowPreviewResult | null>(null);
+
+  useEffect(() => {
+    if (subtotalKobo > 0) {
+      previewCheckoutEscrow(subtotalKobo)
+        .then(setEscrowPreview)
+        .catch(() => setEscrowPreview(null));
+    }
+  }, [subtotalKobo, user]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -323,7 +334,8 @@ export const CheckoutPage: React.FC = () => {
   const totalDeliveryFee = deliveryType === 'delivery'
     ? groupedByVendor.reduce((acc, g) => acc + g.deliveryFeeKobo, 0)
     : 0;
-  const grandTotal = subtotalKobo + totalDeliveryFee;
+  const escrowFeeKobo = escrowPreview ? escrowPreview.final_escrow_fee_kobo : 120000;
+  const grandTotal = subtotalKobo + totalDeliveryFee + escrowFeeKobo;
 
   // A wallet payment is only offered when one balance covers the whole basket.
   // Checking here is a courtesy; the server is what actually refuses.
@@ -902,6 +914,39 @@ export const CheckoutPage: React.FC = () => {
                   {totalDeliveryFee > 0 ? formatNaira(totalDeliveryFee) : 'Free / Pickup'}
                 </span>
               </div>
+
+              {/* Escrow Fee Breakdown */}
+              <div style={{ borderTop: '1px dashed var(--border, #dcebe0)', paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary, #55675b)' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <ShieldCheck size={14} color="var(--green-800, #12603d)" />
+                    Marketplace Escrow
+                  </span>
+                  <span>{formatNaira(escrowPreview?.normal_escrow_fee_kobo ?? 120000)}</span>
+                </div>
+
+                {escrowPreview?.is_premium && (escrowPreview?.credit_applied_kobo ?? 0) > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#047857', fontWeight: 600 }}>
+                    <span>Premium Escrow Credit</span>
+                    <span>-{formatNaira(escrowPreview.credit_applied_kobo)}</span>
+                  </div>
+                )}
+
+                {escrowPreview?.is_premium && (escrowPreview?.discount_applied_kobo ?? 0) > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#047857', fontWeight: 600 }}>
+                    <span>Premium 50% Escrow Discount</span>
+                    <span>-{formatNaira(escrowPreview.discount_applied_kobo)}</span>
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, color: 'var(--text-primary, #17231d)' }}>
+                  <span>Escrow Fee Payable</span>
+                  <span style={{ color: escrowFeeKobo === 0 ? '#047857' : 'inherit' }}>
+                    {escrowFeeKobo === 0 ? '₦0 (Covered by Premium)' : formatNaira(escrowFeeKobo)}
+                  </span>
+                </div>
+              </div>
+
               <div
                 style={{
                   display: 'flex',

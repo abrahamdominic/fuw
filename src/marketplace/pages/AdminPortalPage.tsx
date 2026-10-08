@@ -25,8 +25,9 @@ import {
   deleteAdvertPackage,
   fetchSupportQueue,
   updatePlatformSettings,
+  fetchAdminEscrowAnalytics,
 } from '../lib/api';
-import type { PendingManualTransfer } from '../lib/api';
+import type { PendingManualTransfer, AdminEscrowAnalytics } from '../lib/api';
 import type { Advert, AdvertPackage, AdvertType } from '../lib/types';
 import { formatNaira, formatDate } from '../lib/format';
 import { useAuth } from '../lib/auth';
@@ -101,6 +102,7 @@ export const AdminPortalPage: React.FC = () => {
   const [verifFilter, setVerifFilter] = useState<'all' | 'pending' | 'verified' | 'rejected'>('pending');
   const [busyVerif, setBusyVerif] = useState<string | null>(null);
   const [settings, setSettings] = useState<any>(null);
+  const [escrowAnalytics, setEscrowAnalytics] = useState<AdminEscrowAnalytics | null>(null);
   const [settingsForm, setSettingsForm] = useState({
     commissionPct: '8',
     ticketFeeNaira: '100',
@@ -113,6 +115,12 @@ export const AdminPortalPage: React.FC = () => {
     allowNewVendors: true,
     paymentsEnabled: true,
     maintenanceMode: false,
+    escrowFeeNaira: '1200',
+    premiumEscrowCreditNaira: '2000',
+    premiumEscrowDiscountPct: '50',
+    premiumMarketplaceBenefitsEnabled: true,
+    verifiedScholarBadgeEnabled: true,
+    premiumVisibilityEnabled: true,
   });
   const [savingSettings, setSavingSettings] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -143,7 +151,7 @@ export const AdminPortalPage: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [s, d, r, v, set, t] = await Promise.all([
+      const [s, d, r, v, set, t, escrow] = await Promise.all([
         fetchAdminStats(),
         fetchAdminDisputes(),
         fetchAdminReports(),
@@ -152,12 +160,14 @@ export const AdminPortalPage: React.FC = () => {
         // Reads are gated by the `mp_pay_select_finance` RLS policy, so staff
         // without the manage_payments permission simply get an empty list.
         fetchPendingManualTransfers().catch(() => []),
+        fetchAdminEscrowAnalytics().catch(() => null),
       ]);
       setStats(s);
       setDisputes(d);
       setReports(r);
       setVerifications(v);
       setSettings(set);
+      setEscrowAnalytics(escrow);
       if (set) {
         setSettingsForm({
           commissionPct: String((set.default_commission_bps ?? 800) / 100),
@@ -171,6 +181,12 @@ export const AdminPortalPage: React.FC = () => {
           allowNewVendors: Boolean(set.allow_new_vendors),
           paymentsEnabled: Boolean(set.payments_enabled),
           maintenanceMode: Boolean(set.maintenance_mode),
+          escrowFeeNaira: String(Math.round((set.escrow_fee_kobo ?? 120000) / 100)),
+          premiumEscrowCreditNaira: String(Math.round((set.premium_escrow_credit_kobo ?? 200000) / 100)),
+          premiumEscrowDiscountPct: String(set.premium_escrow_discount_pct ?? 50),
+          premiumMarketplaceBenefitsEnabled: set.premium_marketplace_benefits_enabled !== false,
+          verifiedScholarBadgeEnabled: set.verified_scholar_badge_enabled !== false,
+          premiumVisibilityEnabled: set.premium_visibility_enabled !== false,
         });
       }
       setTransfers(t);
@@ -324,6 +340,9 @@ export const AdminPortalPage: React.FC = () => {
     const autoConfirm = parseInt(settingsForm.autoConfirmHours, 10);
     const settlementDelay = parseInt(settingsForm.settlementDelayHours, 10);
     const returnWindow = parseInt(settingsForm.returnWindowHours, 10);
+    const escrowFeeKobo = Math.round(parseFloat(settingsForm.escrowFeeNaira || '0') * 100);
+    const premiumCreditKobo = Math.round(parseFloat(settingsForm.premiumEscrowCreditNaira || '0') * 100);
+    const premiumDiscountPct = parseInt(settingsForm.premiumEscrowDiscountPct || '50', 10);
 
     if (isNaN(commBps) || commBps < 0 || commBps > 5000) {
       toast('Commission must be between 0% and 50%', 'error');
@@ -335,6 +354,18 @@ export const AdminPortalPage: React.FC = () => {
     }
     if (isNaN(minWithdrawalKobo) || minWithdrawalKobo < 0) {
       toast('Minimum withdrawal cannot be negative', 'error');
+      return;
+    }
+    if (isNaN(escrowFeeKobo) || escrowFeeKobo < 0) {
+      toast('Escrow fee cannot be negative', 'error');
+      return;
+    }
+    if (isNaN(premiumCreditKobo) || premiumCreditKobo < 0) {
+      toast('Premium escrow credit cannot be negative', 'error');
+      return;
+    }
+    if (isNaN(premiumDiscountPct) || premiumDiscountPct < 0 || premiumDiscountPct > 100) {
+      toast('Premium escrow discount must be between 0% and 100%', 'error');
       return;
     }
 
@@ -352,6 +383,12 @@ export const AdminPortalPage: React.FC = () => {
         allow_new_vendors: settingsForm.allowNewVendors,
         payments_enabled: settingsForm.paymentsEnabled,
         maintenance_mode: settingsForm.maintenanceMode,
+        escrow_fee_kobo: escrowFeeKobo,
+        premium_escrow_credit_kobo: premiumCreditKobo,
+        premium_escrow_discount_pct: premiumDiscountPct,
+        premium_marketplace_benefits_enabled: settingsForm.premiumMarketplaceBenefitsEnabled,
+        verified_scholar_badge_enabled: settingsForm.verifiedScholarBadgeEnabled,
+        premium_visibility_enabled: settingsForm.premiumVisibilityEnabled,
       });
       setSettings(updated);
       toast('Platform settings updated successfully and active immediately', 'success');
@@ -643,40 +680,105 @@ export const AdminPortalPage: React.FC = () => {
 
       {/* TAB 1: KPIS */}
       {!loading && activeTab === 'kpis' && stats && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: 16 }}>
-          <div style={{ background: 'var(--surface, #ffffff)', padding: 20, borderRadius: 12, border: '1px solid var(--border, #dcebe0)' }}>
-            <span style={{ fontSize: 13, color: 'var(--text-secondary, #55675b)', display: 'block', marginBottom: 4 }}>Registered Students</span>
-            <span style={{ fontSize: 28, fontWeight: 900, color: 'var(--green-900, #0d4a2f)' }}>{stats.usersCount}</span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: 16 }}>
+            <div style={{ background: 'var(--surface, #ffffff)', padding: 20, borderRadius: 12, border: '1px solid var(--border, #dcebe0)' }}>
+              <span style={{ fontSize: 13, color: 'var(--text-secondary, #55675b)', display: 'block', marginBottom: 4 }}>Registered Students</span>
+              <span style={{ fontSize: 28, fontWeight: 900, color: 'var(--green-900, #0d4a2f)' }}>{stats.usersCount}</span>
+            </div>
+
+            <div style={{ background: 'var(--surface, #ffffff)', padding: 20, borderRadius: 12, border: '1px solid var(--border, #dcebe0)' }}>
+              <span style={{ fontSize: 13, color: 'var(--text-secondary, #55675b)', display: 'block', marginBottom: 4 }}>Active Campus Stores</span>
+              <span style={{ fontSize: 28, fontWeight: 900, color: 'var(--green-900, #0d4a2f)' }}>{stats.vendorsCount}</span>
+            </div>
+
+            <div style={{ background: 'var(--surface, #ffffff)', padding: 20, borderRadius: 12, border: '1px solid var(--border, #dcebe0)' }}>
+              <span style={{ fontSize: 13, color: 'var(--text-secondary, #55675b)', display: 'block', marginBottom: 4 }}>Live Catalogue Items</span>
+              <span style={{ fontSize: 28, fontWeight: 900, color: 'var(--green-900, #0d4a2f)' }}>{stats.productsCount}</span>
+            </div>
+
+            <div style={{ background: 'var(--surface, #ffffff)', padding: 20, borderRadius: 12, border: '1px solid var(--border, #dcebe0)' }}>
+              <span style={{ fontSize: 13, color: 'var(--text-secondary, #55675b)', display: 'block', marginBottom: 4 }}>Completed & Active Orders</span>
+              <span style={{ fontSize: 28, fontWeight: 900, color: 'var(--green-900, #0d4a2f)' }}>{stats.ordersCount}</span>
+            </div>
+
+            <div style={{ background: 'var(--surface, #ffffff)', padding: 20, borderRadius: 12, border: '1px solid var(--border, #dcebe0)' }}>
+              <span style={{ fontSize: 13, color: 'var(--text-secondary, #55675b)', display: 'block', marginBottom: 4 }}>Open Disputes</span>
+              <span style={{ fontSize: 28, fontWeight: 900, color: stats.activeDisputesCount > 0 ? '#b91c1c' : '#065f46' }}>
+                {stats.activeDisputesCount}
+              </span>
+            </div>
+
+            <div style={{ background: 'var(--surface, #ffffff)', padding: 20, borderRadius: 12, border: '1px solid var(--border, #dcebe0)' }}>
+              <span style={{ fontSize: 13, color: 'var(--text-secondary, #55675b)', display: 'block', marginBottom: 4 }}>Pending Moderation Reports</span>
+              <span style={{ fontSize: 28, fontWeight: 900, color: stats.openReportsCount > 0 ? '#b45309' : '#065f46' }}>
+                {stats.openReportsCount}
+              </span>
+            </div>
           </div>
 
-          <div style={{ background: 'var(--surface, #ffffff)', padding: 20, borderRadius: 12, border: '1px solid var(--border, #dcebe0)' }}>
-            <span style={{ fontSize: 13, color: 'var(--text-secondary, #55675b)', display: 'block', marginBottom: 4 }}>Active Campus Stores</span>
-            <span style={{ fontSize: 28, fontWeight: 900, color: 'var(--green-900, #0d4a2f)' }}>{stats.vendorsCount}</span>
-          </div>
+          {/* Premium Marketplace Escrow Advantage Metrics */}
+          {escrowAnalytics && (
+            <div style={{ background: 'var(--surface, #ffffff)', borderRadius: 14, border: '1px solid var(--border, #dcebe0)', padding: 22 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: 'var(--green-900, #0d4a2f)' }}>
+                    Escrow &amp; Premium Marketplace Revenue Analytics
+                  </h3>
+                  <span style={{ fontSize: 13, color: 'var(--text-secondary, #55675b)' }}>
+                    Authoritative server ledger metrics tracking escrow fees, credits granted/used, and revenue performance
+                  </span>
+                </div>
+                <span style={{ padding: '4px 10px', borderRadius: 999, background: '#e8f5ec', color: '#12603d', fontSize: 12, fontWeight: 700 }}>
+                  ₦1,200/Semester Model Active
+                </span>
+              </div>
 
-          <div style={{ background: 'var(--surface, #ffffff)', padding: 20, borderRadius: 12, border: '1px solid var(--border, #dcebe0)' }}>
-            <span style={{ fontSize: 13, color: 'var(--text-secondary, #55675b)', display: 'block', marginBottom: 4 }}>Live Catalogue Items</span>
-            <span style={{ fontSize: 28, fontWeight: 900, color: 'var(--green-900, #0d4a2f)' }}>{stats.productsCount}</span>
-          </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(180px, 100%), 1fr))', gap: 14 }}>
+                <div style={{ background: 'var(--surface-alt, #f7faf8)', padding: 14, borderRadius: 10, border: '1px solid var(--border, #dcebe0)' }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-secondary, #55675b)', display: 'block', marginBottom: 4 }}>Escrow Fees Collected</span>
+                  <strong style={{ fontSize: 20, color: '#0d4a2f' }}>
+                    {formatNaira(escrowAnalytics.total_escrow_fees_collected_kobo)}
+                  </strong>
+                </div>
 
-          <div style={{ background: 'var(--surface, #ffffff)', padding: 20, borderRadius: 12, border: '1px solid var(--border, #dcebe0)' }}>
-            <span style={{ fontSize: 13, color: 'var(--text-secondary, #55675b)', display: 'block', marginBottom: 4 }}>Completed & Active Orders</span>
-            <span style={{ fontSize: 28, fontWeight: 900, color: 'var(--green-900, #0d4a2f)' }}>{stats.ordersCount}</span>
-          </div>
+                <div style={{ background: 'var(--surface-alt, #f7faf8)', padding: 14, borderRadius: 10, border: '1px solid var(--border, #dcebe0)' }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-secondary, #55675b)', display: 'block', marginBottom: 4 }}>Credits Granted (Gross)</span>
+                  <strong style={{ fontSize: 20, color: '#1e40af' }}>
+                    {formatNaira(escrowAnalytics.total_escrow_credit_granted_kobo)}
+                  </strong>
+                </div>
 
-          <div style={{ background: 'var(--surface, #ffffff)', padding: 20, borderRadius: 12, border: '1px solid var(--border, #dcebe0)' }}>
-            <span style={{ fontSize: 13, color: 'var(--text-secondary, #55675b)', display: 'block', marginBottom: 4 }}>Open Disputes</span>
-            <span style={{ fontSize: 28, fontWeight: 900, color: stats.activeDisputesCount > 0 ? '#b91c1c' : '#065f46' }}>
-              {stats.activeDisputesCount}
-            </span>
-          </div>
+                <div style={{ background: 'var(--surface-alt, #f7faf8)', padding: 14, borderRadius: 10, border: '1px solid var(--border, #dcebe0)' }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-secondary, #55675b)', display: 'block', marginBottom: 4 }}>Credits Consumed</span>
+                  <strong style={{ fontSize: 20, color: '#b45309' }}>
+                    {formatNaira(escrowAnalytics.total_escrow_credit_consumed_kobo)}
+                  </strong>
+                </div>
 
-          <div style={{ background: 'var(--surface, #ffffff)', padding: 20, borderRadius: 12, border: '1px solid var(--border, #dcebe0)' }}>
-            <span style={{ fontSize: 13, color: 'var(--text-secondary, #55675b)', display: 'block', marginBottom: 4 }}>Pending Moderation Reports</span>
-            <span style={{ fontSize: 28, fontWeight: 900, color: stats.openReportsCount > 0 ? '#b45309' : '#065f46' }}>
-              {stats.openReportsCount}
-            </span>
-          </div>
+                <div style={{ background: 'var(--surface-alt, #f7faf8)', padding: 14, borderRadius: 10, border: '1px solid var(--border, #dcebe0)' }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-secondary, #55675b)', display: 'block', marginBottom: 4 }}>Unused Credit Float</span>
+                  <strong style={{ fontSize: 20, color: '#475569' }}>
+                    {formatNaira(escrowAnalytics.total_escrow_credit_remaining_kobo)}
+                  </strong>
+                </div>
+
+                <div style={{ background: 'var(--surface-alt, #f7faf8)', padding: 14, borderRadius: 10, border: '1px solid var(--border, #dcebe0)' }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-secondary, #55675b)', display: 'block', marginBottom: 4 }}>Discounts Waived (50%)</span>
+                  <strong style={{ fontSize: 20, color: '#047857' }}>
+                    {formatNaira(escrowAnalytics.total_discounts_applied_kobo)}
+                  </strong>
+                </div>
+
+                <div style={{ background: 'var(--surface-alt, #f7faf8)', padding: 14, borderRadius: 10, border: '1px solid var(--border, #dcebe0)' }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-secondary, #55675b)', display: 'block', marginBottom: 4 }}>Active Credit Ledgers</span>
+                  <strong style={{ fontSize: 20, color: '#0d4a2f' }}>
+                    {escrowAnalytics.total_subscribers_with_credit}
+                  </strong>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1147,6 +1249,90 @@ export const AdminPortalPage: React.FC = () => {
                   />
                   <small style={{ color: 'var(--text-secondary, #55675b)', fontSize: 11 }}>Max window to dispute after delivery</small>
                 </div>
+              </div>
+            </div>
+
+            <div>
+              <h4 style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 700, color: 'var(--green-900, #0d4a2f)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                Escrow Fee &amp; Premium Marketplace Advantage Settings
+              </h4>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 14 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                    Standard Escrow Fee (₦)
+                  </label>
+                  <input
+                    type="number"
+                    step="50"
+                    min="0"
+                    required
+                    value={settingsForm.escrowFeeNaira}
+                    onChange={(e) => setSettingsForm({ ...settingsForm, escrowFeeNaira: e.target.value })}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border, #dcebe0)', fontSize: 14 }}
+                  />
+                  <small style={{ color: 'var(--text-secondary, #55675b)', fontSize: 11 }}>Default fee per transaction (₦1,200)</small>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                    Premium Escrow Credit (₦)
+                  </label>
+                  <input
+                    type="number"
+                    step="100"
+                    min="0"
+                    required
+                    value={settingsForm.premiumEscrowCreditNaira}
+                    onChange={(e) => setSettingsForm({ ...settingsForm, premiumEscrowCreditNaira: e.target.value })}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border, #dcebe0)', fontSize: 14 }}
+                  />
+                  <small style={{ color: 'var(--text-secondary, #55675b)', fontSize: 11 }}>Credit granted per subscription period (₦2,000)</small>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                    Post-Credit Escrow Discount (%)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    required
+                    value={settingsForm.premiumEscrowDiscountPct}
+                    onChange={(e) => setSettingsForm({ ...settingsForm, premiumEscrowDiscountPct: e.target.value })}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border, #dcebe0)', fontSize: 14 }}
+                  />
+                  <small style={{ color: 'var(--text-secondary, #55675b)', fontSize: 11 }}>Discount on remaining escrow after credit (50%)</small>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: 'var(--surface-alt, #f7faf8)', padding: 16, borderRadius: 10, border: '1px solid var(--border, #dcebe0)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={settingsForm.premiumMarketplaceBenefitsEnabled}
+                    onChange={(e) => setSettingsForm({ ...settingsForm, premiumMarketplaceBenefitsEnabled: e.target.checked })}
+                  />
+                  <span><strong>Enable Premium Escrow Benefits:</strong> Grants ₦2,000 escrow credit &amp; 50% discount to Premium members.</span>
+                </label>
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={settingsForm.verifiedScholarBadgeEnabled}
+                    onChange={(e) => setSettingsForm({ ...settingsForm, verifiedScholarBadgeEnabled: e.target.checked })}
+                  />
+                  <span><strong>Enable Verified Scholar Badges:</strong> Display official verification badge for authenticated students.</span>
+                </label>
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={settingsForm.premiumVisibilityEnabled}
+                    onChange={(e) => setSettingsForm({ ...settingsForm, premiumVisibilityEnabled: e.target.checked })}
+                  />
+                  <span><strong>Enable Premium Visibility Boost:</strong> Priority listing ranking for active Premium student sellers.</span>
+                </label>
               </div>
             </div>
 

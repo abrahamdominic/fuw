@@ -13,6 +13,14 @@ import {
   X,
   Loader2,
   Clock,
+  BarChart3,
+  TrendingUp,
+  DollarSign,
+  Users,
+  Award,
+  ShoppingCart,
+  Percent,
+  ShieldCheck,
 } from 'lucide-react';
 import {
   fetchVendorOrders,
@@ -64,7 +72,7 @@ export const VendorDashboardPage: React.FC = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'listings' | 'orders' | 'earnings' | 'adverts' | 'support' | 'settings' | 'verification'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'listings' | 'orders' | 'earnings' | 'adverts' | 'support' | 'settings' | 'verification'>('overview');
   const [loading, setLoading] = useState(true);
 
   // Data
@@ -577,6 +585,7 @@ export const VendorDashboardPage: React.FC = () => {
       <div style={{ display: 'flex', gap: 8, borderBottom: '1px solid var(--border, #dcebe0)', marginBottom: 24, overflowX: 'auto' }}>
         {[
           { key: 'overview', label: 'Overview' },
+          { key: 'analytics', label: 'Business Analytics' },
           { key: 'listings', label: `Listings (${products.length})` },
           { key: 'orders', label: `Orders (${orders.length})` },
           { key: 'earnings', label: 'Earnings & Payouts' },
@@ -690,6 +699,169 @@ export const VendorDashboardPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* TAB: BUSINESS ANALYTICS */}
+      {activeTab === 'analytics' && (() => {
+        const totalRev = orders.filter((o) => o.status !== 'cancelled').reduce((acc, o) => acc + o.total_kobo, 0);
+        const netEarn = orders.filter((o) => o.status !== 'cancelled').reduce((acc, o) => acc + (o.vendor_payout_kobo || o.subtotal_kobo), 0);
+        const completedCount = orders.filter((o) => o.status === 'completed').length;
+        const inTransitCount = orders.filter((o) => ['paid', 'confirmed', 'in_transit', 'delivered'].includes(o.status)).length;
+        const pendingCount = orders.filter((o) => o.status === 'pending_payment').length;
+        const cancelledCount = orders.filter((o) => ['cancelled', 'disputed'].includes(o.status)).length;
+        const aov = orders.length > 0 ? Math.round(totalRev / orders.length) : 0;
+        const totalViews = products.reduce((acc, p) => acc + (p.views_count || 0), 0);
+        const convRate = totalViews > 0 ? ((orders.length / totalViews) * 100).toFixed(1) : '0.0';
+        const bestSellers = [...products].sort((a, b) => (b.quantity_sold || 0) - (a.quantity_sold || 0)).slice(0, 5);
+
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+            {/* Analytics Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#17231d' }}>
+                  Vendor Business Performance Analytics
+                </h3>
+                <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-secondary, #55675b)' }}>
+                  Real-time sales velocity, order metrics, customer conversion, and top revenue drivers.
+                </p>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#e8f5ec', padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, color: '#065f46' }}>
+                <TrendingUp size={14} />
+                <span>Live Data Tracking</span>
+              </div>
+            </div>
+
+            {/* Top Metric Cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))', gap: 16 }}>
+              <div style={{ background: '#ffffff', border: '1px solid #dcebe0', borderRadius: 12, padding: 18 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: '#55675b' }}>Gross Sales Revenue</span>
+                  <DollarSign size={18} color="#059669" />
+                </div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--green-900, #0d4a2f)' }}>{formatNaira(totalRev)}</div>
+                <div style={{ fontSize: 11, color: '#059669', marginTop: 4 }}>Across {orders.length} total customer orders</div>
+              </div>
+
+              <div style={{ background: '#ffffff', border: '1px solid #dcebe0', borderRadius: 12, padding: 18 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: '#55675b' }}>Net Payout Earnings</span>
+                  <Award size={18} color="#2563eb" />
+                </div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: '#1d4ed8' }}>{formatNaira(netEarn)}</div>
+                <div style={{ fontSize: 11, color: '#55675b', marginTop: 4 }}>After platform commission deductions</div>
+              </div>
+
+              <div style={{ background: '#ffffff', border: '1px solid #dcebe0', borderRadius: 12, padding: 18 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: '#55675b' }}>Average Order Value</span>
+                  <ShoppingCart size={18} color="#b45309" />
+                </div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: '#92400e' }}>{formatNaira(aov)}</div>
+                <div style={{ fontSize: 11, color: '#55675b', marginTop: 4 }}>Average basket size per customer</div>
+              </div>
+
+              <div style={{ background: '#ffffff', border: '1px solid #dcebe0', borderRadius: 12, padding: 18 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: '#55675b' }}>Listing Views &amp; Conversion</span>
+                  <Percent size={18} color="#7c3aed" />
+                </div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: '#6d28d9' }}>{convRate}%</div>
+                <div style={{ fontSize: 11, color: '#55675b', marginTop: 4 }}>{totalViews} views generated</div>
+              </div>
+            </div>
+
+            {/* Split Row: Order Pipeline & Escrow Status */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(320px, 100%), 1fr))', gap: 20 }}>
+              {/* Order Status Funnel */}
+              <div style={{ background: '#ffffff', border: '1px solid #dcebe0', borderRadius: 12, padding: 20 }}>
+                <h4 style={{ margin: '0 0 16px', fontSize: 15, fontWeight: 700 }}>Order Fulfillment Pipeline</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#f0fdf4', borderRadius: 8, border: '1px solid #bbf7d0' }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#166534' }}>Completed &amp; Delivered</span>
+                    <strong style={{ fontSize: 15, color: '#166534' }}>{completedCount} orders</strong>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#eff6ff', borderRadius: 8, border: '1px solid #bfdbfe' }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#1e40af' }}>In Progress / In Transit</span>
+                    <strong style={{ fontSize: 15, color: '#1e40af' }}>{inTransitCount} orders</strong>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#fffbeb', borderRadius: 8, border: '1px solid #fde68a' }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#92400e' }}>Awaiting Buyer Payment</span>
+                    <strong style={{ fontSize: 15, color: '#92400e' }}>{pendingCount} orders</strong>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#fef2f2', borderRadius: 8, border: '1px solid #fecaca' }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#991b1b' }}>Cancelled / Disputed</span>
+                    <strong style={{ fontSize: 15, color: '#991b1b' }}>{cancelledCount} orders</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Escrow & Payout Health */}
+              <div style={{ background: '#ffffff', border: '1px solid #dcebe0', borderRadius: 12, padding: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                  <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Escrow &amp; Payout Liquidity</h4>
+                  <ShieldCheck size={18} color="#059669" />
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div style={{ background: '#f8faf9', border: '1px solid #e5e7eb', borderRadius: 10, padding: 14 }}>
+                    <span style={{ fontSize: 12, color: '#55675b', display: 'block' }}>Held in Escrow Protection</span>
+                    <strong style={{ fontSize: 20, color: 'var(--green-900, #0d4a2f)', display: 'block', margin: '4px 0' }}>
+                      {formatNaira(walletSummary?.pending_kobo ?? 0)}
+                    </strong>
+                    <span style={{ fontSize: 11, color: '#55675b' }}>Released automatically when buyer confirms delivery</span>
+                  </div>
+
+                  <div style={{ background: '#f8faf9', border: '1px solid #e5e7eb', borderRadius: 10, padding: 14 }}>
+                    <span style={{ fontSize: 12, color: '#55675b', display: 'block' }}>Available for Immediate Withdrawal</span>
+                    <strong style={{ fontSize: 20, color: '#059669', display: 'block', margin: '4px 0' }}>
+                      {formatNaira(walletSummary?.available_kobo ?? 0)}
+                    </strong>
+                    <span style={{ fontSize: 11, color: '#55675b' }}>Direct to your verified Nigerian bank account</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Best Performing Products Table */}
+            <div style={{ background: '#ffffff', border: '1px solid #dcebe0', borderRadius: 12, padding: 20 }}>
+              <h4 style={{ margin: '0 0 14px', fontSize: 15, fontWeight: 700 }}>Top Selling Products &amp; Services</h4>
+              {bestSellers.length === 0 ? (
+                <p style={{ color: 'var(--text-secondary, #55675b)', fontSize: 13 }}>No product sales recorded yet.</p>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                    <thead>
+                      <tr style={{ borderBottom: '2px solid #e5e7eb', textAlign: 'left', color: '#55675b' }}>
+                        <th style={{ padding: '8px 12px' }}>Product</th>
+                        <th style={{ padding: '8px 12px' }}>Price</th>
+                        <th style={{ padding: '8px 12px' }}>Units Sold</th>
+                        <th style={{ padding: '8px 12px' }}>Stock Left</th>
+                        <th style={{ padding: '8px 12px', textAlign: 'right' }}>Est. Revenue</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bestSellers.map((prod) => (
+                        <tr key={prod.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                          <td style={{ padding: '10px 12px', fontWeight: 600 }}>{prod.title}</td>
+                          <td style={{ padding: '10px 12px' }}>{formatNaira(prod.price_kobo)}</td>
+                          <td style={{ padding: '10px 12px', color: '#059669', fontWeight: 700 }}>{prod.quantity_sold || 0}</td>
+                          <td style={{ padding: '10px 12px' }}>{prod.quantity_total - (prod.quantity_sold || 0)}</td>
+                          <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: 'var(--green-900, #0d4a2f)' }}>
+                            {formatNaira(prod.price_kobo * (prod.quantity_sold || 0))}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* TAB 2: LISTINGS */}
       {activeTab === 'listings' && (

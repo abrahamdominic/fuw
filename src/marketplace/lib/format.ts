@@ -79,3 +79,16 @@ export function formatOrderStatus(status: string): { label: string; tone: 'neutr
       return { label: status.replace(/_/g, ' '), tone: 'neutral' };
   }
 }
+
+const SUPABASE_STORAGE_PRODUCT_URL = 'https://lgxtiilvpnqgzuarzogb.supabase.co/storage/v1/object/public/marketplace-product-images/';
+
+export function resolveProductImageUrl(pathOrUrl?: string | null): string {
+  if (!pathOrUrl) return '';
+  const trimmed = pathOrUrl.trim();
+  if (!trimmed) return '';
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return trimmed;
+  }
+  const cleanPath = trimmed.startsWith('/') ? trimmed.slice(1) : trimmed;
+  return `${SUPABASE_STORAGE_PRODUCT_URL}${cleanPath}`;
+}

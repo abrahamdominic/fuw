@@ -1,9 +1,12 @@
 // StudentSubscriptionTab — premium plan status and what is (or is not) unlocked.
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BadgeCheck, Check, Clipboard, Copy, FileUp, Loader2, Lock, RefreshCw, ShieldAlert, Wallet, X } from 'lucide-react';
+import { BadgeCheck, Check, Clipboard, Copy, FileUp, Loader2, Lock, RefreshCw, ShieldAlert, Wallet, X, ShoppingBag } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { fetchCatalogPlans, fetchMyPremiumSource, naira, type CatalogPlan } from '../lib/verification';
+import { fetchUserEscrowCredit, type EscrowCreditInfo } from '../marketplace/lib/api';
+import { VerifiedScholarBadge } from '../components/VerifiedScholarBadge';
+import { formatNaira } from '../marketplace/lib/format';
 import {
   fetchMyPaymentRequests,
   fetchMyPaymentTransactions,
@@ -43,9 +46,11 @@ export function StudentSubscriptionTab() {
   const [verifyingReference, setVerifyingReference] = useState<string | null>(null);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [escrowCredit, setEscrowCredit] = useState<EscrowCreditInfo | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    fetchUserEscrowCredit().then((res) => { if (!cancelled) setEscrowCredit(res); }).catch(() => {});
     Promise.allSettled([
       fetchCatalogPlans(),
       fetchPaymentConfiguration(),
@@ -315,6 +320,75 @@ export function StudentSubscriptionTab() {
           </section>
         );
       })()}
+
+      {/* Phase 8: Marketplace Benefits & Escrow Credit Section */}
+      <section style={{ background: '#ffffff', borderRadius: 14, border: '1px solid #dcebe0', padding: 22, marginBottom: 24, boxShadow: '0 2px 8px rgba(18, 41, 28, 0.04)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <ShoppingBag size={20} color="#12603d" />
+            <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#17231d' }}>Marketplace Escrow &amp; Scholar Benefits</h3>
+          </div>
+          <VerifiedScholarBadge
+            isVerified={Boolean(profile?.verificationStatus === 'verified' || profile?.isVerified)}
+            isPremium={Boolean(hasPremium)}
+            size="sm"
+          />
+        </div>
+
+        {hasPremium ? (
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <strong style={{ fontSize: 14, color: '#17231d' }}>Escrow Credit Balance</strong>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#047857' }}>
+                {formatNaira(escrowCredit?.credit_remaining_kobo ?? 200000)} / {formatNaira(escrowCredit?.credit_granted_kobo ?? 200000)} remaining
+              </span>
+            </div>
+
+            {/* Progress Bar */}
+            <div style={{ height: 10, background: '#e5e7eb', borderRadius: 999, overflow: 'hidden', marginBottom: 12 }}>
+              <div
+                style={{
+                  height: '100%',
+                  width: `${Math.min(100, Math.max(0, ((escrowCredit?.credit_remaining_kobo ?? 200000) / (escrowCredit?.credit_granted_kobo || 200000)) * 100))}%`,
+                  background: (escrowCredit?.credit_remaining_kobo ?? 200000) > 0 ? '#10b981' : '#f59e0b',
+                  transition: 'width 0.3s ease',
+                }}
+              />
+            </div>
+
+            {(escrowCredit?.credit_remaining_kobo ?? 200000) > 0 ? (
+              <p style={{ margin: 0, fontSize: 13, color: '#55675b', lineHeight: 1.5 }}>
+                You have <strong>{formatNaira(escrowCredit?.credit_remaining_kobo ?? 200000)}</strong> of Marketplace escrow credit remaining this semester.
+              </p>
+            ) : (
+              <p style={{ margin: 0, fontSize: 13, color: '#55675b', lineHeight: 1.5 }}>
+                Your escrow credit has been used. Premium members receive <strong>50% off eligible escrow fees</strong> for the rest of the semester.
+              </p>
+            )}
+
+            <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #f0fdf4', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10, fontSize: 12, color: '#374151' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Check size={15} color="#059669" />
+                <span>Priority Marketplace Escrow Mediation</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Check size={15} color="#059669" />
+                <span>Verified Scholar Identity Badge (when verified)</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Check size={15} color="#059669" />
+                <span>Priority Seller Listing Visibility Boost</span>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <p style={{ margin: '0 0 10px', fontSize: 13, color: '#55675b' }}>
+              Upgrade to Campus Hub Plus (₦1,200/semester) and receive <strong>₦2,000 in Marketplace escrow credit</strong>, plus 50% discount on all subsequent escrow fees.
+            </p>
+          </div>
+        )}
+      </section>
 
       {loading ? (
         <div className="card" role="status">

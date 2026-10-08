@@ -71,7 +71,7 @@ export async function fetchProducts(
       *,
       vendor:marketplace_vendors!inner(id, store_name, slug, logo_url, is_verified, rating_avg, campus_area, status),
       category:marketplace_categories(id, slug, name, icon),
-      images:marketplace_product_images(id, url, alt_text, sort_order, is_primary)
+      images:marketplace_product_images(id, url, storage_path, alt_text, sort_order, is_primary)
     `, { count: 'exact' })
     .eq('status', 'active')
     .eq('vendor.status', 'active')
@@ -154,7 +154,7 @@ export async function fetchProductByIdOrSlug(idOrSlug: string): Promise<Marketpl
       *,
       vendor:marketplace_vendors(id, owner_id, store_name, slug, tagline, description, logo_url, banner_url, phone, campus_area, is_verified, verification_status, rating_avg, rating_count, completed_orders_count, response_rate_percent, response_time_minutes),
       category:marketplace_categories(id, slug, name, icon),
-      images:marketplace_product_images(id, url, alt_text, sort_order, is_primary),
+      images:marketplace_product_images(id, url, storage_path, alt_text, sort_order, is_primary),
       variants:marketplace_product_variants(id, product_id, name, value, price_kobo, compare_at_kobo, quantity_total, quantity_sold, quantity_reserved, sku, sort_order, is_active)
     `)
     .is('deleted_at', null);
@@ -262,8 +262,28 @@ export async function upsertProduct(data: {
   capacity?: number;
   service_area?: string;
   publish?: boolean;
-  images?: Array<{ url: string; storage_path?: string; is_primary?: boolean; alt_text?: string }>;
+  images?: Array<{ url?: string; storage_path?: string; is_primary?: boolean; alt_text?: string }>;
 }) {
+  const imagesPayload = data.images && data.images.length > 0 ? data.images.map((img, idx) => {
+    let path = img.storage_path;
+    if (!path && img.url) {
+      if (img.url.includes('/marketplace-product-images/')) {
+        path = img.url.split('/marketplace-product-images/').pop();
+      } else if (!img.url.startsWith('http')) {
+        path = img.url;
+      }
+    }
+    const ext = path ? path.split('.').pop()?.toLowerCase() : 'jpg';
+    const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+    return {
+      path,
+      mime,
+      alt: img.alt_text || null,
+      primary: img.is_primary ?? idx === 0,
+      sort: idx
+    };
+  }) : null;
+
   const { data: res, error } = await supabase.rpc('mp_upsert_product', {
     p_product_id: data.product_id || null,
     p_title: data.title,
@@ -285,7 +305,7 @@ export async function upsertProduct(data: {
     p_capacity: data.capacity || null,
     p_service_area: data.service_area || null,
     p_publish: data.publish ?? true,
-    p_images: data.images ? JSON.stringify(data.images) : null,
+    p_images: imagesPayload ? JSON.stringify(imagesPayload) : null,
   });
 
   if (error) throw error;
@@ -319,7 +339,7 @@ export async function uploadProductImage(file: File, vendorId: string): Promise<
   }
   const cleanExt = (file.name.split('.').pop() || 'jpg').toLowerCase();
   const safeName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${cleanExt}`;
-  const filePath = `${vendorId}/${safeName}`;
+  const filePath = `${vendorId}/product-images/${safeName}`;
 
   const { error } = await supabase.storage
     .from('marketplace-product-images')
@@ -1329,6 +1349,12 @@ export async function updatePlatformSettings(input: {
   allow_new_vendors?: boolean;
   payments_enabled?: boolean;
   maintenance_mode?: boolean;
+  escrow_fee_kobo?: number;
+  premium_escrow_credit_kobo?: number;
+  premium_escrow_discount_pct?: number;
+  premium_marketplace_benefits_enabled?: boolean;
+  verified_scholar_badge_enabled?: boolean;
+  premium_visibility_enabled?: boolean;
 }): Promise<PlatformSettings> {
   const { data, error } = await supabase.rpc('mp_update_platform_settings', {
     p_default_commission_bps: input.default_commission_bps ?? null,
@@ -1342,6 +1368,12 @@ export async function updatePlatformSettings(input: {
     p_allow_new_vendors: input.allow_new_vendors ?? null,
     p_payments_enabled: input.payments_enabled ?? null,
     p_maintenance_mode: input.maintenance_mode ?? null,
+    p_escrow_fee_kobo: input.escrow_fee_kobo ?? null,
+    p_premium_escrow_credit_kobo: input.premium_escrow_credit_kobo ?? null,
+    p_premium_escrow_discount_pct: input.premium_escrow_discount_pct ?? null,
+    p_premium_marketplace_benefits_enabled: input.premium_marketplace_benefits_enabled ?? null,
+    p_verified_scholar_badge_enabled: input.verified_scholar_badge_enabled ?? null,
+    p_premium_visibility_enabled: input.premium_visibility_enabled ?? null,
   });
   if (error) throw error;
   return data as PlatformSettings;
@@ -1652,3 +1684,59 @@ export async function deleteAdvertPackage(
   if (error) throw error;
   return data as { disabled_instead?: boolean; deleted?: boolean; adverts_using_it?: number };
 }
+
+// =============================================================================
+// PREMIUM MARKETPLACE ADVANTAGE & ESCROW CREDIT
+// =============================================================================
+
+export interface EscrowCreditInfo {
+  has_premium: boolean;
+  credit_granted_kobo: number;
+  credit_used_kobo: number;
+  credit_remaining_kobo: number;
+  discount_pct: number;
+  is_active: boolean;
+  expires_at: string | null;
+}
+
+export interface EscrowPreviewResult {
+  is_premium: boolean;
+  normal_escrow_fee_kobo: number;
+  credit_available_kobo: number;
+  credit_applied_kobo: number;
+  discount_pct: number;
+  discount_applied_kobo: number;
+  final_escrow_fee_kobo: number;
+  credit_remaining_after_kobo: number;
+}
+
+export interface AdminEscrowAnalytics {
+  total_escrow_credit_granted_kobo: number;
+  total_escrow_credit_consumed_kobo: number;
+  total_escrow_credit_remaining_kobo: number;
+  total_discounts_applied_kobo: number;
+  total_escrow_fees_collected_kobo: number;
+  total_subscribers_with_credit: number;
+  total_orders_benefiting: number;
+}
+
+export async function fetchUserEscrowCredit(): Promise<EscrowCreditInfo> {
+  const { data, error } = await supabase.rpc('mp_get_user_escrow_credit');
+  if (error) throw error;
+  return data as EscrowCreditInfo;
+}
+
+export async function previewCheckoutEscrow(subtotalKobo: number): Promise<EscrowPreviewResult> {
+  const { data, error } = await supabase.rpc('mp_preview_checkout_escrow', {
+    p_subtotal_kobo: subtotalKobo,
+  });
+  if (error) throw error;
+  return data as EscrowPreviewResult;
+}
+
+export async function fetchAdminEscrowAnalytics(): Promise<AdminEscrowAnalytics> {
+  const { data, error } = await supabase.rpc('mp_get_admin_escrow_analytics');
+  if (error) throw error;
+  return data as AdminEscrowAnalytics;
+}
+

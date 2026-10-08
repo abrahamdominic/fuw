@@ -24,6 +24,7 @@ import { Logo } from './Logo';
 import type { MarketplaceNotification } from '../lib/types';
 import { mpPath, PLATFORM_PATHS } from '../lib/routes';
 import { MessageText } from '../../components/MessageText';
+import { EcosystemSwitcher } from '../../components/EcosystemSwitcher';
 
 export const Navbar: React.FC = () => {
   const { user, profile, vendor, isAdmin, isStaff, theme, toggleTheme, signOut } = useAuth();
@@ -196,6 +197,11 @@ export const Navbar: React.FC = () => {
 
         {/* Action icons & links */}
         <div className="mp-nav-actions">
+          {/* Ecosystem Quick Switcher */}
+          <div className="desktop-only" style={{ display: 'inline-flex', alignItems: 'center', marginRight: 4 }}>
+            <EcosystemSwitcher mode="dropdown" />
+          </div>
+
           {/* Explore Browse Link */}
           <Link
             to={mpPath("/browse")}
@@ -784,6 +790,11 @@ export const Navbar: React.FC = () => {
             borderTop: '1px solid var(--border, #dcebe0)',
           }}
         >
+          {/* Quick Ecosystem Switcher Bar for Mobile */}
+          <div style={{ marginBottom: 12 }}>
+            <EcosystemSwitcher mode="bar" onSelect={() => setMobileMenuOpen(false)} />
+          </div>
+
           {/* Mobile search */}
           <form onSubmit={handleSearchSubmit} style={{ marginBottom: 14 }}>
             <input
@@ -874,6 +885,9 @@ export const Navbar: React.FC = () => {
             </Link>
             <Link to={PLATFORM_PATHS.library} style={{ fontSize: 14, color: 'var(--text-secondary, #55675b)', textDecoration: 'none', padding: '6px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
               <span>FUW E-Library</span>
+            </Link>
+            <Link to={PLATFORM_PATHS.accommodation} style={{ fontSize: 14, color: 'var(--text-secondary, #55675b)', textDecoration: 'none', padding: '6px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span>FUW Accommodation & Lodges</span>
             </Link>
           </div>
         </div>

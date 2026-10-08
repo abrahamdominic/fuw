@@ -282,13 +282,13 @@ export function LecturerPortal({ onReadOnline }: LecturerPortalProps) {
       {/* Sidebar Navigation */}
       <aside className={`side lecturer-side ${mobileMenuOpen ? 'mobile-open' : ''}`}>
         <div className="side-header">
-          <div className="side-brand">
+          <Link to="/lecturer" className="side-brand" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10 }}>
             <Logo size={32} />
             <div className="side-brand-meta">
               <strong style={{ color: '#ffffff', fontSize: 16 }}>FUW Portal</strong>
               <span className="side-role-badge lecturer-badge">LECTURER</span>
             </div>
-          </div>
+          </Link>
           <button
             type="button"
             className="side-close-btn"
@@ -384,7 +384,9 @@ export function LecturerPortal({ onReadOnline }: LecturerPortalProps) {
             <Menu size={20} />
             <span>Menu</span>
           </button>
-          <span className="portal-mobile-title">Lecturer Portal</span>
+          <Link to="/lecturer" className="portal-mobile-title" style={{ textDecoration: 'none', color: '#ffffff' }}>
+            Lecturer Portal
+          </Link>
           <div className="portal-mobile-actions">
             <Link to="/lecturer/upload" className="portal-mobile-upload" title="Upload Material">
               <UploadCloud size={16} />
@@ -653,7 +655,7 @@ function LecturerOverviewTab({
       </div>
 
       {/* KPI Stats Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '16px', marginBottom: '28px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: '16px', marginBottom: '28px' }}>
         <div className="portal-stat-card">
           <div className="portal-stat-icon" style={{ backgroundColor: '#e7f5eb', color: '#1e6f43' }}>
             <FileText size={22} />
@@ -696,8 +698,8 @@ function LecturerOverviewTab({
       </div>
 
       {/* Recent Materials & Actions */}
-      <div className="portal-card" style={{ padding: '24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+      <div className="portal-card" style={{ padding: 'clamp(16px, 3.5vw, 24px)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
           <div>
             <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: '#133e26' }}>
               Your Recently Published Materials
@@ -866,6 +868,7 @@ function LecturerMaterialsTab({
             placeholder="Search by title, course code (e.g. CSC 301)..."
             style={{
               width: '100%',
+              boxSizing: 'border-box',
               padding: '9px 12px 9px 36px',
               borderRadius: '6px',
               border: '1px solid #cddcd2',
@@ -877,7 +880,7 @@ function LecturerMaterialsTab({
         <select
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value)}
-          style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cddcd2', fontSize: '13px', backgroundColor: '#fff' }}
+          style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cddcd2', fontSize: '13px', backgroundColor: '#fff', boxSizing: 'border-box', maxWidth: '100%' }}
         >
           <option value="">All Material Types</option>
           {materialTypes.map((t) => (
@@ -888,7 +891,7 @@ function LecturerMaterialsTab({
         <select
           value={levelFilter}
           onChange={(e) => setLevelFilter(e.target.value)}
-          style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cddcd2', fontSize: '13px', backgroundColor: '#fff' }}
+          style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cddcd2', fontSize: '13px', backgroundColor: '#fff', boxSizing: 'border-box', maxWidth: '100%' }}
         >
           <option value="">All Levels</option>
           {['100 Level', '200 Level', '300 Level', '400 Level', '500 Level', '600 Level'].map((lvl) => (
@@ -1180,7 +1183,7 @@ function LecturerUploadTab({
           </div>
 
           {/* Course Code & Course Title */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '14px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '14px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               <label style={{ fontSize: '13px', fontWeight: 600, color: '#133e26' }}>Course Code *</label>
               <input
@@ -1190,7 +1193,7 @@ function LecturerUploadTab({
                 onChange={(e) => setCourseCode(e.target.value.toUpperCase())}
                 placeholder="e.g. CSC 301"
                 disabled={busy}
-                style={{ padding: '9px 12px', borderRadius: '6px', border: '1px solid #cddcd2', fontSize: '13px' }}
+                style={{ padding: '9px 12px', borderRadius: '6px', border: '1px solid #cddcd2', fontSize: '13px', width: '100%', boxSizing: 'border-box' }}
               />
             </div>
 
@@ -1202,20 +1205,20 @@ function LecturerUploadTab({
                 onChange={(e) => setCourseTitle(e.target.value)}
                 placeholder="e.g. Database Management Systems"
                 disabled={busy}
-                style={{ padding: '9px 12px', borderRadius: '6px', border: '1px solid #cddcd2', fontSize: '13px' }}
+                style={{ padding: '9px 12px', borderRadius: '6px', border: '1px solid #cddcd2', fontSize: '13px', width: '100%', boxSizing: 'border-box' }}
               />
             </div>
           </div>
 
           {/* Level, Semester, Material Type, Session */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '14px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 140px), 1fr))', gap: '14px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               <label style={{ fontSize: '13px', fontWeight: 600, color: '#133e26' }}>Academic Level</label>
               <select
                 value={level}
                 onChange={(e) => setLevel(e.target.value)}
                 disabled={busy}
-                style={{ padding: '9px 12px', borderRadius: '6px', border: '1px solid #cddcd2', fontSize: '13px', backgroundColor: '#fff' }}
+                style={{ padding: '9px 12px', borderRadius: '6px', border: '1px solid #cddcd2', fontSize: '13px', backgroundColor: '#fff', width: '100%', boxSizing: 'border-box' }}
               >
                 {['100 Level', '200 Level', '300 Level', '400 Level', '500 Level', '600 Level'].map((lvl) => (
                   <option key={lvl} value={lvl}>{lvl}</option>
@@ -1229,7 +1232,7 @@ function LecturerUploadTab({
                 value={semester}
                 onChange={(e) => setSemester(e.target.value)}
                 disabled={busy}
-                style={{ padding: '9px 12px', borderRadius: '6px', border: '1px solid #cddcd2', fontSize: '13px', backgroundColor: '#fff' }}
+                style={{ padding: '9px 12px', borderRadius: '6px', border: '1px solid #cddcd2', fontSize: '13px', backgroundColor: '#fff', width: '100%', boxSizing: 'border-box' }}
               >
                 <option value="First Semester">First Semester</option>
                 <option value="Second Semester">Second Semester</option>
@@ -1242,7 +1245,7 @@ function LecturerUploadTab({
                 value={materialType}
                 onChange={(e) => setMaterialType(e.target.value)}
                 disabled={busy}
-                style={{ padding: '9px 12px', borderRadius: '6px', border: '1px solid #cddcd2', fontSize: '13px', backgroundColor: '#fff' }}
+                style={{ padding: '9px 12px', borderRadius: '6px', border: '1px solid #cddcd2', fontSize: '13px', backgroundColor: '#fff', width: '100%', boxSizing: 'border-box' }}
               >
                 {materialTypes.map((t) => (
                   <option key={t} value={t}>{t}</option>
@@ -1258,7 +1261,7 @@ function LecturerUploadTab({
                 onChange={(e) => setAcademicSession(e.target.value)}
                 placeholder="2025/2026"
                 disabled={busy}
-                style={{ padding: '9px 12px', borderRadius: '6px', border: '1px solid #cddcd2', fontSize: '13px' }}
+                style={{ padding: '9px 12px', borderRadius: '6px', border: '1px solid #cddcd2', fontSize: '13px', width: '100%', boxSizing: 'border-box' }}
               />
             </div>
           </div>
@@ -1268,14 +1271,14 @@ function LecturerUploadTab({
             <h4 style={{ margin: '0 0 10px', fontSize: '14px', color: '#133e26', fontWeight: 700 }}>
               Audience & Department Alignment
             </h4>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '14px', marginBottom: '14px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <label style={{ fontSize: '12px', fontWeight: 600, color: '#133e26' }}>Primary Faculty *</label>
                 <select
                   value={faculty}
                   onChange={(e) => handleFacultyChange(e.target.value)}
                   disabled={busy}
-                  style={{ padding: '9px 12px', borderRadius: '6px', border: '1px solid #cddcd2', fontSize: '13px', backgroundColor: '#fff' }}
+                  style={{ padding: '9px 12px', borderRadius: '6px', border: '1px solid #cddcd2', fontSize: '13px', backgroundColor: '#fff', width: '100%', boxSizing: 'border-box' }}
                 >
                   {catalogue.map((f) => (
                     <option key={f.name} value={f.name}>{f.name}</option>
@@ -1289,7 +1292,7 @@ function LecturerUploadTab({
                   value={department}
                   onChange={(e) => setDepartment(e.target.value)}
                   disabled={busy}
-                  style={{ padding: '9px 12px', borderRadius: '6px', border: '1px solid #cddcd2', fontSize: '13px', backgroundColor: '#fff' }}
+                  style={{ padding: '9px 12px', borderRadius: '6px', border: '1px solid #cddcd2', fontSize: '13px', backgroundColor: '#fff', width: '100%', boxSizing: 'border-box' }}
                 >
                   {(catalogue.find((f) => f.name === faculty)?.departments || []).map((d) => (
                     <option key={d.name} value={d.name}>{d.name}</option>
@@ -1414,14 +1417,14 @@ function LecturerProfileTab({
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', maxWidth: '960px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: '20px', maxWidth: '960px' }}>
         {/* Read-only Institutional Credentials */}
-        <div className="portal-card" style={{ padding: '24px' }}>
+        <div className="portal-card" style={{ padding: 'clamp(16px, 3.5vw, 24px)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-            <ShieldCheck size={20} style={{ color: '#1e6f43' }} />
+            <ShieldCheck size={20} style={{ color: '#1e6f43', flexShrink: 0 }} />
             <h3 style={{ margin: 0, fontSize: '16px', color: '#133e26' }}>Institutional Credentials</h3>
           </div>
-          <p style={{ margin: '0 0 16px', fontSize: '12px', color: '#577565' }}>
+          <p style={{ margin: '0 0 16px', fontSize: '12px', color: '#577565', lineHeight: 1.5 }}>
             Managed by university administration. Contact the Dean's office or Academic Registry to request changes.
           </p>
 
@@ -1430,7 +1433,7 @@ function LecturerProfileTab({
               <span style={{ fontSize: '11px', color: '#7a9685', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                 Academic Title & Rank
               </span>
-              <div style={{ fontSize: '15px', fontWeight: 700, color: '#133e26', marginTop: '2px' }}>
+              <div style={{ fontSize: '15px', fontWeight: 700, color: '#133e26', marginTop: '2px', wordBreak: 'break-word' }}>
                 {lecturer?.academicRank || 'Academic Lecturer'}
               </div>
             </div>
@@ -1439,7 +1442,7 @@ function LecturerProfileTab({
               <span style={{ fontSize: '11px', color: '#7a9685', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                 Staff File ID
               </span>
-              <div style={{ fontSize: '14px', fontWeight: 600, color: '#133e26', marginTop: '2px' }}>
+              <div style={{ fontSize: '14px', fontWeight: 600, color: '#133e26', marginTop: '2px', wordBreak: 'break-all' }}>
                 {lecturer?.staffId || 'Pending Administrative Assignment'}
               </div>
             </div>
@@ -1448,7 +1451,7 @@ function LecturerProfileTab({
               <span style={{ fontSize: '11px', color: '#7a9685', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                 Primary Faculty & Department
               </span>
-              <div style={{ fontSize: '14px', fontWeight: 600, color: '#133e26', marginTop: '2px' }}>
+              <div style={{ fontSize: '14px', fontWeight: 600, color: '#133e26', marginTop: '2px', wordBreak: 'break-word' }}>
                 {lecturer?.departmentName || 'Department'} · {lecturer?.facultyName || 'Faculty'}
               </div>
             </div>
@@ -1462,7 +1465,7 @@ function LecturerProfileTab({
                   <span style={{ fontSize: '13px', color: '#7a9685' }}>None assigned</span>
                 ) : (
                   secondaryDepartments.map((dept) => (
-                    <span key={dept.id} className="badge" style={{ backgroundColor: '#e7f5eb', color: '#1e6f43' }}>
+                    <span key={dept.id} className="badge" style={{ backgroundColor: '#e7f5eb', color: '#1e6f43', maxWidth: '100%', wordBreak: 'break-word' }}>
                       {dept.name}
                     </span>
                   ))
@@ -1474,7 +1477,7 @@ function LecturerProfileTab({
               <span style={{ fontSize: '11px', color: '#7a9685', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                 Official University Email
               </span>
-              <div style={{ fontSize: '13px', color: '#133e26', marginTop: '2px' }}>
+              <div style={{ fontSize: '13px', color: '#133e26', marginTop: '2px', wordBreak: 'break-all' }}>
                 {lecturer?.staffEmail || 'Not configured'}
               </div>
             </div>
@@ -1482,9 +1485,9 @@ function LecturerProfileTab({
         </div>
 
         {/* Editable Personal Contact & Academic Statement */}
-        <div className="portal-card" style={{ padding: '24px' }}>
+        <div className="portal-card" style={{ padding: 'clamp(16px, 3.5vw, 24px)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-            <UserCheck size={20} style={{ color: '#1e6f43' }} />
+            <UserCheck size={20} style={{ color: '#1e6f43', flexShrink: 0 }} />
             <h3 style={{ margin: 0, fontSize: '16px', color: '#133e26' }}>Editable Contact & Profile</h3>
           </div>
 
@@ -1497,7 +1500,7 @@ function LecturerProfileTab({
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="e.g. 08012345678"
                 disabled={saving}
-                style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cddcd2', fontSize: '13px' }}
+                style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cddcd2', fontSize: '13px', width: '100%', boxSizing: 'border-box' }}
               />
             </div>
 
@@ -1509,7 +1512,7 @@ function LecturerProfileTab({
                 onChange={(e) => setOfficeLocation(e.target.value)}
                 placeholder="e.g. Science Complex, Office 204"
                 disabled={saving}
-                style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cddcd2', fontSize: '13px' }}
+                style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cddcd2', fontSize: '13px', width: '100%', boxSizing: 'border-box' }}
               />
             </div>
 
@@ -1523,7 +1526,7 @@ function LecturerProfileTab({
                 onChange={(e) => setBio(e.target.value)}
                 placeholder="Brief summary of research areas, office consultation hours, and academic focus..."
                 disabled={saving}
-                style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cddcd2', fontSize: '13px' }}
+                style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cddcd2', fontSize: '13px', width: '100%', boxSizing: 'border-box' }}
               />
             </div>
 
@@ -1846,7 +1849,7 @@ function LecturerNotificationsTab({
               borderRadius: 16,
               maxWidth: 540,
               width: '100%',
-              padding: 24,
+              padding: 'clamp(16px, 3.5vw, 24px)',
               boxShadow: '0 20px 40px rgba(0,0,0,0.15)',
               position: 'relative'
             }}
@@ -1879,6 +1882,7 @@ function LecturerNotificationsTab({
                     placeholder="e.g. CSC 401 Assignment Submission Deadline"
                     style={{
                       width: '100%',
+                      boxSizing: 'border-box',
                       padding: '10px 12px',
                       borderRadius: 8,
                       border: '1px solid var(--border, #dcebe0)',
@@ -1896,6 +1900,7 @@ function LecturerNotificationsTab({
                     onChange={(e) => setTargetScope(e.target.value as any)}
                     style={{
                       width: '100%',
+                      boxSizing: 'border-box',
                       padding: '10px 12px',
                       borderRadius: 8,
                       border: '1px solid var(--border, #dcebe0)',
@@ -1925,6 +1930,7 @@ function LecturerNotificationsTab({
                     onChange={(e) => setAnnouncementType(e.target.value as any)}
                     style={{
                       width: '100%',
+                      boxSizing: 'border-box',
                       padding: '10px 12px',
                       borderRadius: 8,
                       border: '1px solid var(--border, #dcebe0)',
@@ -1950,6 +1956,7 @@ function LecturerNotificationsTab({
                     placeholder="Enter detailed notice for students..."
                     style={{
                       width: '100%',
+                      boxSizing: 'border-box',
                       padding: '10px 12px',
                       borderRadius: 8,
                       border: '1px solid var(--border, #dcebe0)',

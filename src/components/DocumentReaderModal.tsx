@@ -12,8 +12,10 @@ import {
   Bookmark,
   FileText,
   CheckCircle2,
-  Share2
+  Share2,
+  Headphones,
 } from 'lucide-react';
+import { AudioSummaryPlayer } from './AudioSummaryPlayer';
 import { MaterialItem, store } from '../lib/store';
 import { getSecureFileUrl } from '../lib/materials';
 import { useToast } from './Toast';
@@ -34,6 +36,7 @@ export function DocumentReaderModal({ material, onClose }: DocumentReaderModalPr
   const [page, setPage] = useState(1);
   const [zoom, setZoom] = useState(100);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showAudio, setShowAudio] = useState(false);
   const { toast } = useToast();
   const { isAuthenticated, profile, isAdmin } = useAuth();
   const [gate, setGate] = useState<{ reason: BlockReason; message: string } | null>(null);
@@ -227,6 +230,15 @@ export function DocumentReaderModal({ material, onClose }: DocumentReaderModalPr
               <Share2 size={16} />
             </button>
 
+            <button
+              className={`control-btn ${showAudio ? 'active' : ''}`}
+              onClick={() => setShowAudio(!showAudio)}
+              title="Listen to Spoken Audio Summary"
+            >
+              <Headphones size={16} />
+              <span>{showAudio ? 'Hide Audio' : 'Audio Digest'}</span>
+            </button>
+
             <button className="control-btn primary-btn" onClick={handleDownload} title="Download File">
               <Download size={16} />
               <span>Download</span>
@@ -241,6 +253,17 @@ export function DocumentReaderModal({ material, onClose }: DocumentReaderModalPr
             </button>
           </div>
         </header>
+
+        {/* Spoken Audio Summary Drawer */}
+        {showAudio && (
+          <div style={{ padding: '12px 18px', borderBottom: '1px solid #dcebe0', background: '#f8faf9' }}>
+            <AudioSummaryPlayer
+              materialTitle={material.title}
+              courseCode={material.course}
+              department={material.department}
+            />
+          </div>
+        )}
 
         {/* Reader Document Viewport */}
         <div className="reader-viewport">
@@ -315,7 +338,7 @@ export function DocumentReaderModal({ material, onClose }: DocumentReaderModalPr
                 <div className="sheet-chapter">
                   <h2>2. Module 1: Foundational Frameworks</h2>
                   <p>
-                    In accordance with the FUW syllabus, this section establishes the preliminary principles, analytical definitions, and operational paradigms required for advanced study in {material.department}.
+                    In accordance with the university syllabus, this section establishes the preliminary principles, analytical definitions, and operational paradigms required for advanced study in {material.department}.
                   </p>
                   <div className="academic-quote">
                     "Rigorous inquiry and continuous review form the bedrock of academic excellence."
@@ -347,7 +370,7 @@ export function DocumentReaderModal({ material, onClose }: DocumentReaderModalPr
             </div>
 
             <div className="sheet-footer">
-              <span>Federal University Wukari (FUW) E-Library</span>
+              <span>Federal University Wukari E-Library</span>
               <span>Page {page} of {totalPages}</span>
             </div>
           </div>

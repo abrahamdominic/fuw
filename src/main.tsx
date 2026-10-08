@@ -236,12 +236,12 @@ function RootRedirect() {
   const { isLoading, isAuthenticated, profile, role, onboardingCompleted } = useAuth();
   if (isLoading || (isAuthenticated && !profile)) return <BootFallback label="Restoring your session" />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
-  if (!onboardingCompleted) return <Navigate to="/onboarding" replace />;
+  if (!onboardingCompleted && role !== 'admin' && role !== 'super_admin') return <Navigate to="/onboarding" replace />;
   const destination =
     role === 'super_admin' ? '/super' :
     role === 'admin' ? '/admin' :
     role === 'lecturer' ? '/lecturer' :
-    '/hub';
+    '/student';
   return <Navigate to={destination} replace />;
 }
 

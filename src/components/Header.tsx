@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { Logo } from './Logo';
 import { GlobalSearchModal } from './GlobalSearchModal';
+import { EcosystemSwitcher } from './EcosystemSwitcher';
 import { useStore } from '../lib/useStore';
 import { useAuth } from '../lib/AuthContext';
 import { useTheme } from '../lib/ThemeContext';
@@ -112,6 +113,11 @@ export function Header() {
         </nav>
 
         <div className="nav-actions">
+          {/* Ecosystem Switcher Dropdown */}
+          <div className="desktop-only" style={{ display: 'inline-flex', alignItems: 'center' }}>
+            <EcosystemSwitcher mode="dropdown" />
+          </div>
+
           {/* Global Campus Search Button */}
           <button
             type="button"
@@ -196,6 +202,11 @@ export function Header() {
                 {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
                 <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
               </button>
+            </div>
+
+            {/* Quick Ecosystem Switcher Bar for Mobile */}
+            <div style={{ marginBottom: 16 }}>
+              <EcosystemSwitcher mode="bar" onSelect={() => setOpen(false)} />
             </div>
 
             <div className="mobile-nav-links">
