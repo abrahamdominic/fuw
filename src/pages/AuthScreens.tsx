@@ -51,6 +51,7 @@ import {
 import { passkeyErrorMessage } from '../lib/authErrors';
 import { fx, staggerDelay } from '../lib/motion';
 import { safeMediaPlay, usePrefersStaticBackdrop } from '../lib/backdrop';
+import { applyReferralCode } from '../lib/affiliate';
 
 type AuthMode = 'login' | 'register' | 'forgot';
 
@@ -582,6 +583,34 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
     needsEmailConfirmation: boolean;
   } | null>(null);
 
+  // Referral code capture
+  const [referralCode, setReferralCode] = useState('');
+  const [referralLocked, setReferralLocked] = useState(false);
+
+  useEffect(() => {
+    try {
+      const searchParams = new URLSearchParams(location.search);
+      const refParam = searchParams.get('ref') || searchParams.get('referral');
+      if (refParam && refParam.trim()) {
+        const cleanRef = refParam.trim().toUpperCase();
+        setReferralCode(cleanRef);
+        setReferralLocked(true);
+        sessionStorage.setItem('fuw_referral_code', cleanRef);
+        localStorage.setItem('fuw_referral_code', cleanRef);
+        if (initialMode === 'login' && !searchParams.get('mode')) {
+          setMode('register');
+        }
+      } else {
+        const cachedRef = sessionStorage.getItem('fuw_referral_code') || localStorage.getItem('fuw_referral_code');
+        if (cachedRef) {
+          setReferralCode(cachedRef.trim().toUpperCase());
+        }
+      }
+    } catch {
+      // Storage access safety
+    }
+  }, [location.search, initialMode]);
+
   // Passkey registration flow states
   const [passkeyPromptShown, setPasskeyPromptShown] = useState(false);
   const [passkeyRegistering, setPasskeyRegistering] = useState(false);
@@ -645,6 +674,19 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
       navigate('/onboarding', { replace: true });
       return;
     }
+    // Auto-bind pending referral code if available
+    try {
+      const pendingRef = referralCode.trim() || sessionStorage.getItem('fuw_referral_code') || localStorage.getItem('fuw_referral_code');
+      if (pendingRef && profile && !(profile as any).referred_by_id) {
+        applyReferralCode(pendingRef).catch(() => {}).finally(() => {
+          try {
+            sessionStorage.removeItem('fuw_referral_code');
+            localStorage.removeItem('fuw_referral_code');
+          } catch {}
+        });
+      }
+    } catch {}
+
     const role = roleOverride || profile?.role;
     if (role === 'super_admin') navigate('/super', { replace: true });
     else if (role === 'admin') navigate('/admin', { replace: true });
@@ -896,6 +938,21 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
     if (cp.error) {
       setErrorMsg(cp.error.message);
       return;
+    }
+
+    // Auto-bind referral code if available
+    const effectiveRef = referralCode.trim() || sessionStorage.getItem('fuw_referral_code') || localStorage.getItem('fuw_referral_code');
+    if (effectiveRef) {
+      applyReferralCode(effectiveRef)
+        .then(() => {
+          try {
+            sessionStorage.removeItem('fuw_referral_code');
+            localStorage.removeItem('fuw_referral_code');
+          } catch {}
+        })
+        .catch((refErr) => {
+          console.warn('Referral code application warning:', refErr);
+        });
     }
 
     setWelcome({
@@ -1248,6 +1305,38 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
                   autoComplete="new-password"
                   disabled={busy}
                 />
+
+                <div className="mac-field">
+                  <label className="mac-label">
+                    Referral / Ambassador Code <span style={{ fontWeight: 400, opacity: 0.7 }}>(Optional)</span>
+                  </label>
+                  <div className="mac-input-row">
+                    <Zap size={18} className="mac-icon" aria-hidden />
+                    <input
+                      className="mac-input"
+                      type="text"
+                      value={referralCode}
+                      onChange={(e) => setReferralCode(e.target.value.toUpperCase().trim())}
+                      placeholder="e.g. FUW-12345"
+                      autoComplete="off"
+                      autoCapitalize="characters"
+                      disabled={busy || referralLocked}
+                      style={referralLocked ? { background: 'rgba(16, 185, 129, 0.08)', borderColor: '#10b981' } : undefined}
+                    />
+                    {referralLocked && (
+                      <span style={{ fontSize: '12px', fontWeight: 700, color: '#059669', paddingRight: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <CheckCircle2 size={14} /> Applied
+                      </span>
+                    )}
+                  </div>
+                  {referralLocked ? (
+                    <p className="mac-hint" style={{ color: '#059669' }}>
+                      Referred by ambassador code <strong>{referralCode}</strong>.
+                    </p>
+                  ) : (
+                    <p className="mac-hint">Have an invite code from a course rep or student ambassador? Enter it here.</p>
+                  )}
+                </div>
 
                 <button type="submit" className="mac-btn mac-btn-primary">
                   Continue to Academic Info <ArrowRight size={17} aria-hidden />

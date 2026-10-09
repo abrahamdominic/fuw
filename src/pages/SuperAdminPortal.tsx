@@ -257,6 +257,9 @@ export function SuperAdminPortal() {
           </button>
           <span className="portal-mobile-title">Platform Governance</span>
           <div className="portal-mobile-actions">
+            <Link to="/hub" className="portal-mobile-upload" title="Return to Campus Hub" aria-label="Campus Hub Home">
+              <Home size={16} />
+            </Link>
             <button
               type="button"
               className="portal-mobile-logout"

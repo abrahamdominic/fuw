@@ -6,6 +6,7 @@ import { useAuth } from '../lib/auth';
 import { useToast } from '../components/Toast';
 import { Skeleton } from '../components/Skeleton';
 import { mpPath, PLATFORM_PATHS } from '../lib/routes';
+import { BankResolutionInput, BankResolutionDetails } from '../../components/BankResolutionInput';
 
 export const VendorRegisterPage: React.FC = () => {
   const { user, profile, vendor, refreshAuth, isLoading } = useAuth();
@@ -18,8 +19,13 @@ export const VendorRegisterPage: React.FC = () => {
   const [tagline, setTagline] = useState('');
   const [description, setDescription] = useState('');
   const [campusArea, setCampusArea] = useState('Male Hostel A');
-  const [bankName, setBankName] = useState('Opay');
-  const [accountNumber, setAccountNumber] = useState('');
+  const [bankDetails, setBankDetails] = useState<BankResolutionDetails>({
+    bankCode: '',
+    bankName: '',
+    accountNumber: '',
+    accountName: '',
+    isVerified: false
+  });
   const [busy, setBusy] = useState(false);
 
   const handleNameChange = (val: string) => {
@@ -65,8 +71,8 @@ export const VendorRegisterPage: React.FC = () => {
         tagline: tagline.trim() || undefined,
         description: description.trim() || undefined,
         campus_area: campusArea,
-        payout_bank_name: bankName,
-        payout_account_number: accountNumber.trim() || undefined,
+        payout_bank_name: bankDetails.bankName || undefined,
+        payout_account_number: bankDetails.accountNumber || undefined,
       });
 
       await refreshAuth();
@@ -232,40 +238,7 @@ export const VendorRegisterPage: React.FC = () => {
               Where you would like your customer order settlements transferred to upon completion.
             </p>
 
-            <div className="mp-field-grid" style={{ display: 'grid', gap: 14 }}>
-              <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Bank Name</label>
-                <select
-                  value={bankName}
-                  onChange={(e) => setBankName(e.target.value)}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border, #dcebe0)', fontSize: 14, background: '#ffffff' }}
-                >
-                  <option value="Opay">Opay</option>
-                  <option value="Palmpay">Palmpay</option>
-                  <option value="Moniepoint">Moniepoint</option>
-                  <option value="Kuda Bank">Kuda Bank</option>
-                  <option value="Access Bank">Access Bank</option>
-                  <option value="GTBank">Guaranty Trust Bank</option>
-                  <option value="First Bank">First Bank of Nigeria</option>
-                  <option value="UBA">United Bank for Africa</option>
-                  <option value="Zenith Bank">Zenith Bank</option>
-                  <option value="Fidelity Bank">Fidelity Bank</option>
-                  <option value="Union Bank">Union Bank</option>
-                </select>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Account Number</label>
-                <input
-                  type="text"
-                  maxLength={10}
-                  value={accountNumber}
-                  onChange={(e) => setAccountNumber(e.target.value.replace(/[^0-9]/g, ''))}
-                  placeholder="10 digit account number"
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border, #dcebe0)', fontSize: 14 }}
-                />
-              </div>
-            </div>
+            <BankResolutionInput onChange={setBankDetails} disabled={busy} />
           </div>
 
           <button

@@ -18,6 +18,7 @@ import {
   X,
   LogOut,
   LayoutGrid,
+  Home,
   Download,
   Eye,
   CheckCircle2,
@@ -389,6 +390,9 @@ export function LecturerPortal({ onReadOnline }: LecturerPortalProps) {
             Lecturer Portal
           </Link>
           <div className="portal-mobile-actions">
+            <Link to="/hub" className="portal-mobile-upload" title="Return to Campus Hub" aria-label="Campus Hub Home">
+              <Home size={16} />
+            </Link>
             <Link to="/lecturer/upload" className="portal-mobile-upload" title="Upload Material">
               <UploadCloud size={16} />
             </Link>

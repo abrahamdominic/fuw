@@ -441,6 +441,9 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
           </button>
           <span className="portal-mobile-title">Repository Administration</span>
           <div className="portal-mobile-actions">
+            <Link to="/hub" className="portal-mobile-upload" title="Return to Campus Hub" aria-label="Campus Hub Home">
+              <Home size={16} />
+            </Link>
             <Link to="/admin/upload" className="portal-mobile-upload">
               <Upload size={16} />
             </Link>

@@ -14,7 +14,8 @@ import {
   AlertCircle,
   Loader2,
   DollarSign,
-  Gift
+  Gift,
+  MessageCircle
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { useToast } from '../components/Toast';
@@ -26,6 +27,7 @@ import {
   type AffiliateStats
 } from '../lib/affiliate';
 import { formatNaira } from '../marketplace/lib/format';
+import { BankResolutionInput, BankResolutionDetails } from '../components/BankResolutionInput';
 
 export function StudentAffiliateTab() {
   const { profile, user } = useAuth();
@@ -43,9 +45,13 @@ export function StudentAffiliateTab() {
 
   // Withdrawal modal state
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
-  const [bankName, setBankName] = useState('');
-  const [accountNumber, setAccountNumber] = useState('');
-  const [accountName, setAccountName] = useState('');
+  const [bankDetails, setBankDetails] = useState<BankResolutionDetails>({
+    bankCode: '',
+    bankName: '',
+    accountNumber: '',
+    accountName: '',
+    isVerified: false
+  });
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawing, setWithdrawing] = useState(false);
 
@@ -111,6 +117,12 @@ export function StudentAffiliateTab() {
     }
   };
 
+  const handleWhatsAppShare = () => {
+    if (!referralLink) return;
+    const msg = `Join me on FUW Campus Hub for verified lecture notes, past questions, CGPA calculator, and student accommodation! Register using my link: ${referralLink}`;
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer');
+  };
+
   const handleApplyCode = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputCode.trim()) return;
@@ -137,8 +149,8 @@ export function StudentAffiliateTab() {
       toast('Minimum withdrawal amount is ₦500.', 'error');
       return;
     }
-    if (!bankName.trim() || !accountNumber.trim() || !accountName.trim()) {
-      toast('Please enter complete bank and account details.', 'error');
+    if (!bankDetails.isVerified || !bankDetails.accountName) {
+      toast('Please enter a valid bank and account number verified by Paystack.', 'error');
       return;
     }
     const amountKobo = Math.round(amount * 100);
@@ -151,9 +163,9 @@ export function StudentAffiliateTab() {
       setWithdrawing(true);
       await requestAffiliateWithdrawal({
         amountKobo,
-        bankName: bankName.trim(),
-        accountNumber: accountNumber.trim(),
-        accountName: accountName.trim()
+        bankName: bankDetails.bankName,
+        accountNumber: bankDetails.accountNumber,
+        accountName: bankDetails.accountName
       });
       toast(`Withdrawal request of ₦${amount.toLocaleString()} submitted successfully!`, 'success');
       setShowWithdrawModal(false);
@@ -372,7 +384,7 @@ export function StudentAffiliateTab() {
               >
                 {referralLink}
               </span>
-              <div style={{ display: 'flex', gap: '6px' }}>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                 <button
                   type="button"
                   onClick={handleCopyLink}
@@ -381,6 +393,26 @@ export function StudentAffiliateTab() {
                 >
                   {copiedLink ? <Check size={14} color="#059669" /> : <Copy size={14} />}
                   {copiedLink ? 'Copied' : 'Link'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleWhatsAppShare}
+                  style={{
+                    padding: '6px 10px',
+                    fontSize: '12px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    backgroundColor: '#25D366',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                  title="Share directly to WhatsApp group"
+                >
+                  <MessageCircle size={14} /> WhatsApp
                 </button>
                 <button
                   type="button"
@@ -568,48 +600,10 @@ export function StudentAffiliateTab() {
                 />
               </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#374151', marginBottom: '4px' }}>
-                  Bank Name
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. OPay, PalmPay, GTBank, Kuda"
-                  value={bankName}
-                  onChange={(e) => setBankName(e.target.value)}
-                  required
-                  style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '14px' }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#374151', marginBottom: '4px' }}>
-                  Account Number
-                </label>
-                <input
-                  type="text"
-                  maxLength={10}
-                  placeholder="10-digit NUBAN"
-                  value={accountNumber}
-                  onChange={(e) => setAccountNumber(e.target.value)}
-                  required
-                  style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '14px' }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#374151', marginBottom: '4px' }}>
-                  Account Holder Name
-                </label>
-                <input
-                  type="text"
-                  placeholder="Exact name on bank account"
-                  value={accountName}
-                  onChange={(e) => setAccountName(e.target.value)}
-                  required
-                  style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '14px' }}
-                />
-              </div>
+              <BankResolutionInput
+                onChange={setBankDetails}
+                disabled={withdrawing}
+              />
 
               <div style={{ display: 'flex', gap: '10px', marginTop: '10px', justifyContent: 'flex-end' }}>
                 <button
@@ -621,9 +615,14 @@ export function StudentAffiliateTab() {
                 </button>
                 <button
                   type="submit"
-                  disabled={withdrawing}
+                  disabled={withdrawing || !bankDetails.isVerified}
                   className="btn-primary"
-                  style={{ padding: '8px 16px', fontSize: '13px' }}
+                  style={{
+                    padding: '8px 16px',
+                    fontSize: '13px',
+                    opacity: withdrawing || !bankDetails.isVerified ? 0.6 : 1,
+                    cursor: withdrawing || !bankDetails.isVerified ? 'not-allowed' : 'pointer'
+                  }}
                 >
                   {withdrawing ? 'Submitting...' : 'Request Payout'}
                 </button>

@@ -16,6 +16,7 @@ import {
   ShieldCheck,
   PackageCheck,
   ChevronDown,
+  Home,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { useCart } from '../lib/cart';
@@ -846,6 +847,10 @@ export const Navbar: React.FC = () => {
           </button>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <Link to={mpPath("/")} style={{ fontSize: 14, fontWeight: 700, color: 'var(--green-800, #12603d)', textDecoration: 'none', padding: '6px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Home size={16} />
+              <span>Marketplace Home</span>
+            </Link>
             <Link to={mpPath("/browse")} style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #17231d)', textDecoration: 'none', padding: '6px 0' }}>
               Browse Marketplace
             </Link>

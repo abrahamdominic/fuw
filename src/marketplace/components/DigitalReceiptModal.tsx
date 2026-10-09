@@ -30,6 +30,7 @@ export interface DigitalReceiptModalProps {
   subtotalKobo: number;
   deliveryFeeKobo?: number;
   totalKobo: number;
+  receiptSubtitle?: string;
 }
 
 export const DigitalReceiptModal: React.FC<DigitalReceiptModalProps> = ({
@@ -50,6 +51,7 @@ export const DigitalReceiptModal: React.FC<DigitalReceiptModalProps> = ({
   subtotalKobo,
   deliveryFeeKobo = 0,
   totalKobo,
+  receiptSubtitle,
 }) => {
   const [copiedRef, setCopiedRef] = React.useState(false);
 
@@ -171,16 +173,21 @@ export const DigitalReceiptModal: React.FC<DigitalReceiptModalProps> = ({
           {/* Institution banner */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #0d4a2f', paddingBottom: 16, marginBottom: 20 }}>
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                <div style={{ width: 36, height: 36, borderRadius: 8, background: '#12603d', display: 'grid', placeItems: 'center', color: '#fff', fontWeight: 900, fontSize: 18 }}>
-                  FUW
-                </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
+                <img
+                  src="/images/fuw-logo.png"
+                  alt="Federal University Wukari"
+                  style={{ width: 48, height: 48, objectFit: 'contain' }}
+                  onError={(e) => {
+                    e.currentTarget.src = '/favicon.svg';
+                  }}
+                />
                 <div>
                   <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#0d4a2f', letterSpacing: '-0.3px' }}>
                     Federal University Wukari
                   </h2>
                   <span style={{ fontSize: 12, color: '#55675b', fontWeight: 600 }}>
-                    CAMPUS HUB · DIGITAL MARKETPLACE
+                    {receiptSubtitle || 'CAMPUS HUB · DIGITAL MARKETPLACE'}
                   </span>
                 </div>
               </div>
@@ -385,6 +392,25 @@ export const DigitalReceiptModal: React.FC<DigitalReceiptModalProps> = ({
             </div>
             <div>
               Secured by FUW Escrow Protection Ledger
+            </div>
+          </div>
+
+          {/* Official University Contact & Authenticity Footer */}
+          <div
+            style={{
+              marginTop: 22,
+              paddingTop: 12,
+              borderTop: '1px solid #dcebe0',
+              textAlign: 'center',
+              fontSize: 10,
+              color: '#55675b',
+              lineHeight: 1.5,
+            }}
+          >
+            <div>Federal University Wukari · Campus Hub &amp; E-Library Services</div>
+            <div>KM 200 Katsina-Ala Road, P.M.B. 1020, Wukari, Taraba State, Nigeria · support@fuw.edu.ng</div>
+            <div style={{ marginTop: 4, fontWeight: 700, color: '#12603d', letterSpacing: 0.5 }}>
+              AUTHENTIC DIGITAL TRANSACTION RECORD · SECURED BY UNIVERSITY ESCROW LEDGER
             </div>
           </div>
         </div>

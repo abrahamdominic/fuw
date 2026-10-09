@@ -705,7 +705,7 @@ export function CampusHubPage() {
                   </Link>
                   <span>·</span>
                   <Link to="/accommodation" style={{ color: 'var(--text-secondary)', textDecoration: 'underline' }}>
-                    Female &amp; Male Hostels
+                    Student Housing &amp; Lodges
                   </Link>
                 </div>
               </div>

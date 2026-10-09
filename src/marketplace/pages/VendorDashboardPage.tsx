@@ -66,6 +66,9 @@ import { Modal } from '../components/Modal';
 import { Skeleton } from '../components/Skeleton';
 import { EmptyState } from '../components/EmptyState';
 import { SupportInbox } from './SupportPage';
+import { BankResolutionInput, BankResolutionDetails } from '../../components/BankResolutionInput';
+import { VendorEscrowCards } from '../components/VendorEscrowCards';
+import { supabase } from '../../lib/supabase';
 import { mpPath, PLATFORM_PATHS } from '../lib/routes';
 
 export const VendorDashboardPage: React.FC = () => {
@@ -115,8 +118,13 @@ export const VendorDashboardPage: React.FC = () => {
   // Withdrawal modal
   const [withdrawalModalOpen, setWithdrawalModalOpen] = useState(false);
   const [withdrawalAmount, setWithdrawalAmount] = useState('5000');
-  const [withdrawBank, setWithdrawBank] = useState(vendor?.payout_bank_name || 'Opay');
-  const [withdrawAccount, setWithdrawAccount] = useState(vendor?.payout_account_number || '');
+  const [withdrawBankDetails, setWithdrawBankDetails] = useState<BankResolutionDetails>({
+    bankCode: '',
+    bankName: vendor?.payout_bank_name || '',
+    accountNumber: vendor?.payout_account_number || '',
+    accountName: '',
+    isVerified: false
+  });
   const [withdrawBusy, setWithdrawBusy] = useState(false);
 
   // Adverts. The package list is what the admin priced; nothing here decides cost.
@@ -216,6 +224,26 @@ export const VendorDashboardPage: React.FC = () => {
       setActiveTab('adverts');
     }
   }, []);
+
+  // Realtime subscription: update vendor dashboard metrics on order/wallet state transitions
+  useEffect(() => {
+    if (!vendor?.id || !supabase) return;
+    const client = supabase;
+    const ordersChannel = client
+      .channel(`vendor-dashboard-realtime-${vendor.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'marketplace_orders', filter: `vendor_id=eq.${vendor.id}` },
+        () => {
+          loadData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      client.removeChannel(ordersChannel);
+    };
+  }, [vendor?.id]);
 
   const advertableProducts = products.filter((p) => p.status === 'active');
   const selectedPackage = packages.find((p) => p.id === advertPackageId);
@@ -412,11 +440,20 @@ export const VendorDashboardPage: React.FC = () => {
 
   const handleRequestWithdrawal = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!withdrawBankDetails.isVerified || !withdrawBankDetails.accountName) {
+      toast('Please enter a valid bank and account number verified by Paystack.', 'error');
+      return;
+    }
     setWithdrawBusy(true);
     try {
       const amountKobo = Math.round(parseFloat(withdrawalAmount) * 100);
-      await requestWithdrawal(amountKobo, withdrawBank, withdrawAccount, vendor?.payout_account_name || vendor?.store_name || '');
-      toast('Withdrawal requested! Payout will be processed to your bank account.', 'success');
+      await requestWithdrawal(
+        amountKobo,
+        withdrawBankDetails.bankName,
+        withdrawBankDetails.accountNumber,
+        withdrawBankDetails.accountName
+      );
+      toast('Withdrawal requested! Payout will be processed to your verified bank account.', 'success');
       setWithdrawalModalOpen(false);
       loadData();
     } catch (err: any) {
@@ -514,8 +551,11 @@ export const VendorDashboardPage: React.FC = () => {
   const availableBalanceKobo = walletSummary?.available_kobo ?? 0;
   const pendingBalanceKobo = walletSummary?.pending_kobo ?? 0;
   const paidOutKobo = walletSummary?.lifetime_paid_out_kobo ?? 0;
+  const withdrawableEarningsKobo = Math.max(0, availableBalanceKobo);
 
-  const pendingOrdersCount = orders.filter((o) => ['paid', 'order_confirmed', 'preparing'].includes(o.status)).length;
+  const pendingOrders = orders.filter((o) => ['paid', 'order_confirmed', 'preparing', 'shipped'].includes(o.status));
+  const pendingOrdersCount = pendingOrders.length;
+  const pendingOrdersVolumeKobo = pendingOrders.reduce((acc, o) => acc + (o.total_kobo || 0), 0);
 
   return (
     <div style={{ paddingBottom: 60 }}>
@@ -626,46 +666,30 @@ export const VendorDashboardPage: React.FC = () => {
       {/* TAB 1: OVERVIEW */}
       {!loading && activeTab === 'overview' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
-          {/* KPI Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: 16 }}>
-            <div style={{ background: 'var(--surface, #ffffff)', padding: 20, borderRadius: 12, border: '1px solid var(--border, #dcebe0)' }}>
-              <span style={{ fontSize: 13, color: 'var(--text-secondary, #55675b)', display: 'block', marginBottom: 6 }}>Available Payout Balance</span>
-              <span style={{ fontSize: 24, fontWeight: 900, color: 'var(--green-900, #0d4a2f)' }}>
-                {formatNaira(Math.max(0, availableBalanceKobo))}
+          {/* 5 Prominent Escrow & Financial Metric Cards */}
+          <VendorEscrowCards
+            availableKobo={availableBalanceKobo}
+            escrowKobo={pendingBalanceKobo}
+            pendingOrdersKobo={pendingOrdersVolumeKobo}
+            pendingOrdersCount={pendingOrdersCount}
+            totalReleasedKobo={totalRevenueKobo}
+            withdrawableKobo={withdrawableEarningsKobo}
+            onRequestPayout={() => setWithdrawalModalOpen(true)}
+            canRequestPayout={availableBalanceKobo >= 500000}
+          />
+
+          {/* Auxiliary Store Stats */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))', gap: 16 }}>
+            <div style={{ background: 'var(--surface, #ffffff)', padding: 18, borderRadius: 12, border: '1px solid var(--border, #dcebe0)' }}>
+              <span style={{ fontSize: 13, color: 'var(--text-secondary, #55675b)', display: 'block', marginBottom: 4 }}>Pending Shipments</span>
+              <span style={{ fontSize: 22, fontWeight: 800, color: pendingOrdersCount > 0 ? '#b45309' : 'var(--text-primary, #17231d)' }}>
+                {pendingOrdersCount} {pendingOrdersCount === 1 ? 'order' : 'orders'}
               </span>
             </div>
-
-            <div style={{ background: 'var(--surface, #ffffff)', padding: 20, borderRadius: 12, border: '1px solid var(--border, #dcebe0)' }}>
-              <span style={{ fontSize: 13, color: 'var(--text-secondary, #55675b)', display: 'block', marginBottom: 6 }}>Gross Sales Volume</span>
-              <span style={{ fontSize: 24, fontWeight: 900, color: 'var(--text-primary, #17231d)' }}>
-                {formatNaira(totalRevenueKobo)}
-              </span>
-              <span style={{ fontSize: 11, color: 'var(--text-secondary, #55675b)', display: 'block', marginTop: 4 }}>
-                {formatNaira(paidOutKobo)} already paid out
-              </span>
-            </div>
-
-            <div style={{ background: 'var(--surface, #ffffff)', padding: 20, borderRadius: 12, border: '1px solid var(--border, #dcebe0)' }}>
-              <span style={{ fontSize: 13, color: 'var(--text-secondary, #55675b)', display: 'block', marginBottom: 6 }}>Pending Clearance</span>
-              <span style={{ fontSize: 24, fontWeight: 900, color: pendingBalanceKobo > 0 ? '#b45309' : 'var(--text-primary, #17231d)' }}>
-                {formatNaira(pendingBalanceKobo)}
-              </span>
-              <span style={{ fontSize: 11, color: 'var(--text-secondary, #55675b)', display: 'block', marginTop: 4 }}>
-                Held until delivery is confirmed
-              </span>
-            </div>
-
-            <div style={{ background: 'var(--surface, #ffffff)', padding: 20, borderRadius: 12, border: '1px solid var(--border, #dcebe0)' }}>
-              <span style={{ fontSize: 13, color: 'var(--text-secondary, #55675b)', display: 'block', marginBottom: 6 }}>Pending Shipments</span>
-              <span style={{ fontSize: 24, fontWeight: 900, color: pendingOrdersCount > 0 ? '#b45309' : 'var(--text-primary, #17231d)' }}>
-                {pendingOrdersCount}
-              </span>
-            </div>
-
-            <div style={{ background: 'var(--surface, #ffffff)', padding: 20, borderRadius: 12, border: '1px solid var(--border, #dcebe0)' }}>
-              <span style={{ fontSize: 13, color: 'var(--text-secondary, #55675b)', display: 'block', marginBottom: 6 }}>Store Rating</span>
-              <span style={{ fontSize: 24, fontWeight: 900, color: 'var(--text-primary, #17231d)' }}>
-                {Number(vendor.rating_avg) > 0 ? `${Number(vendor.rating_avg).toFixed(1)} ★` : 'New'}
+            <div style={{ background: 'var(--surface, #ffffff)', padding: 18, borderRadius: 12, border: '1px solid var(--border, #dcebe0)' }}>
+              <span style={{ fontSize: 13, color: 'var(--text-secondary, #55675b)', display: 'block', marginBottom: 4 }}>Store Rating</span>
+              <span style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary, #17231d)' }}>
+                {Number(vendor.rating_avg) > 0 ? `${Number(vendor.rating_avg).toFixed(1)} ★` : 'New Storefront'}
               </span>
             </div>
           </div>
@@ -1104,44 +1128,17 @@ export const VendorDashboardPage: React.FC = () => {
       {/* TAB 4: EARNINGS & WITHDRAWALS */}
       {activeTab === 'earnings' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: 16 }}>
-            <div style={{ background: 'var(--surface, #ffffff)', borderRadius: 14, border: '1px solid var(--border, #dcebe0)', padding: 22 }}>
-              <span style={{ fontSize: 13, color: 'var(--text-secondary, #55675b)', display: 'block', marginBottom: 6 }}>Available for Withdrawal</span>
-              <span style={{ fontSize: 30, fontWeight: 900, color: 'var(--green-900, #0d4a2f)' }}>
-                {formatNaira(walletSummary?.available_kobo ?? 0)}
-              </span>
-              <span style={{ fontSize: 12, color: 'var(--text-secondary, #55675b)', display: 'block', marginTop: 6 }}>
-                Minimum payout ₦5,000.00
-              </span>
-              <button
-                type="button"
-                onClick={() => setWithdrawalModalOpen(true)}
-                disabled={(walletSummary?.available_kobo ?? 0) < 500000}
-                className="btn btn-primary"
-                style={{ padding: '10px 20px', fontSize: 14, marginTop: 14 }}
-              >
-                Request Bank Payout
-              </button>
-            </div>
-
-            <div style={{ background: 'var(--surface, #ffffff)', borderRadius: 14, border: '1px solid var(--border, #dcebe0)', padding: 22 }}>
-              <span style={{ fontSize: 13, color: 'var(--text-secondary, #55675b)', display: 'block', marginBottom: 6 }}>Pending Clearance</span>
-              <span style={{ fontSize: 30, fontWeight: 800, color: 'var(--text-primary, #16281d)' }}>
-                {formatNaira(walletSummary?.pending_kobo ?? 0)}
-              </span>
-              <span style={{ fontSize: 12, color: 'var(--text-secondary, #55675b)', display: 'block', marginTop: 6 }}>
-                Held until the buyer confirms delivery.
-              </span>
-            </div>
-
-            <div style={{ background: 'var(--surface, #ffffff)', borderRadius: 14, border: '1px solid var(--border, #dcebe0)', padding: 22 }}>
-              <span style={{ fontSize: 13, color: 'var(--text-secondary, #55675b)', display: 'block', marginBottom: 6 }}>Lifetime Earnings</span>
-              <span style={{ fontSize: 30, fontWeight: 800 }}>{formatNaira(walletSummary?.lifetime_earned_kobo ?? 0)}</span>
-              <span style={{ fontSize: 12, color: 'var(--text-secondary, #55675b)', display: 'block', marginTop: 6 }}>
-                Paid out {formatNaira(walletSummary?.lifetime_paid_out_kobo ?? 0)} to date.
-              </span>
-            </div>
-          </div>
+          {/* 5 Prominent Escrow & Financial Metric Cards */}
+          <VendorEscrowCards
+            availableKobo={availableBalanceKobo}
+            escrowKobo={pendingBalanceKobo}
+            pendingOrdersKobo={pendingOrdersVolumeKobo}
+            pendingOrdersCount={pendingOrdersCount}
+            totalReleasedKobo={totalRevenueKobo}
+            withdrawableKobo={withdrawableEarningsKobo}
+            onRequestPayout={() => setWithdrawalModalOpen(true)}
+            canRequestPayout={availableBalanceKobo >= 500000}
+          />
 
           {/* Transaction history, straight from the append-only ledger. */}
           <div style={{ background: 'var(--surface, #ffffff)', borderRadius: 14, border: '1px solid var(--border, #dcebe0)', padding: 22 }}>
@@ -1600,21 +1597,30 @@ export const VendorDashboardPage: React.FC = () => {
           <div>
             <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Amount (₦) *</label>
             <input type="number" required min="5000" step="any" value={withdrawalAmount} onChange={(e) => setWithdrawalAmount(e.target.value)} style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border, #dcebe0)', fontSize: 14 }} />
+            <span style={{ fontSize: 11, color: 'var(--text-secondary, #55675b)', marginTop: 4, display: 'block' }}>Minimum withdrawal is ₦5,000.00</span>
           </div>
 
-          <div>
-            <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Bank Name *</label>
-            <input type="text" required value={withdrawBank} onChange={(e) => setWithdrawBank(e.target.value)} style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border, #dcebe0)', fontSize: 14 }} />
-          </div>
-
-          <div>
-            <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Account Number *</label>
-            <input type="text" required maxLength={10} value={withdrawAccount} onChange={(e) => setWithdrawAccount(e.target.value)} style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border, #dcebe0)', fontSize: 14 }} />
-          </div>
+          <BankResolutionInput
+            initialBankName={vendor?.payout_bank_name || ''}
+            initialAccountNumber={vendor?.payout_account_number || ''}
+            onChange={setWithdrawBankDetails}
+            disabled={withdrawBusy}
+          />
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
             <button type="button" onClick={() => setWithdrawalModalOpen(false)} style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid var(--border, #dcebe0)', background: '#ffffff', cursor: 'pointer' }}>Cancel</button>
-            <button type="submit" disabled={withdrawBusy} className="btn btn-primary" style={{ padding: '8px 16px' }}>{withdrawBusy ? 'Submitting...' : 'Submit Payout Request'}</button>
+            <button
+              type="submit"
+              disabled={withdrawBusy || !withdrawBankDetails.isVerified}
+              className="btn btn-primary"
+              style={{
+                padding: '8px 16px',
+                opacity: withdrawBusy || !withdrawBankDetails.isVerified ? 0.6 : 1,
+                cursor: withdrawBusy || !withdrawBankDetails.isVerified ? 'not-allowed' : 'pointer'
+              }}
+            >
+              {withdrawBusy ? 'Submitting...' : 'Submit Payout Request'}
+            </button>
           </div>
         </form>
       </Modal>

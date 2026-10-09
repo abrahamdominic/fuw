@@ -6,6 +6,7 @@ interface Props {
   value: string;
   onChange: (v: string) => void;
   onSend: () => void;
+  onTyping?: () => void;
   sending?: boolean;
   placeholder?: string;
   maxLength?: number;
@@ -15,6 +16,7 @@ export function MessageComposer({
   value,
   onChange,
   onSend,
+  onTyping,
   sending = false,
   placeholder = 'Type a message…',
   maxLength = MESSAGE_MAX_LENGTH,
@@ -35,8 +37,9 @@ export function MessageComposer({
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       onChange(e.target.value);
+      onTyping?.();
     },
-    [onChange]
+    [onChange, onTyping]
   );
 
   const handlePaste = useCallback(

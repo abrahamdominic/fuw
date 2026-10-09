@@ -15015,67 +15015,163 @@ button.form-submit-btn:disabled:hover {
 .faq-answer { padding: 0 1.1rem 1rem; font-size: 0.88rem; line-height: 1.65; color: var(--text-soft); }
 .help-announcements { max-width: 860px; margin: 0 auto 2rem; display: flex; flex-direction: column; gap: 0.75rem; padding: 0 1rem; }
 .help-announcement-card {
-  background: #fffdf6;
-  border: 1px solid #efe3bf;
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--border, #e2e8f0);
   border-left-width: 4px;
   border-radius: 12px;
-  padding: 1.05rem 1.25rem 0.95rem;
+  padding: 1.15rem 1.35rem 1.05rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
-.help-announcement-card.type-general      { border-left-color: #64748b; }
-.help-announcement-card.type-maintenance  { border-left-color: #d97706; }
-.help-announcement-card.type-important    { border-left-color: #dc2626; }
-.help-announcement-card.type-system_update{ border-left-color: #2563eb; }
-.help-announcement-card .announcement-card-head { display: flex; align-items: center; gap: 0.5rem; }
+.help-announcement-card.type-general      { border-left-color: #3b82f6; }
+.help-announcement-card.type-maintenance  { border-left-color: #f59e0b; }
+.help-announcement-card.type-important    { border-left-color: #ef4444; }
+.help-announcement-card.type-system_update{ border-left-color: #10b981; }
+.help-announcement-card .announcement-card-head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; }
 .help-announcement-card .announcement-type-tag {
   display: inline-flex;
   align-items: center;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.07em;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   padding: 3px 10px;
   border-radius: 999px;
-  background: rgba(100, 116, 139, 0.12);
-  color: #475569;
+  background: rgba(59, 130, 246, 0.12);
+  color: #1d4ed8;
 }
-.help-announcement-card.type-maintenance .announcement-type-tag { background: rgba(217, 119, 6, 0.13); color: #92400e; }
-.help-announcement-card.type-important .announcement-type-tag { background: rgba(220, 38, 38, 0.12); color: #991b1b; }
-.help-announcement-card.type-system_update .announcement-type-tag { background: rgba(37, 99, 235, 0.12); color: #1e40af; }
+.help-announcement-card.type-maintenance .announcement-type-tag { background: rgba(245, 158, 11, 0.15); color: #b45309; }
+.help-announcement-card.type-important .announcement-type-tag { background: rgba(239, 68, 68, 0.15); color: #b91c1c; }
+.help-announcement-card.type-system_update .announcement-type-tag { background: rgba(16, 185, 129, 0.15); color: #047857; }
 .help-announcement-card .announcement-title {
-  font-size: 1.02rem;
+  font-size: 1.1rem;
   font-weight: 700;
-  line-height: 1.35;
-  color: #3d2f0e;
-  margin: 0.5rem 0 0.55rem;
+  line-height: 1.38;
+  color: var(--text, #0f172a);
+  margin: 0.45rem 0 0.55rem;
 }
-.help-announcement-card .announcement-card-body {
-  color: #4c4022;
-  font-size: 0.9rem;
-  line-height: 1.68;
+.help-announcement-card .announcement-card-body,
+.help-announcement-card .msg-body {
+  font-size: 0.935rem;
+  color: var(--text-secondary, #334155);
+  line-height: 1.7;
 }
-.help-announcement-card .msg-body { font-size: 0.9rem; color: #4c4022; line-height: 1.68; }
 .help-announcement-card .msg-body p { margin: 0 0 0.55rem; }
 .help-announcement-card .msg-body p:last-child { margin-bottom: 0; }
 .help-announcement-card .msg-body ul { margin: 0 0 0.55rem; padding-left: 1.35rem; }
-.help-announcement-card .msg-body a { color: #7a5a10; }
+.help-announcement-card .msg-body a { color: var(--primary, #0B6B3A); text-decoration: underline; font-weight: 500; }
 .help-announcement-card .msg-body .msg-inline-code,
-.help-announcement-card .msg-body .msg-code { background: rgba(122, 90, 16, 0.1); }
+.help-announcement-card .msg-body .msg-code {
+  background: var(--code-bg, rgba(0, 0, 0, 0.06));
+  color: var(--code-text, #0f172a);
+  padding: 0.15rem 0.35rem;
+  border-radius: 4px;
+  font-family: monospace;
+}
 .help-announcement-card .announcement-meta {
   display: flex;
   flex-wrap: wrap;
   gap: 0.6rem;
   align-items: center;
-  margin-top: 0.8rem;
-  padding-top: 0.65rem;
-  border-top: 1px dashed #ecdfb4;
-  font-size: 0.76rem;
-  color: #8a6d1f;
+  margin-top: 0.85rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--border, #e2e8f0);
+  font-size: 0.8rem;
+  color: var(--muted, #64748b);
+  font-weight: 500;
 }
 .help-announcement-card .announcement-meta span + span::before {
   content: '·';
   margin-right: 0.6rem;
-  color: #c9b678;
+  color: var(--muted, #94a3b8);
 }
+
+/* ── Announcement Detail Modal (Student Portal & Feed) ────── */
+.announcement-detail-modal {
+  width: min(620px, 94vw);
+  background: var(--card-bg, #ffffff);
+  color: var(--text, #0f172a);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+.announcement-modal-card {
+  padding: 1.5rem;
+  background: var(--card-bg, #ffffff);
+  color: var(--text, #0f172a);
+}
+.announcement-modal-card .modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border, #e2e8f0);
+  margin-bottom: 1.25rem;
+}
+.announcement-modal-card .modal-header-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+.announcement-modal-card .modal-head-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(11, 107, 58, 0.12);
+  color: var(--primary, #0B6B3A);
+  flex-shrink: 0;
+}
+.announcement-modal-card #announcement-detail-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--text, #0f172a);
+  margin: 0 0 0.25rem;
+}
+.announcement-modal-card .modal-header-sub {
+  font-size: 0.825rem;
+  color: var(--muted, #64748b);
+  margin: 0;
+}
+.announcement-modal-card .modal-body {
+  font-size: 0.95rem;
+  line-height: 1.7;
+  color: var(--text-secondary, #334155);
+  max-height: 65vh;
+  overflow-y: auto;
+  word-break: break-word;
+}
+[data-theme='dark'] .help-announcement-card,
+.dark-theme .help-announcement-card,
+[data-theme='dark'] .announcement-modal-card,
+.dark-theme .announcement-modal-card {
+  background: var(--card-bg, #1e293b);
+  color: var(--text, #f8fafc);
+  border-color: var(--border, #334155);
+}
+[data-theme='dark'] .announcement-modal-card #announcement-detail-title,
+.dark-theme .announcement-modal-card #announcement-detail-title {
+  color: #f8fafc;
+}
+[data-theme='dark'] .announcement-modal-card .modal-body,
+.dark-theme .announcement-modal-card .modal-body,
+[data-theme='dark'] .help-announcement-card .announcement-card-body,
+.dark-theme .help-announcement-card .announcement-card-body,
+[data-theme='dark'] .help-announcement-card .msg-body,
+.dark-theme .help-announcement-card .msg-body {
+  color: var(--text-secondary, #cbd5e1);
+}
+[data-theme='dark'] .help-announcement-card.type-maintenance .announcement-type-tag,
+.dark-theme .help-announcement-card.type-maintenance .announcement-type-tag { color: #fcd34d; background: rgba(245, 158, 11, 0.2); }
+[data-theme='dark'] .help-announcement-card.type-important .announcement-type-tag,
+.dark-theme .help-announcement-card.type-important .announcement-type-tag { color: #fca5a5; background: rgba(239, 68, 68, 0.2); }
+[data-theme='dark'] .help-announcement-card.type-system_update .announcement-type-tag,
+.dark-theme .help-announcement-card.type-system_update .announcement-type-tag { color: #6ee7b7; background: rgba(16, 185, 129, 0.2); }
+[data-theme='dark'] .help-announcement-card.type-general .announcement-type-tag,
+.dark-theme .help-announcement-card.type-general .announcement-type-tag { color: #93c5fd; background: rgba(59, 130, 246, 0.2); }
 .help-services-row { display: flex; flex-wrap: wrap; gap: 1rem; padding: 0 1rem 2rem; }
 .help-service-card { flex: 1; min-width: 240px; background: var(--card-bg, #fff); border: 1px solid var(--border, #e5e9ef); border-radius: 12px; padding: 1.3rem; text-align: center; }
 .help-service-card svg { margin: 0 auto 0.6rem; color: var(--primary, #0B6B3A); }
@@ -17544,4 +17640,75 @@ body[data-theme='dark'],
     transition: none !important;
   }
 }
+
+/* ── Professional Print & PDF Export Rules (Receipts) ────────── */
+@media print {
+  header,
+  footer,
+  nav,
+  aside,
+  .no-print,
+  .receipt-toolbar,
+  .app-header,
+  .app-nav,
+  .student-nav,
+  .mp-nav,
+  .mp-footer,
+  .conv-modal-close,
+  button:not(.printable-btn) {
+    display: none !important;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    font-size: 11pt !important;
+  }
+
+  .receipt-modal-backdrop {
+    position: static !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    inset: auto !important;
+    display: block !important;
+  }
+
+  .receipt-modal-card {
+    position: static !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: #ffffff !important;
+    page-break-inside: avoid !important;
+  }
+
+  .receipt-printable-body {
+    padding: 8mm 12mm !important;
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+    page-break-inside: avoid !important;
+  }
+
+  tr {
+    page-break-inside: avoid !important;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    word-break: normal !important;
+  }
+}
+
 

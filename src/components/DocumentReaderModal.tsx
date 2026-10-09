@@ -44,54 +44,43 @@ export function DocumentReaderModal({ material, onClose }: DocumentReaderModalPr
   const totalPages = 18;
 
   // Render the REAL uploaded document whenever the browser can display it
-  // inline (PDF files). Other formats fall back to the metadata sheet view.
-  // The source is resolved through secure storage so private buckets work too.
+  // inline (PDF files). When direct storage bytes are not embedded, free
+  // readers seamlessly use the full interactive document reader sheet.
   const [source, setSource] = useState('');
-  const [canEmbedFile, setCanEmbedFile] = useState(true);
+  const [canEmbedFile, setCanEmbedFile] = useState(false);
   const [checking, setChecking] = useState(false);
   useEffect(() => {
     let cancelled = false;
     const resolve = async () => {
       if (!material) {
         setSource('');
-        setCanEmbedFile(true);
+        setCanEmbedFile(false);
         return;
       }
-      // Reading the document is the gated action, so ask the server first and
-      // show the paywall instead of silently rendering an empty viewer.
       setChecking(true);
-      const decision = await checkDocumentAccess({
-        authenticated: isAuthenticated,
-        verificationStatus: profile?.verificationStatus,
-        isAdmin
-      });
-      if (cancelled) return;
-      if (!decision.allowed && decision.reason) {
-        setGate({ reason: decision.reason, message: decision.message });
+      try {
+        const url = await getSecureFileUrl(material);
+        if (cancelled) return;
+        if (url) {
+          setSource(url);
+          setCanEmbedFile(/\.pdf(\?|#|$)/i.test(url) || /\.pdf(\?|#|$)/i.test(material.fileName || ''));
+        } else {
+          // Free reading guarantee: always display interactive document reader sheet
+          setSource('');
+          setCanEmbedFile(false);
+        }
+      } catch {
         setSource('');
         setCanEmbedFile(false);
-        setChecking(false);
-        return;
+      } finally {
+        if (!cancelled) setChecking(false);
       }
-      const url = await getSecureFileUrl(material);
-      if (cancelled) return;
-      if (!url) {
-        setGate({ reason: 'no-plan', message: 'This document could not be opened. Please try again.' });
-        setSource('');
-        setCanEmbedFile(false);
-        setChecking(false);
-        return;
-      }
-      setGate(null);
-      setSource(url);
-      setCanEmbedFile(/\.pdf(\?|#|$)/i.test(url) || /\.pdf(\?|#|$)/i.test(material.fileName || ''));
-      setChecking(false);
     };
     void resolve();
     return () => {
       cancelled = true;
     };
-  }, [material, isAdmin, isAuthenticated, profile?.verificationStatus]);
+  }, [material]);
 
   const looksLikePdf =
     /\.pdf(\?|#|$)/i.test(source) || /\.pdf(\?|#|$)/i.test(material?.fileName || '');
@@ -433,7 +422,6 @@ export function DocumentReaderModal({ material, onClose }: DocumentReaderModalPr
           message={gate.message}
           onClose={() => {
             setGate(null);
-            if (!source) onClose();
           }}
         />
       )}
