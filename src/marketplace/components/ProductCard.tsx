@@ -19,8 +19,8 @@ export function getProductFallbackImage(product: Partial<MarketplaceProduct> & {
   const title = (product.title || '').toLowerCase();
   const cat = (product.category_slug || product.category_id || '').toLowerCase();
 
-  if (product.is_service || cat.includes('service') || title.includes('barb') || title.includes('braid') || title.includes('tutor') || title.includes('print')) {
-    return 'https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=600&q=80';
+  if (product.is_service || cat.includes('service') || title.includes('barb') || title.includes('braid') || cat.includes('hair') || cat.includes('styling') || title.includes('tutor') || title.includes('print')) {
+    return 'https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=600&q=80';
   }
   if (cat.includes('book') || cat.includes('academic') || title.includes('book') || title.includes('handout') || title.includes('material') || title.includes('past question')) {
     return 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=600&q=80';
