@@ -405,20 +405,231 @@ const SAMPLE_QUESTION_BANK: CbtQuestion[] = [
     topic: 'Calculus & Chain Rule',
     explanation: 'Applying the chain rule d/dx[ln(u)] = u\'/u, where u = 3x² + 5 and u\' = 6x, gives f\'(x) = 6x / (3x² + 5).',
   },
+  // --- 100L Semester 2 Questions ---
+  {
+    id: 'gst112-1',
+    courseCode: 'GST112',
+    courseTitle: 'Communication in English II',
+    question: 'In formal academic research writing, which citation format standardly utilizes the author-date in-text citation system (e.g. Adebayo, 2024)?',
+    options: {
+      A: 'MLA (Modern Language Association)',
+      B: 'APA (American Psychological Association)',
+      C: 'Chicago Notes and Bibliography',
+      D: 'IEEE Style',
+    },
+    correctOption: 'B',
+    topic: 'Academic Writing & Documentation',
+    explanation: 'The APA style system uses the author-year format (e.g., Adebayo, 2024) for parenthetical in-text citations.',
+  },
+  {
+    id: 'gst112-2',
+    courseCode: 'GST112',
+    courseTitle: 'Communication in English II',
+    question: 'Which core section of a scientific research paper provides a comprehensive synthesis of prior scholarly investigations related to the study problem?',
+    options: {
+      A: 'Methodology',
+      B: 'Literature Review',
+      C: 'Abstract',
+      D: 'Discussion',
+    },
+    correctOption: 'B',
+    topic: 'Research Methodology & Technical Writing',
+    explanation: 'The Literature Review surveys and synthesizes existing academic studies relevant to the research topic to establish context and identify gaps.',
+  },
+  {
+    id: 'gst104-1',
+    courseCode: 'GST104',
+    courseTitle: 'Peace Studies & Conflict Resolution',
+    question: 'In peace and conflict studies, the concept of "Positive Peace" formulated by Johan Galtung denotes:',
+    options: {
+      A: 'The mere absence of direct physical violence or war',
+      B: 'The presence of social justice, equity, harmony, and absence of structural violence',
+      C: 'The unconditional military victory of state armed forces',
+      D: 'The temporary cessation of hostilities under an armistice',
+    },
+    correctOption: 'B',
+    topic: 'Theories of Peace & Violence',
+    explanation: 'While Negative Peace is merely the absence of direct armed warfare, Positive Peace implies the eradication of structural violence, poverty, and institutional injustice.',
+  },
+  {
+    id: 'gst104-2',
+    courseCode: 'GST104',
+    courseTitle: 'Peace Studies & Conflict Resolution',
+    question: 'Which alternative dispute resolution (ADR) mechanism involves a neutral third party facilitating dialogue between disputants to reach a mutually consensual, non-binding agreement?',
+    options: {
+      A: 'Adjudication',
+      B: 'Arbitration',
+      C: 'Mediation',
+      D: 'Litigation',
+    },
+    correctOption: 'C',
+    topic: 'Conflict Resolution Mechanisms',
+    explanation: 'In mediation, a neutral mediator assists parties in reaching an amicable voluntary settlement without imposing a binding ruling on them.',
+  },
+  {
+    id: 'mth102-2',
+    courseCode: 'MTH102',
+    courseTitle: 'Elementary Mathematics II (Calculus)',
+    question: 'Evaluate the definite integral: ∫ from 0 to 2 of (3x² + 2x) dx.',
+    options: {
+      A: '10',
+      B: '12',
+      C: '14',
+      D: '16',
+    },
+    correctOption: 'B',
+    topic: 'Integral Calculus',
+    explanation: 'The antiderivative is [x³ + x²] evaluated from 0 to 2 = (2³ + 2²) - (0 + 0) = (8 + 4) = 12.',
+  },
+  {
+    id: 'mth102-3',
+    courseCode: 'MTH102',
+    courseTitle: 'Elementary Mathematics II (Calculus)',
+    question: 'Evaluate the trigonometric limit: lim (x -> 0) [sin(5x) / x].',
+    options: {
+      A: '0',
+      B: '1',
+      C: '5',
+      D: 'Undefined',
+    },
+    correctOption: 'C',
+    topic: 'Limits & Continuity',
+    explanation: 'Using the fundamental trigonometric limit lim (u -> 0) [sin(u)/u] = 1, lim (x -> 0) [5 * sin(5x)/(5x)] = 5 * 1 = 5.',
+  },
+  {
+    id: 'phy102-1',
+    courseCode: 'PHY102',
+    courseTitle: 'General Physics II (Electricity & Magnetism)',
+    question: 'Two point charges of +2 μC and -4 μC are separated by a distance of 0.2 m in a vacuum. What is the magnitude of the electrostatic force between them? (Coulomb constant k = 9.0 × 10⁹ N m²/C²)',
+    options: {
+      A: '0.9 N',
+      B: '1.8 N',
+      C: '3.6 N',
+      D: '7.2 N',
+    },
+    correctOption: 'B',
+    topic: 'Electrostatics & Coulomb\'s Law',
+    explanation: 'F = k * |q₁ * q₂| / r² = (9.0 × 10⁹ * 2 × 10⁻⁶ * 4 × 10⁻⁶) / (0.2)² = (7.2 × 10⁻²) / 0.04 = 1.8 N.',
+  },
+  {
+    id: 'phy102-2',
+    courseCode: 'PHY102',
+    courseTitle: 'General Physics II (Electricity & Magnetism)',
+    question: 'Three identical capacitors of 6 μF each are connected in series. What is the total equivalent capacitance of the combination?',
+    options: {
+      A: '2 μF',
+      B: '6 μF',
+      C: '12 μF',
+      D: '18 μF',
+    },
+    correctOption: 'A',
+    topic: 'Capacitance & DC Circuits',
+    explanation: 'For capacitors in series, 1/C_eq = 1/C₁ + 1/C₂ + 1/C₃ = 1/6 + 1/6 + 1/6 = 3/6 = 1/2. Hence C_eq = 2 μF.',
+  },
+  {
+    id: 'chm102-2',
+    courseCode: 'CHM102',
+    courseTitle: 'General Chemistry II (Organic Chemistry)',
+    question: 'Which functional group characterizes organic molecules belonging to the aldehyde family?',
+    options: {
+      A: '-COOH',
+      B: '-CHO',
+      C: '-CO- (Carbonyl flanked by carbons)',
+      D: '-OH',
+    },
+    correctOption: 'B',
+    topic: 'Organic Functional Groups',
+    explanation: 'Aldehydes contain a terminal carbonyl group bonded to at least one hydrogen atom (-CHO).',
+  },
+  {
+    id: 'chm102-3',
+    courseCode: 'CHM102',
+    courseTitle: 'General Chemistry II (Organic Chemistry)',
+    question: 'What is the principal organic product obtained when ethanol (CH₃CH₂OH) undergoes acid-catalyzed dehydration with concentrated H₂SO₄ at 170°C?',
+    options: {
+      A: 'Diethyl ether (CH₃CH₂OCH₂CH₃)',
+      B: 'Ethanal (CH₃CHO)',
+      C: 'Ethene (CH₂=CH₂)',
+      D: 'Ethanoic acid (CH₃COOH)',
+    },
+    correctOption: 'C',
+    topic: 'Alcohols & Elimination Reactions',
+    explanation: 'At high temperature (170°C), concentrated sulphuric acid dehydrates ethanol via an E1/E2 elimination reaction to yield ethene gas.',
+  },
+  {
+    id: 'bio102-2',
+    courseCode: 'BIO102',
+    courseTitle: 'General Biology II (Plant & Animal Physiology)',
+    question: 'In vascular plant anatomy, which tissue is primarily responsible for the translocation of manufactured sucrose and amino acids from photosynthetic leaves to sink organs?',
+    options: {
+      A: 'Xylem tracheids',
+      B: 'Phloem sieve tube elements',
+      C: 'Parenchyma',
+      D: 'Collenchyma',
+    },
+    correctOption: 'B',
+    topic: 'Plant Transport Systems',
+    explanation: 'Phloem tissues (specifically sieve tube members and companion cells) transport organic food solutes throughout the plant via bidirectional translocation.',
+  },
+  {
+    id: 'bio102-3',
+    courseCode: 'BIO102',
+    courseTitle: 'General Biology II (Genetics & Evolution)',
+    question: 'In classical Mendelian genetics, a monohybrid cross between two heterozygous individuals (Aa × Aa) produces what expected phenotypic ratio in the F1 generation under complete dominance?',
+    options: {
+      A: '1:2:1',
+      B: '3:1',
+      C: '9:3:3:1',
+      D: '1:1',
+    },
+    correctOption: 'B',
+    topic: 'Mendelian Genetics',
+    explanation: 'The genotypic ratio is 1 AA : 2 Aa : 1 aa, which manifests as a 3 dominant : 1 recessive phenotypic ratio under complete dominance.',
+  },
+  {
+    id: 'cos102-1',
+    courseCode: 'COS102',
+    courseTitle: 'Problem Solving & Programming (Python)',
+    question: 'In Python, which of the following standard sequence data types is immutable once instantiated?',
+    options: {
+      A: 'list',
+      B: 'dict',
+      C: 'tuple',
+      D: 'set',
+    },
+    correctOption: 'C',
+    topic: 'Data Types & Data Structures',
+    explanation: 'Tuples in Python are immutable sequences; their elements cannot be appended, removed, or modified after creation.',
+  },
+  {
+    id: 'cos102-2',
+    courseCode: 'COS102',
+    courseTitle: 'Problem Solving & Programming (Python)',
+    question: 'Evaluate the output of the Python integer arithmetic expression: 17 // 4 + 17 % 4.',
+    options: {
+      A: '4',
+      B: '5',
+      C: '7',
+      D: '8',
+    },
+    correctOption: 'B',
+    topic: 'Operators & Expressions',
+    explanation: 'Integer floor division 17 // 4 yields 4. Modulo operator 17 % 4 yields 1. Adding 4 + 1 results in 5.',
+  },
 ];
 
 export const MockCbtWorkspace: React.FC = () => {
   const { hasPremium, profile } = useAuth();
 
   const [selectedCourse, setSelectedCourse] = useState('ALL');
-  const [selectedDuration, setSelectedDuration] = useState(600); // 10 minutes default
+  const [selectedDuration, setSelectedDuration] = useState(3600); // 60 minutes default
   const [shuffleQuestions, setShuffleQuestions] = useState(true);
   const [examStarted, setExamStarted] = useState(false);
   const [examFinished, setExamFinished] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [userAnswers, setUserAnswers] = useState<{ [id: string]: string }>({});
   const [flaggedQuestions, setFlaggedQuestions] = useState<{ [id: string]: boolean }>({});
-  const [timeLeftSeconds, setTimeLeftSeconds] = useState(600);
+  const [timeLeftSeconds, setTimeLeftSeconds] = useState(3600);
   const [questions, setQuestions] = useState<CbtQuestion[]>(SAMPLE_QUESTION_BANK);
 
   // Filter questions by course preview
@@ -546,16 +757,24 @@ export const MockCbtWorkspace: React.FC = () => {
                 style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #dcebe0', fontSize: 14, background: '#ffffff' }}
               >
                 <option value="ALL">All General Courses (Mix Drill)</option>
-                <option value="GST101">GST 101 - Use of English I</option>
-                <option value="GST102">GST 102 - Philosophy &amp; Logic</option>
-                <option value="GST111">GST 111 - Nigerian Peoples &amp; Culture</option>
-                <option value="MTH101">MTH 101 - General Mathematics I (Algebra &amp; Trig)</option>
-                <option value="PHY101">PHY 101 - General Physics I (Mechanics &amp; Thermal)</option>
-                <option value="CHM101">CHM 101 - General Chemistry I (Inorganic &amp; Physical)</option>
-                <option value="COS101">COS 101 - Intro to Computing Sciences</option>
-                <option value="BIO102">BIO 102 - General Biology II</option>
-                <option value="CHM102">CHM 102 - General Chemistry II</option>
-                <option value="MTH102">MTH 102 - Elementary Mathematics II</option>
+                <optgroup label="100L Semester 1">
+                  <option value="GST101">GST 101 — Use of English I</option>
+                  <option value="GST102">GST 102 — Philosophy &amp; Logic</option>
+                  <option value="GST111">GST 111 — Nigerian Peoples &amp; Culture</option>
+                  <option value="MTH101">MTH 101 — General Mathematics I (Algebra &amp; Trig)</option>
+                  <option value="PHY101">PHY 101 — General Physics I (Mechanics &amp; Thermal)</option>
+                  <option value="CHM101">CHM 101 — General Chemistry I (Inorganic &amp; Physical)</option>
+                  <option value="COS101">COS 101 — Intro to Computing Sciences</option>
+                </optgroup>
+                <optgroup label="100L Semester 2">
+                  <option value="GST112">GST 112 — Communication in English II</option>
+                  <option value="GST104">GST 104 — Peace Studies &amp; Conflict Resolution</option>
+                  <option value="MTH102">MTH 102 — Elementary Mathematics II (Calculus)</option>
+                  <option value="PHY102">PHY 102 — General Physics II (Electricity &amp; Magnetism)</option>
+                  <option value="CHM102">CHM 102 — General Chemistry II (Organic &amp; Physical)</option>
+                  <option value="BIO102">BIO 102 — General Biology II (Botany &amp; Zoology)</option>
+                  <option value="COS102">COS 102 — Problem Solving &amp; Programming (Python)</option>
+                </optgroup>
               </select>
             </div>
 
@@ -568,7 +787,7 @@ export const MockCbtWorkspace: React.FC = () => {
                 onChange={(e) => setSelectedDuration(Number(e.target.value))}
                 style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #dcebe0', fontSize: 14, background: '#ffffff' }}
               >
-                <option value={600}>10 Minutes (Quick Drill)</option>
+                <option value={3600}>60 Minutes (Full Mock)</option>
                 <option value={900}>15 Minutes (Standard Practice)</option>
                 <option value={1200}>20 Minutes (Timed Challenge)</option>
                 <option value={1800}>30 Minutes (Full Exam Simulation)</option>
