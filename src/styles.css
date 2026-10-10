@@ -1993,6 +1993,12 @@ button {
   background: #f0f7f2;
 }
 
+.secondary-btn:focus-visible {
+  outline: 2px solid rgba(31, 106, 69, 0.35);
+  outline-offset: 1px;
+  border-color: #1f6a45;
+}
+
 .portal-top-logout {
   border: 0;
   background: #b91c1c;
@@ -14346,13 +14352,26 @@ button.form-submit-btn:disabled:hover {
   min-width: 0;
 }
 
-.platform-list-meta select {
-  min-height: 36px;
+.platform-list-meta select,
+.platform-select {
+  min-height: 38px;
   border: 1px solid #d3e2d6;
   border-radius: 8px;
   background: #ffffff;
   color: #173f2b;
-  padding: 6px 9px;
+  padding: 7px 10px;
+}
+
+.platform-select {
+  max-width: min(420px, 100%);
+  font: inherit;
+}
+
+.platform-list-meta select:focus-visible,
+.platform-select:focus-visible {
+  outline: 2px solid rgba(31, 106, 69, 0.35);
+  outline-offset: 1px;
+  border-color: #1f6a45;
 }
 
 .platform-icon-link {
@@ -14402,6 +14421,16 @@ button.form-submit-btn:disabled:hover {
   color: #183d2a;
   padding: 10px 11px;
   font: inherit;
+}
+
+.platform-field input:focus-visible,
+.platform-field select:focus-visible,
+.platform-field textarea:focus-visible,
+.campus-inline-form textarea:focus-visible,
+.campus-search:focus-within {
+  outline: 2px solid rgba(31, 106, 69, 0.35);
+  outline-offset: 1px;
+  border-color: #1f6a45;
 }
 
 .platform-field textarea,
@@ -17638,6 +17667,75 @@ body[data-theme='dark'],
   }
   .fuw-welcome-progress-bar {
     transition: none !important;
+  }
+}
+
+/* ── CGPA Forecaster & Course Grade Sandbox (mobile responsive) ── */
+.cgpa-forecaster {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 16px 8px;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.cgpa-course-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 14px;
+  background: #f8faf9;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  box-sizing: border-box;
+}
+
+.cgpa-course-row input,
+.cgpa-course-row select {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.cgpa-course-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.cgpa-course-field select {
+  flex: 1 1 auto;
+  width: 100%;
+}
+
+@media (max-width: 640px) {
+  .cgpa-forecaster {
+    padding: 12px 4px;
+  }
+
+  .cgpa-course-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    gap: 8px;
+    padding: 12px;
+  }
+
+  .cgpa-course-row .cgpa-course-code {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+}
+
+@media (max-width: 360px) {
+  .cgpa-course-field {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+  }
+
+  .cgpa-course-field > span {
+    font-size: 11px;
   }
 }
 

@@ -939,13 +939,16 @@ export function CourseWorkspace({ courses }: { courses: TrackedCourse[] }) {
             <h3>Course workspace</h3>
             <p className="platform-help">Official records and library material for a single course.</p>
           </div>
-          <label className="campus-search">
-            <select value={course.id} onChange={(event) => setCourseId(event.target.value)} aria-label="Choose a course">
-              {active.map((row) => (
-                <option key={row.trackerId} value={row.id}>{row.code} · {row.title}</option>
-              ))}
-            </select>
-          </label>
+          <select
+            className="platform-select"
+            value={course.id}
+            onChange={(event) => setCourseId(event.target.value)}
+            aria-label="Choose a course"
+          >
+            {active.map((row) => (
+              <option key={row.trackerId} value={row.id}>{row.code} · {row.title}</option>
+            ))}
+          </select>
         </div>
         <p className="platform-help">
           <strong>{course.code} · {course.title}</strong> · {course.units ?? '-'} units · {course.level} ·{' '}
