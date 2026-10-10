@@ -116,8 +116,11 @@ export const AdminPortalPage: React.FC = () => {
     allowNewVendors: true,
     paymentsEnabled: true,
     maintenanceMode: false,
-    escrowFeeNaira: '1200',
-    premiumEscrowCreditNaira: '2000',
+    escrowFeeBps: '1.5',
+    escrowFeeMinNaira: '100',
+    escrowFeeMaxNaira: '5000',
+    escrowEnabled: true,
+    premiumEscrowCreditNaira: '500',
     premiumEscrowDiscountPct: '50',
     premiumMarketplaceBenefitsEnabled: true,
     verifiedScholarBadgeEnabled: true,
@@ -182,8 +185,11 @@ export const AdminPortalPage: React.FC = () => {
           allowNewVendors: Boolean(set.allow_new_vendors),
           paymentsEnabled: Boolean(set.payments_enabled),
           maintenanceMode: Boolean(set.maintenance_mode),
-          escrowFeeNaira: String(Math.round((set.escrow_fee_kobo ?? 120000) / 100)),
-          premiumEscrowCreditNaira: String(Math.round((set.premium_escrow_credit_kobo ?? 200000) / 100)),
+          escrowFeeBps: String((set.escrow_fee_bps ?? 150) / 100),
+          escrowFeeMinNaira: String(Math.round((set.escrow_fee_min_kobo ?? 10000) / 100)),
+          escrowFeeMaxNaira: String(Math.round((set.escrow_fee_max_kobo ?? 500000) / 100)),
+          escrowEnabled: set.escrow_enabled !== false,
+          premiumEscrowCreditNaira: String(Math.round((set.premium_escrow_credit_kobo ?? 50000) / 100)),
           premiumEscrowDiscountPct: String(set.premium_escrow_discount_pct ?? 50),
           premiumMarketplaceBenefitsEnabled: set.premium_marketplace_benefits_enabled !== false,
           verifiedScholarBadgeEnabled: set.verified_scholar_badge_enabled !== false,
@@ -341,7 +347,9 @@ export const AdminPortalPage: React.FC = () => {
     const autoConfirm = parseInt(settingsForm.autoConfirmHours, 10);
     const settlementDelay = parseInt(settingsForm.settlementDelayHours, 10);
     const returnWindow = parseInt(settingsForm.returnWindowHours, 10);
-    const escrowFeeKobo = Math.round(parseFloat(settingsForm.escrowFeeNaira || '0') * 100);
+    const escrowFeeBps = Math.round(parseFloat(settingsForm.escrowFeeBps || '0') * 100);
+    const escrowFeeMinKobo = Math.round(parseFloat(settingsForm.escrowFeeMinNaira || '0') * 100);
+    const escrowFeeMaxKobo = Math.round(parseFloat(settingsForm.escrowFeeMaxNaira || '0') * 100);
     const premiumCreditKobo = Math.round(parseFloat(settingsForm.premiumEscrowCreditNaira || '0') * 100);
     const premiumDiscountPct = parseInt(settingsForm.premiumEscrowDiscountPct || '50', 10);
 
@@ -357,8 +365,12 @@ export const AdminPortalPage: React.FC = () => {
       toast('Minimum withdrawal cannot be negative', 'error');
       return;
     }
-    if (isNaN(escrowFeeKobo) || escrowFeeKobo < 0) {
-      toast('Escrow fee cannot be negative', 'error');
+    if (isNaN(escrowFeeBps) || escrowFeeBps < 0 || escrowFeeBps > 5000) {
+      toast('Escrow fee percentage must be between 0% and 50%', 'error');
+      return;
+    }
+    if (isNaN(escrowFeeMinKobo) || escrowFeeMinKobo < 0 || isNaN(escrowFeeMaxKobo) || escrowFeeMaxKobo < escrowFeeMinKobo) {
+      toast('Escrow fee bounds are invalid (minimum ≥ 0 and maximum ≥ minimum)', 'error');
       return;
     }
     if (isNaN(premiumCreditKobo) || premiumCreditKobo < 0) {
@@ -384,7 +396,10 @@ export const AdminPortalPage: React.FC = () => {
         allow_new_vendors: settingsForm.allowNewVendors,
         payments_enabled: settingsForm.paymentsEnabled,
         maintenance_mode: settingsForm.maintenanceMode,
-        escrow_fee_kobo: escrowFeeKobo,
+        escrow_fee_bps: escrowFeeBps,
+        escrow_fee_min_kobo: escrowFeeMinKobo,
+        escrow_fee_max_kobo: escrowFeeMaxKobo,
+        escrow_enabled: settingsForm.escrowEnabled,
         premium_escrow_credit_kobo: premiumCreditKobo,
         premium_escrow_discount_pct: premiumDiscountPct,
         premium_marketplace_benefits_enabled: settingsForm.premiumMarketplaceBenefitsEnabled,
@@ -731,7 +746,7 @@ export const AdminPortalPage: React.FC = () => {
                   </span>
                 </div>
                 <span style={{ padding: '4px 10px', borderRadius: 999, background: '#e8f5ec', color: '#12603d', fontSize: 12, fontWeight: 700 }}>
-                  ₦1,200/Semester Model Active
+                  {((settings?.escrow_fee_bps ?? 150) / 100).toFixed(2).replace(/\.00$/, '')}% Escrow Fee Model Active
                 </span>
               </div>
 
@@ -740,6 +755,20 @@ export const AdminPortalPage: React.FC = () => {
                   <span style={{ fontSize: 12, color: 'var(--text-secondary, #55675b)', display: 'block', marginBottom: 4 }}>Escrow Fees Collected</span>
                   <strong style={{ fontSize: 20, color: '#0d4a2f' }}>
                     {formatNaira(escrowAnalytics.total_escrow_fees_collected_kobo)}
+                  </strong>
+                </div>
+
+                <div style={{ background: 'var(--surface-alt, #f7faf8)', padding: 14, borderRadius: 10, border: '1px solid var(--border, #dcebe0)' }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-secondary, #55675b)', display: 'block', marginBottom: 4 }}>Escrow Fees Recognised</span>
+                  <strong style={{ fontSize: 20, color: '#047857' }}>
+                    {formatNaira(escrowAnalytics.total_escrow_fee_recognised_kobo ?? 0)}
+                  </strong>
+                </div>
+
+                <div style={{ background: 'var(--surface-alt, #f7faf8)', padding: 14, borderRadius: 10, border: '1px solid var(--border, #dcebe0)' }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-secondary, #55675b)', display: 'block', marginBottom: 4 }}>Escrow Fees Refunded</span>
+                  <strong style={{ fontSize: 20, color: '#b45309' }}>
+                    {formatNaira(escrowAnalytics.total_escrow_fee_refunded_kobo ?? 0)}
                   </strong>
                 </div>
 
@@ -1282,18 +1311,51 @@ export const AdminPortalPage: React.FC = () => {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 14 }}>
                 <div>
                   <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-                    Standard Escrow Fee (₦)
+                    Escrow Fee Rate (%)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="50"
+                    required
+                    value={settingsForm.escrowFeeBps}
+                    onChange={(e) => setSettingsForm({ ...settingsForm, escrowFeeBps: e.target.value })}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border, #dcebe0)', fontSize: 14 }}
+                  />
+                  <small style={{ color: 'var(--text-secondary, #55675b)', fontSize: 11 }}>Charge on goods subtotal (default 1.5%)</small>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                    Minimum Escrow Fee (₦)
                   </label>
                   <input
                     type="number"
                     step="50"
                     min="0"
                     required
-                    value={settingsForm.escrowFeeNaira}
-                    onChange={(e) => setSettingsForm({ ...settingsForm, escrowFeeNaira: e.target.value })}
+                    value={settingsForm.escrowFeeMinNaira}
+                    onChange={(e) => setSettingsForm({ ...settingsForm, escrowFeeMinNaira: e.target.value })}
                     style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border, #dcebe0)', fontSize: 14 }}
                   />
-                  <small style={{ color: 'var(--text-secondary, #55675b)', fontSize: 11 }}>Default fee per transaction (₦1,200)</small>
+                  <small style={{ color: 'var(--text-secondary, #55675b)', fontSize: 11 }}>Floor per transaction (default ₦100)</small>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                    Maximum Escrow Fee (₦)
+                  </label>
+                  <input
+                    type="number"
+                    step="50"
+                    min="0"
+                    required
+                    value={settingsForm.escrowFeeMaxNaira}
+                    onChange={(e) => setSettingsForm({ ...settingsForm, escrowFeeMaxNaira: e.target.value })}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border, #dcebe0)', fontSize: 14 }}
+                  />
+                  <small style={{ color: 'var(--text-secondary, #55675b)', fontSize: 11 }}>Cap per transaction (default ₦5,000)</small>
                 </div>
 
                 <div>
@@ -1309,7 +1371,7 @@ export const AdminPortalPage: React.FC = () => {
                     onChange={(e) => setSettingsForm({ ...settingsForm, premiumEscrowCreditNaira: e.target.value })}
                     style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border, #dcebe0)', fontSize: 14 }}
                   />
-                  <small style={{ color: 'var(--text-secondary, #55675b)', fontSize: 11 }}>Credit granted per subscription period (₦2,000)</small>
+                  <small style={{ color: 'var(--text-secondary, #55675b)', fontSize: 11 }}>Credit granted per subscription period (₦500)</small>
                 </div>
 
                 <div>
@@ -1333,10 +1395,19 @@ export const AdminPortalPage: React.FC = () => {
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, cursor: 'pointer' }}>
                   <input
                     type="checkbox"
+                    checked={settingsForm.escrowEnabled}
+                    onChange={(e) => setSettingsForm({ ...settingsForm, escrowEnabled: e.target.checked })}
+                  />
+                  <span><strong>Enable Escrow Protection Fee:</strong> Charges the buyer a fee on the goods subtotal. Disable to waive escrow fees entirely.</span>
+                </label>
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
                     checked={settingsForm.premiumMarketplaceBenefitsEnabled}
                     onChange={(e) => setSettingsForm({ ...settingsForm, premiumMarketplaceBenefitsEnabled: e.target.checked })}
                   />
-                  <span><strong>Enable Premium Escrow Benefits:</strong> Grants ₦2,000 escrow credit &amp; 50% discount to Premium members.</span>
+                  <span><strong>Enable Premium Escrow Benefits:</strong> Grants ₦500 escrow credit &amp; 50% discount to Premium members.</span>
                 </label>
 
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, cursor: 'pointer' }}>

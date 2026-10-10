@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useLocation, Navigate } from 'react-router-dom';
+import { useNavigate, useLocation, Navigate, Link } from 'react-router-dom';
 import {
   AlertCircle,
   ArrowLeft,
@@ -691,6 +691,7 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
     if (role === 'super_admin') navigate('/super', { replace: true });
     else if (role === 'admin') navigate('/admin', { replace: true });
     else if (role === 'lecturer') navigate('/lecturer', { replace: true });
+    else if (role === 'landlord' || role === 'caretaker') navigate('/provider', { replace: true });
     else navigate('/hub', { replace: true });
   };
 
@@ -712,6 +713,8 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
         navigate('/admin', { replace: true });
       } else if (profile.role === 'lecturer') {
         navigate('/lecturer', { replace: true });
+      } else if (profile.role === 'landlord' || profile.role === 'caretaker') {
+        navigate('/provider', { replace: true });
       } else {
         navigate('/hub', { replace: true });
       }
@@ -1044,7 +1047,9 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
           ? '/admin'
           : profile.role === 'lecturer'
             ? '/lecturer'
-            : '/hub';
+            : profile.role === 'landlord' || profile.role === 'caretaker'
+              ? '/provider'
+              : '/hub';
     const dest = fromPath && fromPath !== '/login' && fromPath !== '/register' && fromPath !== '/' ? fromPath : defaultTarget;
     return <Navigate to={dest} replace />;
   }
@@ -1484,6 +1489,11 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
             <span className="mac-btn-ghost-text">Already registered at FUW?</span>
             <span className="mac-btn-ghost-action">Sign in to your portal</span>
           </button>
+
+          <Link to="/register/provider" className="mac-btn mac-btn-ghost">
+            <span className="mac-btn-ghost-text">Own a lodge or manage one?</span>
+            <span className="mac-btn-ghost-action">Register as Landlord or Caretaker</span>
+          </Link>
         </MacCard>
       )}
 

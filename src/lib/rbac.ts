@@ -2,7 +2,7 @@
 // These MUST stay in sync with the `app_role` enum and permission arrays
 // defined in supabase/migrations (see is_admin()/has_permission() SQL).
 
-export type AppRole = 'student' | 'lecturer' | 'admin' | 'super_admin';
+export type AppRole = 'student' | 'lecturer' | 'admin' | 'super_admin' | 'landlord' | 'caretaker';
 
 export interface PermissionDef {
   key: string;
@@ -140,6 +140,19 @@ export function isLecturerRole(role: string | null | undefined): boolean {
   return role === 'lecturer';
 }
 
+export function isLandlordRole(role: string | null | undefined): boolean {
+  return role === 'landlord';
+}
+
+export function isCaretakerRole(role: string | null | undefined): boolean {
+  return role === 'caretaker';
+}
+
+/** A landlord or a caretaker — both use the accommodation provider portal. */
+export function isProviderRole(role: string | null | undefined): boolean {
+  return role === 'landlord' || role === 'caretaker';
+}
+
 export function can(
   profile: { role?: AppRole | string | null; permissions?: string[] | null; isActive?: boolean } | null,
   permission: string
@@ -160,6 +173,10 @@ export function roleLabel(role: string | null | undefined): string {
       return 'Lecturer';
     case 'student':
       return 'Student';
+    case 'landlord':
+      return 'Landlord';
+    case 'caretaker':
+      return 'Caretaker';
     default:
       return 'Member';
   }

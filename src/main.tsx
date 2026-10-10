@@ -31,6 +31,9 @@ const ResetPasswordPage = lazy(() =>
 );
 const AdminLoginPage = lazy(() => import('./pages/PublicPages').then((m) => ({ default: m.AdminLoginPage })));
 const AuthPage = lazy(() => import('./pages/AuthScreens').then((m) => ({ default: m.AuthPage })));
+const LandlordLoginPage = lazy(() =>
+  import('./pages/LandlordLoginPage').then((m) => ({ default: m.LandlordLoginPage }))
+);
 const StudentPortal = lazy(() => import('./pages/StudentPortal').then((m) => ({ default: m.StudentPortal })));
 const LecturerPortal = lazy(() => import('./pages/LecturerPortal').then((m) => ({ default: m.LecturerPortal })));
 const AdminPortal = lazy(() => import('./pages/AdminPortal').then((m) => ({ default: m.AdminPortal })));
@@ -82,6 +85,12 @@ const AccommodationPage = lazy(() =>
 );
 const AccommodationDetailPage = lazy(() =>
   import('./pages/AccommodationDetailPage').then((m) => ({ default: m.AccommodationDetailPage }))
+);
+const ProviderRegisterPage = lazy(() =>
+  import('./pages/ProviderRegisterPage').then((m) => ({ default: m.ProviderRegisterPage }))
+);
+const AccommodationPortal = lazy(() =>
+  import('./pages/AccommodationPortal').then((m) => ({ default: m.AccommodationPortal }))
 );
 const RoommateFinderPage = lazy(() =>
   import('./pages/RoommateFinderPage').then((m) => ({ default: m.RoommateFinderPage }))
@@ -236,11 +245,13 @@ function RootRedirect() {
   const { isLoading, isAuthenticated, profile, role, onboardingCompleted } = useAuth();
   if (isLoading || (isAuthenticated && !profile)) return <BootFallback label="Restoring your session" />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
-  if (!onboardingCompleted && role !== 'admin' && role !== 'super_admin') return <Navigate to="/onboarding" replace />;
+  const isProvider = role === 'landlord' || role === 'caretaker';
+  if (!onboardingCompleted && !isProvider && role !== 'admin' && role !== 'super_admin') return <Navigate to="/onboarding" replace />;
   const destination =
     role === 'super_admin' ? '/super' :
     role === 'admin' ? '/admin' :
     role === 'lecturer' ? '/lecturer' :
+    isProvider ? '/provider' :
     '/student';
   return <Navigate to={destination} replace />;
 }
@@ -323,8 +334,10 @@ export function App() {
             {/* Public auth routes — the only pages unauthenticated visitors see */}
             <Route path="/login" element={<AuthPage initialMode="login" />} />
             <Route path="/register" element={<AuthPage initialMode="register" />} />
+            <Route path="/register/provider" element={<ProviderRegisterPage />} />
             <Route path="/forgot-password" element={<AuthPage initialMode="forgot" />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/landlord-login" element={<LandlordLoginPage />} />
             <Route path="/admin/login" element={<AdminLoginPage />} />
             <Route path="/super/login" element={<AdminLoginPage />} />
 
@@ -357,6 +370,18 @@ export function App() {
                 <RequireAuth>
                   <ProtectedRoute lecturerOnly>
                     <LecturerPortal onReadOnline={handleReadOnline} />
+                  </ProtectedRoute>
+                </RequireAuth>
+              }
+            />
+
+            {/* Protected Landlord / Caretaker Accommodation Portal */}
+            <Route
+              path="/provider/*"
+              element={
+                <RequireAuth>
+                  <ProtectedRoute providerOnly>
+                    <AccommodationPortal />
                   </ProtectedRoute>
                 </RequireAuth>
               }

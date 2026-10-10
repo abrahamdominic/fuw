@@ -29,6 +29,7 @@ export interface DigitalReceiptModalProps {
   items: ReceiptItem[];
   subtotalKobo: number;
   deliveryFeeKobo?: number;
+  escrowFeeKobo?: number;
   totalKobo: number;
   receiptSubtitle?: string;
 }
@@ -50,6 +51,7 @@ export const DigitalReceiptModal: React.FC<DigitalReceiptModalProps> = ({
   items,
   subtotalKobo,
   deliveryFeeKobo = 0,
+  escrowFeeKobo = 0,
   totalKobo,
   receiptSubtitle,
 }) => {
@@ -360,6 +362,10 @@ export const DigitalReceiptModal: React.FC<DigitalReceiptModalProps> = ({
             <div style={{ display: 'flex', justifyContent: 'space-between', color: '#55675b' }}>
               <span>Campus Delivery Fee:</span>
               <span>{deliveryFeeKobo > 0 ? formatNaira(deliveryFeeKobo) : 'Free / Self-Pickup'}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#55675b' }}>
+              <span>Escrow Protection Fee:</span>
+              <span>{escrowFeeKobo > 0 ? formatNaira(escrowFeeKobo) : '₦0'}</span>
             </div>
             <div
               style={{

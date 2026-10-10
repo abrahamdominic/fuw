@@ -245,7 +245,7 @@ export const BankResolutionInput: React.FC<BankResolutionInputProps> = ({
             color: 'var(--text-primary, #17231d)'
           }}
         >
-          10-Digit NUBAN Account Number *
+          10-Digit Account Number *
         </label>
         <div style={{ position: 'relative' }}>
           <input

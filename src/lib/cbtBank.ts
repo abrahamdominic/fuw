@@ -27,7 +27,7 @@ function mapRow(row: any): CbtBankQuestion {
   return {
     id: String(row.id),
     courseCode: row.course_code,
-    courseTitle: row.course_title || courseTitleByCode(row.course_code) || row.course_code,
+    courseTitle: courseTitleByCode(row.course_code) || row.course_title || row.course_code,
     question: row.question,
     options: (row.options || {}) as Record<string, string>,
     correctOption: row.correct_option,
@@ -64,7 +64,7 @@ export async function fetchCbtCourses(): Promise<CbtBankCourse[]> {
       counts.set(code, {
         courseCode: code,
         courseTitle:
-          (row as any).course_title || courseTitleByCode(code) || code,
+          courseTitleByCode(code) || (row as any).course_title || code,
         count: 1,
       });
     }

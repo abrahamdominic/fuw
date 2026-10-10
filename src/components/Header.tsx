@@ -32,7 +32,7 @@ export function Header() {
   const navigate = useNavigate();
   const store = useStore();
   const { toast } = useToast();
-  const { isAuthenticated, isAdmin, isLecturer, profile, user, signOut } = useAuth();
+  const { isAuthenticated, isAdmin, isLecturer, isProvider, profile, user, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
   // Keyboard shortcut Cmd/Ctrl + K for Global Campus Search
@@ -152,6 +152,11 @@ export function Header() {
                   <GraduationCap size={14} />
                   <span>Lecturer ({displayName})</span>
                 </Link>
+              ) : isProvider ? (
+                <Link className="portal-pill-link provider-pill" to="/provider" title="Landlord & Caretaker Portal">
+                  <Home size={14} />
+                  <span>Portal ({displayName})</span>
+                </Link>
               ) : (
                 <Link className="portal-pill-link" to="/student" title="Student Learning Dashboard">
                   <LayoutDashboard size={14} />
@@ -264,6 +269,11 @@ export function Header() {
                   <Link to="/lecturer" className="mobile-portal-btn lecturer">
                     <GraduationCap size={17} />
                     <span>Open Lecturer Portal</span>
+                  </Link>
+                ) : isProvider ? (
+                  <Link to="/provider" className="mobile-portal-btn provider">
+                    <Home size={17} />
+                    <span>Open Landlord &amp; Caretaker Portal</span>
                   </Link>
                 ) : (
                   <Link to="/student" className="mobile-portal-btn student">

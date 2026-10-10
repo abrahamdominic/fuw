@@ -507,6 +507,7 @@ export const OrdersPage: React.FC = () => {
           }))}
           subtotalKobo={receiptModalOrder.subtotal_kobo}
           deliveryFeeKobo={receiptModalOrder.delivery_fee_kobo}
+          escrowFeeKobo={receiptModalOrder.escrow_fee_kobo ?? 0}
           totalKobo={receiptModalOrder.total_kobo}
         />
       )}

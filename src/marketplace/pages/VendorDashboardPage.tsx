@@ -1468,6 +1468,33 @@ export const VendorDashboardPage: React.FC = () => {
           )}
 
           <div>
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Fulfilment Options</label>
+            <select value={prodFulfilment} onChange={(e) => setProdFulfilment(e.target.value as 'pickup' | 'delivery' | 'both')} style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border, #dcebe0)', fontSize: 14, background: '#ffffff' }}>
+              <option value="both">Campus Delivery &amp; Pickup</option>
+              <option value="delivery">Campus Delivery Only</option>
+              <option value="pickup">Campus Pickup Only</option>
+            </select>
+          </div>
+
+          {prodFulfilment !== 'pickup' && (
+            <div>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Delivery Fee (₦)</label>
+              <input
+                type="number"
+                min="0"
+                step="any"
+                value={prodDeliveryFee}
+                onChange={(e) => setProdDeliveryFee(e.target.value)}
+                placeholder="e.g. 500"
+                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border, #dcebe0)', fontSize: 14 }}
+              />
+              <small style={{ color: 'var(--text-secondary, #55675b)', fontSize: 11, display: 'block', marginTop: 4 }}>
+                Buyers pay this once per order when they choose campus delivery. Set 0 for free delivery. Ignored for pickup-only listings.
+              </small>
+            </div>
+          )}
+
+          <div>
             <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Description *</label>
             <textarea rows={3} required value={prodDesc} onChange={(e) => setProdDesc(e.target.value)} placeholder="Provide full details, specifications, warranty, condition notes..." style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border, #dcebe0)', fontSize: 14 }} />
           </div>

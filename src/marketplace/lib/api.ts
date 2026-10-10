@@ -1349,7 +1349,13 @@ export async function updatePlatformSettings(input: {
   allow_new_vendors?: boolean;
   payments_enabled?: boolean;
   maintenance_mode?: boolean;
+  /** @deprecated Legacy flat escrow fee; use escrow_fee_bps/min/max. */
   escrow_fee_kobo?: number;
+  escrow_fee_bps?: number;
+  escrow_fee_min_kobo?: number;
+  escrow_fee_max_kobo?: number;
+  escrow_fee_currency?: string;
+  escrow_enabled?: boolean;
   premium_escrow_credit_kobo?: number;
   premium_escrow_discount_pct?: number;
   premium_marketplace_benefits_enabled?: boolean;
@@ -1369,6 +1375,11 @@ export async function updatePlatformSettings(input: {
     p_payments_enabled: input.payments_enabled ?? null,
     p_maintenance_mode: input.maintenance_mode ?? null,
     p_escrow_fee_kobo: input.escrow_fee_kobo ?? null,
+    p_escrow_fee_bps: input.escrow_fee_bps ?? null,
+    p_escrow_fee_min_kobo: input.escrow_fee_min_kobo ?? null,
+    p_escrow_fee_max_kobo: input.escrow_fee_max_kobo ?? null,
+    p_escrow_fee_currency: input.escrow_fee_currency ?? null,
+    p_escrow_enabled: input.escrow_enabled ?? null,
     p_premium_escrow_credit_kobo: input.premium_escrow_credit_kobo ?? null,
     p_premium_escrow_discount_pct: input.premium_escrow_discount_pct ?? null,
     p_premium_marketplace_benefits_enabled: input.premium_marketplace_benefits_enabled ?? null,
@@ -1725,6 +1736,8 @@ export interface AdminEscrowAnalytics {
   total_escrow_credit_remaining_kobo: number;
   total_discounts_applied_kobo: number;
   total_escrow_fees_collected_kobo: number;
+  total_escrow_fee_recognised_kobo: number;
+  total_escrow_fee_refunded_kobo: number;
   total_subscribers_with_credit: number;
   total_orders_benefiting: number;
 }

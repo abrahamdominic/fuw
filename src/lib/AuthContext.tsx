@@ -72,6 +72,12 @@ export interface AuthContextType {
   isSuperAdmin: boolean;
   isLecturer: boolean;
   isStudent: boolean;
+  /** Owns accommodation listings (the accommodation portal). */
+  isLandlord: boolean;
+  /** Manages properties assigned by a landlord. */
+  isCaretaker: boolean;
+  /** A landlord or a caretaker — either may open the accommodation portal. */
+  isProvider: boolean;
   isProfileComplete: boolean;
   onboardingCompleted: boolean;
   onboardingStep: number;
@@ -1255,6 +1261,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isAdmin = role === 'admin' || isSuperAdmin;
   const isLecturer = role === 'lecturer';
   const isStudent = role === 'student';
+  const isLandlord = role === 'landlord';
+  const isCaretaker = role === 'caretaker';
+  const isProvider = isLandlord || isCaretaker;
   const permissions = profile?.permissions ?? [];
   const hasPermission = (permission: string) =>
     can({ role, permissions, isActive: profile?.isActive !== false }, permission);
@@ -1330,6 +1339,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isSuperAdmin,
       isLecturer,
       isStudent,
+      isLandlord,
+      isCaretaker,
+      isProvider,
       isProfileComplete,
       onboardingCompleted,
       onboardingStep,
@@ -1353,7 +1365,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       hasPremium,
       refreshEntitlement
     }),
-    [user, session, profile, isLoading, isAuthenticated, isAdmin, isSuperAdmin, isLecturer, isStudent, isProfileComplete, onboardingCompleted, onboardingStep, setOnboardingState, role, permissions, mfaRequired, mfaVerifiedFactor, plan, hasPremium, refreshEntitlement]
+    [user, session, profile, isLoading, isAuthenticated, isAdmin, isSuperAdmin, isLecturer, isStudent, isLandlord, isCaretaker, isProvider, isProfileComplete, onboardingCompleted, onboardingStep, setOnboardingState, role, permissions, mfaRequired, mfaVerifiedFactor, plan, hasPremium, refreshEntitlement]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

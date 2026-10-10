@@ -18,6 +18,9 @@ interface ConfirmDialogProps extends ConfirmDialogState {
   icon?: React.ComponentType<{ size?: number | string }>;
   /** Optional icon rendered inside the confirmation button. */
   confirmIcon?: React.ComponentType<{ size?: number | string }>;
+  /** Disables the buttons while an async confirm is in flight. */
+  busy?: boolean;
+  confirmBusyLabel?: string;
 }
 
 /**
@@ -35,7 +38,9 @@ export function ConfirmDialog({
   onConfirm,
   onClose,
   icon: HeaderIcon,
-  confirmIcon: ConfirmIcon
+  confirmIcon: ConfirmIcon,
+  busy = false,
+  confirmBusyLabel = 'Working…'
 }: ConfirmDialogProps) {
   const BubbleIcon = HeaderIcon || AlertTriangle;
 
@@ -57,16 +62,17 @@ export function ConfirmDialog({
       <h3 id="confirm-dialog-title">{title}</h3>
       <p className="confirm-dialog-message">{message}</p>
       <div className="confirm-dialog-actions">
-        <button type="button" className="btn-secondary" onClick={onClose}>
+        <button type="button" className="btn-secondary" onClick={onClose} disabled={busy}>
           {cancelLabel}
         </button>
         <button
           type="button"
           className={tone === 'danger' ? 'btn-danger' : 'btn-primary'}
           onClick={handleConfirm}
+          disabled={busy}
         >
           {ConfirmIcon && <ConfirmIcon size={16} />}
-          {confirmLabel}
+          {busy ? confirmBusyLabel : confirmLabel}
         </button>
       </div>
     </AnimatedModal>

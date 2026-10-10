@@ -30,6 +30,7 @@ import {
   type EscrowPreviewResult,
 } from '../lib/api';
 import { formatNaira } from '../lib/format';
+import { computeEscrowFeeKobo } from '../lib/escrowFee';
 import type { MarketplaceAddress, MarketplaceWallet } from '../lib/types';
 import { Skeleton } from '../components/Skeleton';
 import { mpPath, PLATFORM_PATHS } from '../lib/routes';
@@ -58,6 +59,7 @@ interface CompletedOrderSnapshot {
   }>;
   subtotalKobo: number;
   deliveryFeeKobo: number;
+  escrowFeeKobo: number;
   totalKobo: number;
   recipientName: string;
   phone: string;
@@ -324,6 +326,7 @@ export const CheckoutPage: React.FC = () => {
             }))}
             subtotalKobo={orderSnapshot.subtotalKobo}
             deliveryFeeKobo={orderSnapshot.deliveryFeeKobo}
+            escrowFeeKobo={orderSnapshot.escrowFeeKobo}
             totalKobo={orderSnapshot.totalKobo}
           />
         )}
@@ -334,7 +337,10 @@ export const CheckoutPage: React.FC = () => {
   const totalDeliveryFee = deliveryType === 'delivery'
     ? groupedByVendor.reduce((acc, g) => acc + g.deliveryFeeKobo, 0)
     : 0;
-  const escrowFeeKobo = escrowPreview ? escrowPreview.final_escrow_fee_kobo : 120000;
+  // Server is authoritative; this estimate only covers the moment before the
+  // preview resolves (or if it errors), so the total never understates the fee.
+  const estimatedEscrowFeeKobo = escrowPreview?.normal_escrow_fee_kobo ?? computeEscrowFeeKobo(subtotalKobo);
+  const escrowFeeKobo = escrowPreview ? escrowPreview.final_escrow_fee_kobo : estimatedEscrowFeeKobo;
   const grandTotal = subtotalKobo + totalDeliveryFee + escrowFeeKobo;
 
   // A wallet payment is only offered when one balance covers the whole basket.
@@ -430,6 +436,7 @@ export const CheckoutPage: React.FC = () => {
         })),
         subtotalKobo,
         deliveryFeeKobo: totalDeliveryFee,
+        escrowFeeKobo,
         totalKobo: grandTotal,
         recipientName: recipientName.trim(),
         phone: phone.trim(),
@@ -922,7 +929,7 @@ export const CheckoutPage: React.FC = () => {
                     <ShieldCheck size={14} color="var(--green-800, #12603d)" />
                     Marketplace Escrow
                   </span>
-                  <span>{formatNaira(escrowPreview?.normal_escrow_fee_kobo ?? 120000)}</span>
+                  <span>{formatNaira(estimatedEscrowFeeKobo)}</span>
                 </div>
 
                 {escrowPreview?.is_premium && (escrowPreview?.credit_applied_kobo ?? 0) > 0 && (
@@ -967,7 +974,13 @@ export const CheckoutPage: React.FC = () => {
             {/* Escrow note */}
             <div style={{ padding: 12, borderRadius: 8, background: '#f4f8f5', border: '1px solid var(--border, #dcebe0)', fontSize: 12, color: 'var(--green-900, #0d4a2f)', display: 'flex', alignItems: 'center', gap: 8 }}>
               <ShieldCheck size={20} color="var(--green-800, #12603d)" style={{ flexShrink: 0 }} />
-              <span>Once your payment is verified, it is held until you confirm delivery. You can open a dispute if anything is wrong.</span>
+              <span>
+                The escrow protection fee is calculated on the goods subtotal only (minimum ₦100, maximum ₦5,000)
+                and never on delivery. It is held in escrow alongside your payment, so your money is only released
+                to the seller after you confirm delivery — and the fee is refunded to you in full if the order is
+                cancelled or refunded. Once your payment is verified, it is held until you confirm delivery. You can
+                open a dispute if anything is wrong.
+              </span>
             </div>
 
             <button

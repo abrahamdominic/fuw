@@ -240,6 +240,7 @@ export interface MarketplaceOrder {
   status: OrderStatus;
   subtotal_kobo: number;
   delivery_fee_kobo: number;
+  escrow_fee_kobo?: number;
   platform_fee_kobo: number;
   total_kobo: number;
   vendor_payout_kobo: number;
@@ -638,7 +639,13 @@ export interface PlatformSettings {
   payment_channels: string[];
   payment_provider: string;
   payments_enabled: boolean;
+  /** @deprecated Legacy flat escrow fee. Superseded by escrow_fee_bps/min/max. */
   escrow_fee_kobo?: number;
+  escrow_fee_bps?: number;
+  escrow_fee_min_kobo?: number;
+  escrow_fee_max_kobo?: number;
+  escrow_fee_currency?: string;
+  escrow_enabled?: boolean;
   premium_escrow_credit_kobo?: number;
   premium_escrow_discount_pct?: number;
   premium_marketplace_benefits_enabled?: boolean;

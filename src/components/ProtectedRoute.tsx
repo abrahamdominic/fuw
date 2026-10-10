@@ -13,6 +13,8 @@ interface ProtectedRouteProps {
   lecturerOnly?: boolean;
   /** Requires a student account (used by the /student portal). */
   studentOnly?: boolean;
+  /** Requires a landlord or caretaker account (used by the /provider portal). */
+  providerOnly?: boolean;
 }
 
 export function ProtectedRoute({
@@ -20,9 +22,10 @@ export function ProtectedRoute({
   adminOnly = false,
   superAdminOnly = false,
   lecturerOnly = false,
-  studentOnly = false
+  studentOnly = false,
+  providerOnly = false
 }: ProtectedRouteProps) {
-  const { user, profile, isLoading, isAuthenticated, isAdmin, isSuperAdmin, isLecturer, refreshProfile, signOut } = useAuth();
+  const { user, profile, isLoading, isAuthenticated, isAdmin, isSuperAdmin, isLecturer, isProvider, refreshProfile, signOut } = useAuth();
   const location = useLocation();
 
   if (isLoading) {
@@ -81,29 +84,40 @@ export function ProtectedRoute({
     );
   }
 
-  // First-time onboarding redirection: ensure new users complete role-specific onboarding
-  if (profile.onboardingCompleted === false && !location.pathname.startsWith('/onboarding')) {
+  // First-time onboarding redirection: ensure new users complete role-specific onboarding.
+  // Landlords and caretakers complete a dedicated provider registration instead, so
+  // they are never pushed into the student onboarding flow.
+  const isProviderRole = profile.role === 'landlord' || profile.role === 'caretaker';
+  if (profile.onboardingCompleted === false && !isProviderRole && !location.pathname.startsWith('/onboarding')) {
     return <Navigate to="/onboarding" replace />;
   }
 
   // Super Admin portal
   if (superAdminOnly && !isSuperAdmin) {
-    return <Navigate to={isAdmin ? '/admin' : isLecturer ? '/lecturer' : '/student'} replace />;
+    return <Navigate to={isAdmin ? '/admin' : isLecturer ? '/lecturer' : isProvider ? '/provider' : '/student'} replace />;
   }
 
   // If page requires Admin privileges
   if (adminOnly && !isAdmin) {
-    return <Navigate to={isLecturer ? '/lecturer' : '/student'} replace />;
+    return <Navigate to={isLecturer ? '/lecturer' : isProvider ? '/provider' : '/student'} replace />;
   }
 
   // If page requires Lecturer privileges
   if (lecturerOnly && !isLecturer) {
-    return <Navigate to={isAdmin ? '/admin' : '/student'} replace />;
+    return <Navigate to={isAdmin ? '/admin' : isProvider ? '/provider' : '/student'} replace />;
   }
 
-  // Student routes: redirect lecturers to their own portal
+  // Provider routes: landlords and caretakers only their own portal.
+  if (providerOnly && !isProvider) {
+    return <Navigate to={isAdmin ? '/admin' : isLecturer ? '/lecturer' : '/student'} replace />;
+  }
+
+  // Student routes: redirect staff and providers to their own portal.
   if (studentOnly && isLecturer) {
     return <Navigate to="/lecturer" replace />;
+  }
+  if (studentOnly && isProvider) {
+    return <Navigate to="/provider" replace />;
   }
 
   return <>{children}</>;

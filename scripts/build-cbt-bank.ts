@@ -22,10 +22,12 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { PDFParse } from 'pdf-parse';
 import {
+  collectProseTerms,
   collectTerms,
   dedupeQuestions,
   deriveCourseCode,
   generateClozeQuestions,
+  generateProseClozeQuestions,
   parseAnsweredQuestions,
   parseInlineAnswerQuestions,
   type CbtSourcePage,
@@ -188,7 +190,7 @@ async function main() {
     const { material, extracted, courseCode } = source;
     const common = {
       courseCode,
-      courseTitle: material.course_title || courseTitleByCode(courseCode),
+      courseTitle: courseTitleByCode(courseCode) || material.course_title,
       sourceMaterialId: material.id,
       sourceTitle: material.title,
     };
@@ -205,6 +207,36 @@ async function main() {
 
     const existing = byCourse.get(courseCode) || [];
     byCourse.set(courseCode, existing.concat(questions));
+  }
+
+  // Phase 3b — courses whose prose note yields no definition-style cloze
+  // (e.g. MTH 102's calculus lecture note) fall back to grounded prose cloze.
+  // Only applies to under-served courses so existing BIO/CHM/PHY banks are
+  // untouched; every stem and option still comes from the uploaded text.
+  const PROSE_FALLBACK_MAX = 12;
+  const courseSources = new Map<string, typeof sources>();
+  for (const source of sources) {
+    const list = courseSources.get(source.courseCode) || [];
+    list.push(source);
+    courseSources.set(source.courseCode, list);
+  }
+  for (const [courseCode, list] of byCourse) {
+    if (list.length >= PROSE_FALLBACK_MAX) continue;
+    const basePool = [...new Set(termsByCourse.get(courseCode) || [])];
+    for (const source of courseSources.get(courseCode) || []) {
+      const prosePool = [...new Set([...basePool, ...collectProseTerms(source.extracted.pages)])];
+      list.push(
+        ...generateProseClozeQuestions(source.extracted.pages, {
+          courseCode,
+          courseTitle: courseTitleByCode(courseCode) || source.material.course_title || undefined,
+          sourceMaterialId: source.material.id,
+          sourceTitle: source.material.title,
+          termPool: prosePool,
+          maxPerMaterial: 15,
+        })
+      );
+    }
+    byCourse.set(courseCode, list);
   }
 
   let total = 0;

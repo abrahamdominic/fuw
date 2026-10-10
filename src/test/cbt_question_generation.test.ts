@@ -4,6 +4,8 @@ import {
   parseAnsweredQuestions,
   parseInlineAnswerQuestions,
   generateClozeQuestions,
+  generateProseClozeQuestions,
+  collectProseTerms,
   dedupeQuestions,
 } from '../lib/cbtGenerate';
 
@@ -114,6 +116,39 @@ describe('generateClozeQuestions', () => {
       termPool: ['Tutor-Marked Assignment', 'Isomerism', 'Covalent bond', 'Alkane'],
     });
     expect(qs.some((q) => Object.values(q.options).includes('Tutor-Marked Assignment'))).toBe(false);
+  });
+});
+
+describe('generateProseClozeQuestions', () => {
+  const pages = [
+    {
+      page: 1,
+      text: [
+        'The Fundamental Theorem of Calculus links differentiation and integration in a powerful way.',
+        'The Symmetry Rule states that the area under a curve is invariant under reflection.',
+        'The Chain Rule allows us to differentiate composite functions with ease.',
+      ].join(' '),
+    },
+  ];
+
+  it('blanks a real concept phrase in a sentence taken from the note', () => {
+    const qs = generateProseClozeQuestions(pages, {
+      courseCode: 'MTH102C',
+      sourceTitle: 'MTH 102 calculus note',
+      termPool: ['Derivative Rule', 'Integral Sign', 'Limit Law', 'Product Rule', 'Quotient Rule'],
+    });
+    expect(qs.length).toBeGreaterThan(0);
+    const q = qs[0];
+    expect(q.kind).toBe('material_cloze');
+    expect(q.question).toContain('________');
+    expect(q.correctOption).toBeTruthy();
+    expect(q.options[q.correctOption]).toMatch(/Fundamental Theorem of Calculus|Symmetry Rule|Chain Rule/);
+  });
+
+  it('collects only real concept phrases', () => {
+    const terms = collectProseTerms(pages);
+    expect(terms).toContain('Fundamental Theorem of Calculus');
+    expect(terms).toContain('Symmetry Rule');
   });
 });
 

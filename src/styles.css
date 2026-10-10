@@ -224,6 +224,17 @@ button {
   color: #ffffff;
 }
 
+.portal-pill-link.provider-pill {
+  background: #eef0fd;
+  color: #3948b3;
+  border-color: #d8dcf8;
+}
+
+.portal-pill-link.provider-pill:hover {
+  background: #3948b3;
+  color: #ffffff;
+}
+
 .login-link {
   font-weight: 600;
   color: #384d41;
@@ -342,6 +353,12 @@ button {
   background: #eaf6ed;
   color: #175e39;
   border: 1px solid #cce8d5;
+}
+
+.mobile-portal-btn.provider {
+  background: #eef0fd;
+  color: #3948b3;
+  border: 1px solid #d8dcf8;
 }
 
 .mobile-nav-auth {
@@ -6615,6 +6632,140 @@ select.form-input option {
 
   .auth-loading-card {
     padding: 28px 20px;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Landlord & Caretaker Portal login (/landlord-login)
+   A deliberate departure from both the student ("mac") auth screens and the
+   admin login: a professional property-management panel in the portal's
+   signature deep-green identity. Reuses the shared .auth* field primitives.
+   ------------------------------------------------------------------------- */
+.provider-login-panel {
+  max-width: 480px;
+  width: 100%;
+  background: #ffffff;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 18px 45px rgba(8, 51, 31, 0.18);
+  border: 1px solid rgba(18, 96, 61, 0.12);
+  text-align: left;
+}
+
+.provider-login-hero {
+  background: linear-gradient(135deg, #0a341f 0%, #12603d 100%);
+  color: #ffffff;
+  padding: 26px 28px;
+}
+
+.provider-login-hero .brand {
+  color: #ffffff;
+}
+
+.provider-login-hero .brand b,
+.provider-login-hero .brand-text b {
+  color: #a7e3bd;
+}
+
+.provider-login-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 16px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #d9f3e3;
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.provider-login-hero h1 {
+  margin: 12px 0 0;
+  font-size: 22px;
+  font-weight: 800;
+  color: #ffffff;
+  line-height: 1.3;
+}
+
+.provider-login-hero p {
+  margin: 8px 0 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: #cfe9da;
+}
+
+.provider-login-body {
+  padding: 26px 28px 24px;
+}
+
+.provider-login-help {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 16px 0 4px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #3e5a4b;
+}
+
+.provider-login-links {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid #e6efe9;
+  display: grid;
+  gap: 10px;
+}
+
+.provider-login-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13.5px;
+  font-weight: 650;
+  color: #12603d;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.provider-login-links a:hover {
+  color: #0a3d26;
+  text-decoration: underline;
+}
+
+.provider-login-security-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 12px 14px;
+  background: #f1f8f3;
+  border: 1px solid #dceee3;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #40604d;
+}
+
+.provider-login-security-note svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: #12603d;
+}
+
+@media (max-width: 480px) {
+  .provider-login-hero {
+    padding: 22px 20px;
+  }
+
+  .provider-login-hero p {
+    font-size: 13px;
+  }
+
+  .provider-login-body {
+    padding: 22px 20px 20px;
   }
 }
 

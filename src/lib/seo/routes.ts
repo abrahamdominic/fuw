@@ -454,6 +454,15 @@ export const PRIVATE_ROUTES: Record<string, PageMeta> = {
     breadcrumbs: [HOME_CRUMB],
     schema: 'none'
   },
+  '/register/provider': {
+    title: 'Register as a Landlord or Caretaker | FUW Campus Hub',
+    description: 'Apply to list verified student accommodation on the FUW Campus Hub as a landlord or caretaker.',
+    path: '/register/provider',
+    keywords: [],
+    indexability: 'noindex',
+    breadcrumbs: [HOME_CRUMB],
+    schema: 'none'
+  },
   '/forgot-password': {
     title: 'Reset Your Password | FUW Campus Hub',
     description: 'Request a password reset link for your FUW Campus Hub account.',
@@ -476,6 +485,15 @@ export const PRIVATE_ROUTES: Record<string, PageMeta> = {
     title: 'Administrator Sign In | FUW Campus Hub',
     description: 'Administrator sign-in for the FUW Campus Hub management portal.',
     path: '/admin/login',
+    keywords: [],
+    indexability: 'noindex',
+    breadcrumbs: [HOME_CRUMB],
+    schema: 'none'
+  },
+  '/landlord-login': {
+    title: 'Landlord & Caretaker Portal Sign In | FUW Campus Hub',
+    description: 'Sign in to the Landlord & Caretaker Portal to manage properties, listings and approvals on the FUW Campus Hub.',
+    path: '/landlord-login',
     keywords: [],
     indexability: 'noindex',
     breadcrumbs: [HOME_CRUMB],
@@ -511,6 +529,15 @@ export const PORTAL_ROUTES: Record<string, PageMeta> = {
     title: 'Lecturer Portal | FUW E-Library',
     description: 'Private academic lecturer dashboard and repository manager.',
     path: '/lecturer',
+    keywords: [],
+    indexability: 'noindex',
+    breadcrumbs: [HOME_CRUMB],
+    schema: 'none'
+  },
+  '/provider': {
+    title: 'Landlord & Caretaker Portal | FUW Campus Hub',
+    description: 'Private landlord and caretaker accommodation management dashboard.',
+    path: '/provider',
     keywords: [],
     indexability: 'noindex',
     breadcrumbs: [HOME_CRUMB],

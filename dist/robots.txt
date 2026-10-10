@@ -27,6 +27,8 @@ Disallow: /student
 Disallow: /student/
 Disallow: /lecturer
 Disallow: /lecturer/
+Disallow: /provider
+Disallow: /provider/
 Disallow: /admin
 Disallow: /admin/
 Disallow: /super
@@ -41,6 +43,7 @@ Disallow: /notifications
 Disallow: /login
 Disallow: /register
 Disallow: /forgot-password
+Disallow: /landlord-login
 Disallow: /reset-password
 Disallow: /logout
 Disallow: /profile

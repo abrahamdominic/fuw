@@ -657,6 +657,138 @@ export function generateClozeQuestions(
   return out;
 }
 
+const LEADING_DETERMINERS = new Set(['the', 'a', 'an', 'this', 'these', 'those']);
+
+const STRUCTURAL_TERM_RE = /^(example|figure|table|chapter|section|topic|page|exercise|solution|proof|content|contents|appendix)\b/i;
+
+const TRAILING_FUNCTION_WORDS = new Set([
+  'of', 'the', 'and', 'in', 'on', 'to', 'for', 'a', 'an', 'as', 'at', 'by', 'with', 'from',
+]);
+
+/** A real concept phrase: no numbering, structure labels, or dangling function words. */
+function isProseTerm(term: string): boolean {
+  if (/\d/.test(term) || STRUCTURAL_TERM_RE.test(term)) return false;
+  const words = termWords(term);
+  return !TRAILING_FUNCTION_WORDS.has(words[words.length - 1]);
+}
+
+function stripLeadingDeterminer(term: string): string {
+  const cleaned = collapse(term);
+  const words = termWords(cleaned);
+  if (words.length > 1 && LEADING_DETERMINERS.has(words[0])) {
+    return collapse(cleaned.replace(/^\S+\s+/, ''));
+  }
+  return cleaned;
+}
+
+/**
+ * Capitalized multi-word concept phrases found in explanatory prose, e.g.
+ * "Fundamental Theorem of Calculus" or "Symmetry Rule". Connectors ("of",
+ * "and", "the") keep a phrase intact; every other continuation word must be
+ * capitalized so ordinary sentence run-on is never treated as a term.
+ */
+const PROSE_TERM_RE =
+  /\b([A-Z][A-Za-z0-9()'’-]+(?:(?:\s+(?:of|the|and|in|on|to|for|a|an|de|van)\s+[A-Za-z0-9()'’-]+|\s+[A-Z][A-Za-z0-9()'’-]+)){1,4})/g;
+
+/** Collects real concept phrases from prose, used as prose-cloze answers and distractors. */
+export function collectProseTerms(pages: CbtSourcePage[]): string[] {
+  const terms = new Set<string>();
+  for (const page of pages) {
+    const text = unwrapLines((page.text || '').replace(/\r/g, ''));
+    PROSE_TERM_RE.lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = PROSE_TERM_RE.exec(text))) {
+      const term = stripLeadingDeterminer(match[1]);
+      if (termWords(term).length >= 2 && isUsableTerm(term) && isProseTerm(term)) terms.add(term);
+    }
+  }
+  return [...terms];
+}
+
+/**
+ * Grounded concept cloze for explanatory prose (lecture notes that define
+ * ideas in sentences rather than using "X is defined as Y" phrasing). Blanks a
+ * real capitalized concept phrase from a sentence the material actually
+ * contains and draws every distractor from other real phrases in the same
+ * course. Nothing is invented: the stem is the source sentence and all four
+ * options are phrases lifted from the uploaded text.
+ */
+export function generateProseClozeQuestions(
+  pages: CbtSourcePage[],
+  opts: {
+    courseCode: string;
+    courseTitle?: string;
+    sourceMaterialId?: string;
+    sourceTitle?: string;
+    termPool?: string[];
+    maxPerMaterial?: number;
+  }
+): GeneratedQuestion[] {
+  const out: GeneratedQuestion[] = [];
+  const seen = new Set<string>();
+  const pool = opts.termPool || [];
+  const max = opts.maxPerMaterial ?? 15;
+
+  for (const page of pages) {
+    if (out.length >= max) break;
+    const text = unwrapLines((page.text || '').replace(/\r/g, ''));
+    for (const rawSentence of text.split(/(?<=[.!?])\s+/)) {
+      if (out.length >= max) break;
+      const sentence = collapse(rawSentence);
+      if (sentence.length < 55 || sentence.length > 280) continue;
+      if (/https?:|www\./i.test(sentence)) continue;
+      if (hasBoilerplate(sentence)) continue;
+      if (sentence.replace(/[^A-Za-z]/g, '').length / sentence.length < 0.55) continue;
+
+      // Real prose ends in punctuation and is mostly lowercase; running headers
+      // and title lines (author names, "Topic-2-...", page labels) are neither.
+      if (!/[.!?]$/.test(sentence)) continue;
+      const sentenceWords = sentence.split(' ').filter(Boolean);
+      const capitalizedWords = sentenceWords.filter((word) => /^[A-Z]/.test(word)).length;
+      if (capitalizedWords / sentenceWords.length > 0.5) continue;
+
+      PROSE_TERM_RE.lastIndex = 0;
+      let best = '';
+      let match: RegExpExecArray | null;
+      while ((match = PROSE_TERM_RE.exec(sentence))) {
+        const candidate = stripLeadingDeterminer(match[1]);
+        if (termWords(candidate).length < 2 || !isUsableTerm(candidate) || !isProseTerm(candidate)) continue;
+        if (candidate.length > best.length) best = candidate;
+      }
+      if (!best || BANNED_TERM_OPENERS.has(termWords(best)[0])) continue;
+
+      const stem = collapse(sentence.replace(best, '________'));
+      if (!stem.includes('________') || stem.length < 30) continue;
+      const key = normalizeText(stem);
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      const distractors = pickDistractors(best, pool, `${opts.courseCode}:${stem}`);
+      if (distractors.length < 3) continue;
+
+      const optionMap = toOptionMap(best, distractors, `${opts.courseCode}:${stem}`);
+      if (!optionMap.correctOption) continue;
+
+      const item: GeneratedQuestion = {
+        courseCode: opts.courseCode,
+        courseTitle: opts.courseTitle,
+        question: stem,
+        options: optionMap.options,
+        correctOption: optionMap.correctOption,
+        topic: headingBefore(text, Math.max(0, text.indexOf(rawSentence)), opts.courseTitle || 'Core Concepts'),
+        explanation: `From "${opts.sourceTitle || 'uploaded material'}" (page ${page.page}): ${sentence}`,
+        kind: 'material_cloze',
+        sourceMaterialId: opts.sourceMaterialId,
+        sourceTitle: opts.sourceTitle,
+        sourcePage: page.page,
+      };
+      item.dedupeKey = buildDedupeKey(opts.courseCode, item.question);
+      out.push(item);
+    }
+  }
+  return out;
+}
+
 /** Collects candidate definition terms used as cloze distractors. */
 export function collectTerms(pages: CbtSourcePage[]): string[] {
   const terms = new Set<string>();

@@ -575,6 +575,15 @@ export const OrderDetailPage: React.FC = () => {
                 </span>
               </div>
 
+              {typeof order.escrow_fee_kobo === 'number' && order.escrow_fee_kobo > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary, #55675b)' }}>
+                  <span>Escrow Protection Fee</span>
+                  <span style={{ fontWeight: 600, color: 'var(--text-primary, #17231d)' }}>
+                    {formatNaira(order.escrow_fee_kobo)}
+                  </span>
+                </div>
+              )}
+
               <div
                 style={{
                   display: 'flex',
@@ -662,6 +671,7 @@ export const OrderDetailPage: React.FC = () => {
         }))}
         subtotalKobo={order.subtotal_kobo}
         deliveryFeeKobo={order.delivery_fee_kobo}
+        escrowFeeKobo={order.escrow_fee_kobo ?? 0}
         totalKobo={order.total_kobo}
       />
     </div>

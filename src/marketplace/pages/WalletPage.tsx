@@ -1032,7 +1032,7 @@ export const WalletPage: React.FC = () => {
                         color: 'var(--text-primary, #17231d)',
                       }}
                     >
-                      10-Digit NUBAN Account Number
+                      10 Digit Account Number
                     </label>
                     <div style={{ position: 'relative' }}>
                       <input

@@ -14,6 +14,7 @@
 /accommodation/roommates/post  /index.html  200
 /accommodation/scholars-court-affordable-single-rooms  /index.html  200
 /accommodation/silver-crest-luxury-student-lodge  /index.html  200
+/accommodation/sunrise-lodge-self-contained-rooms  /index.html  200
 /accommodation/unity-executive-hostels-female-wing  /index.html  200
 /admin  /index.html  200
 /admin/login  /index.html  200
@@ -175,6 +176,7 @@
 /forgot-password  /index.html  200
 /help  /index.html  200
 /hub  /index.html  200
+/landlord-login  /index.html  200
 /lecturer  /index.html  200
 /library  /index.html  200
 /login  /index.html  200
@@ -252,7 +254,9 @@
 /materials/fa9da340-66d2-4998-bd01-795c0e268d47  /index.html  200
 /onboarding  /index.html  200
 /profile  /index.html  200
+/provider  /index.html  200
 /register  /index.html  200
+/register/provider  /index.html  200
 /report-copyright  /index.html  200
 /report-problem  /index.html  200
 /repository  /index.html  200
@@ -270,4 +274,5 @@
 /admin/*  /index.html  200
 /super/*  /index.html  200
 /lecturer/*  /index.html  200
+/provider/*  /index.html  200
 /marketplace/*  /index.html  200

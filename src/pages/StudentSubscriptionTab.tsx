@@ -366,7 +366,7 @@ export function StudentSubscriptionTab() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
               <strong style={{ fontSize: 14, color: '#17231d' }}>Escrow Credit Balance</strong>
               <span style={{ fontSize: 13, fontWeight: 700, color: '#047857' }}>
-                {formatNaira(escrowCredit?.credit_remaining_kobo ?? 200000)} / {formatNaira(escrowCredit?.credit_granted_kobo ?? 200000)} remaining
+                {formatNaira(escrowCredit?.credit_remaining_kobo ?? 50000)} / {formatNaira(escrowCredit?.credit_granted_kobo ?? 50000)} remaining
               </span>
             </div>
 
@@ -375,16 +375,16 @@ export function StudentSubscriptionTab() {
               <div
                 style={{
                   height: '100%',
-                  width: `${Math.min(100, Math.max(0, ((escrowCredit?.credit_remaining_kobo ?? 200000) / (escrowCredit?.credit_granted_kobo || 200000)) * 100))}%`,
-                  background: (escrowCredit?.credit_remaining_kobo ?? 200000) > 0 ? '#10b981' : '#f59e0b',
+                  width: `${Math.min(100, Math.max(0, ((escrowCredit?.credit_remaining_kobo ?? 50000) / (escrowCredit?.credit_granted_kobo || 50000)) * 100))}%`,
+                  background: (escrowCredit?.credit_remaining_kobo ?? 50000) > 0 ? '#10b981' : '#f59e0b',
                   transition: 'width 0.3s ease',
                 }}
               />
             </div>
 
-            {(escrowCredit?.credit_remaining_kobo ?? 200000) > 0 ? (
+            {(escrowCredit?.credit_remaining_kobo ?? 50000) > 0 ? (
               <p style={{ margin: 0, fontSize: 13, color: '#55675b', lineHeight: 1.5 }}>
-                You have <strong>{formatNaira(escrowCredit?.credit_remaining_kobo ?? 200000)}</strong> of Marketplace escrow credit remaining this semester.
+                You have <strong>{formatNaira(escrowCredit?.credit_remaining_kobo ?? 50000)}</strong> of Marketplace escrow credit remaining this semester.
               </p>
             ) : (
               <p style={{ margin: 0, fontSize: 13, color: '#55675b', lineHeight: 1.5 }}>
@@ -410,7 +410,7 @@ export function StudentSubscriptionTab() {
         ) : (
           <div>
             <p style={{ margin: '0 0 10px', fontSize: 13, color: '#55675b' }}>
-              Upgrade to Campus Hub Plus (₦1,200/semester) and receive <strong>₦2,000 in Marketplace escrow credit</strong>, plus 50% discount on all subsequent escrow fees.
+              Upgrade to Campus Hub Plus (₦1,200/semester) and receive <strong>₦500 in Marketplace escrow credit</strong>, plus 50% discount on all subsequent escrow fees.
             </p>
           </div>
         )}
@@ -428,7 +428,7 @@ export function StudentSubscriptionTab() {
                 Gift Campus Hub Plus to a Classmate
               </strong>
               <p style={{ margin: '2px 0 0', fontSize: 13, color: '#78350f' }}>
-                Sponsor a peer with ₦1,200 semester access directly from your FUW Wallet. They instantly unlock exam vaults &amp; ₦2,000 escrow credit!
+                Sponsor a peer with ₦1,200 semester access directly from your FUW Wallet. They instantly unlock exam vaults &amp; ₦500 escrow credit!
               </p>
             </div>
           </div>

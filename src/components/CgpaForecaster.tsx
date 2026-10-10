@@ -92,7 +92,7 @@ export const CgpaForecaster: React.FC = () => {
   };
 
   return (
-    <div style={{ maxWidth: 960, margin: '0 auto', padding: '16px 8px' }}>
+    <div className="cgpa-forecaster">
       {/* Header Banner */}
       <div
         style={{
@@ -272,26 +272,18 @@ export const CgpaForecaster: React.FC = () => {
           {courses.map((c) => (
             <div
               key={c.id}
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '2fr 1fr 1fr auto',
-                gap: 12,
-                alignItems: 'center',
-                padding: '10px 14px',
-                background: '#f8faf9',
-                borderRadius: 8,
-                border: '1px solid #e5e7eb',
-              }}
+              className="cgpa-course-row"
             >
               <input
                 type="text"
                 value={c.code}
                 onChange={(e) => handleUpdateCourse(c.id, 'code', e.target.value)}
                 placeholder="Course Code"
+                className="cgpa-course-code"
                 style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 13, fontWeight: 600 }}
               />
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div className="cgpa-course-field">
                 <span style={{ fontSize: 12, color: '#6b7280' }}>Units:</span>
                 <select
                   value={c.units}
@@ -307,7 +299,7 @@ export const CgpaForecaster: React.FC = () => {
                 </select>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div className="cgpa-course-field">
                 <span style={{ fontSize: 12, color: '#6b7280' }}>Grade:</span>
                 <select
                   value={c.expectedGrade}
