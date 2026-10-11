@@ -62,6 +62,7 @@ function buildMockAuth(overrides: Partial<AuthContextType> = {}): AuthContextTyp
     isLandlord: false,
     isCaretaker: false,
     isProvider: false,
+    isVc: false,
     role: null,
     permissions: [],
     hasPermission: () => true,

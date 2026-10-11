@@ -269,10 +269,13 @@
 /super-admin  /index.html  200
 /super/login  /index.html  200
 /superadmin  /index.html  200
+/vc  /index.html  200
+/vc/login  /index.html  200
 /wallet  /index.html  200
 /student/*  /index.html  200
 /admin/*  /index.html  200
 /super/*  /index.html  200
 /lecturer/*  /index.html  200
 /provider/*  /index.html  200
+/vc/*  /index.html  200
 /marketplace/*  /index.html  200

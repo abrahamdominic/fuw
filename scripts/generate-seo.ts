@@ -248,6 +248,8 @@ const PRIVATE_PREFIXES = [
   '/super/',
   '/super-admin',
   '/superadmin',
+  '/vc',
+  '/vc/',
   '/campus-hub',
   '/campus',
   '/dashboard',
@@ -350,6 +352,8 @@ const PORTAL_ALIASES = [
   '/settings',
   '/super-admin',
   '/superadmin',
+  '/vc',
+  '/vc/login',
   '/wallet',
   '/course-upload',
   '/campus',
@@ -364,7 +368,7 @@ const PORTAL_ALIASES = [
  * Client-routed subtrees of the authenticated portals. Wildcards are safe here
  * because every one of them sits behind `RequireAuth` and `noindex`.
  */
-const PORTAL_WILDCARDS = ['/student/*', '/admin/*', '/super/*', '/lecturer/*', '/provider/*'];
+const PORTAL_WILDCARDS = ['/student/*', '/admin/*', '/super/*', '/lecturer/*', '/provider/*', '/vc/*'];
 
 /**
  * The FUW Student Marketplace, mounted at /marketplace/* in this SPA

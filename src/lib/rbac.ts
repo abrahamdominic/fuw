@@ -2,7 +2,7 @@
 // These MUST stay in sync with the `app_role` enum and permission arrays
 // defined in supabase/migrations (see is_admin()/has_permission() SQL).
 
-export type AppRole = 'student' | 'lecturer' | 'admin' | 'super_admin' | 'landlord' | 'caretaker';
+export type AppRole = 'student' | 'lecturer' | 'admin' | 'super_admin' | 'landlord' | 'caretaker' | 'vc';
 
 export interface PermissionDef {
   key: string;
@@ -110,6 +110,16 @@ export const ALL_PERMISSIONS: PermissionDef[] = [
     key: 'manage_learning',
     label: 'Manage learning content',
     description: 'Create, publish and moderate Skills & Learning content.'
+  },
+  {
+    key: 'manage_opportunities',
+    label: 'Manage opportunities',
+    description: 'Review, publish, feature and expire the student Opportunities Hub.'
+  },
+  {
+    key: 'manage_safety',
+    label: 'Manage campus safety',
+    description: 'Maintain safety contacts and triage campus issue reports.'
   }
 ];
 
@@ -148,6 +158,10 @@ export function isCaretakerRole(role: string | null | undefined): boolean {
   return role === 'caretaker';
 }
 
+export function isVcRole(role: string | null | undefined): boolean {
+  return role === 'vc';
+}
+
 /** A landlord or a caretaker — both use the accommodation provider portal. */
 export function isProviderRole(role: string | null | undefined): boolean {
   return role === 'landlord' || role === 'caretaker';
@@ -177,6 +191,8 @@ export function roleLabel(role: string | null | undefined): string {
       return 'Landlord';
     case 'caretaker':
       return 'Caretaker';
+    case 'vc':
+      return 'Vice-Chancellor';
     default:
       return 'Member';
   }

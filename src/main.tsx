@@ -30,6 +30,10 @@ const ResetPasswordPage = lazy(() =>
   import('./pages/PublicPages').then((m) => ({ default: m.ResetPasswordPage }))
 );
 const AdminLoginPage = lazy(() => import('./pages/PublicPages').then((m) => ({ default: m.AdminLoginPage })));
+const VcLoginPage = lazy(() => import('./pages/VcLoginPage').then((m) => ({ default: m.VcLoginPage })));
+const ViceChancellorPortal = lazy(() =>
+  import('./pages/ViceChancellorPortal').then((m) => ({ default: m.ViceChancellorPortal }))
+);
 const AuthPage = lazy(() => import('./pages/AuthScreens').then((m) => ({ default: m.AuthPage })));
 const LandlordLoginPage = lazy(() =>
   import('./pages/LandlordLoginPage').then((m) => ({ default: m.LandlordLoginPage }))
@@ -246,9 +250,10 @@ function RootRedirect() {
   if (isLoading || (isAuthenticated && !profile)) return <BootFallback label="Restoring your session" />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   const isProvider = role === 'landlord' || role === 'caretaker';
-  if (!onboardingCompleted && !isProvider && role !== 'admin' && role !== 'super_admin') return <Navigate to="/onboarding" replace />;
+  if (!onboardingCompleted && !isProvider && role !== 'admin' && role !== 'super_admin' && role !== 'vc') return <Navigate to="/onboarding" replace />;
   const destination =
     role === 'super_admin' ? '/super' :
+    role === 'vc' ? '/vc' :
     role === 'admin' ? '/admin' :
     role === 'lecturer' ? '/lecturer' :
     isProvider ? '/provider' :
@@ -340,6 +345,7 @@ export function App() {
             <Route path="/landlord-login" element={<LandlordLoginPage />} />
             <Route path="/admin/login" element={<AdminLoginPage />} />
             <Route path="/super/login" element={<AdminLoginPage />} />
+            <Route path="/vc/login" element={<VcLoginPage />} />
 
             {/* Unified Personalized Onboarding Route */}
             <Route
@@ -416,6 +422,28 @@ export function App() {
                 <RequireAuth>
                   <ProtectedRoute superAdminOnly>
                     <SuperAdminPortal />
+                  </ProtectedRoute>
+                </RequireAuth>
+              }
+            />
+
+            {/* Protected Vice-Chancellor Executive Portal */}
+            <Route
+              path="/vc"
+              element={
+                <RequireAuth>
+                  <ProtectedRoute vcOnly>
+                    <ViceChancellorPortal />
+                  </ProtectedRoute>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/vc/*"
+              element={
+                <RequireAuth>
+                  <ProtectedRoute vcOnly>
+                    <ViceChancellorPortal />
                   </ProtectedRoute>
                 </RequireAuth>
               }

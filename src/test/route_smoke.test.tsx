@@ -108,6 +108,7 @@ const PUBLIC_ROUTES = [
   '/reset-password',
   '/admin/login',
   '/super/login',
+  '/vc/login',
   '/library',
   '/courses',
   '/faculties',
@@ -166,6 +167,10 @@ const GUARDED_ROUTES = [
   '/admin/accommodation',
   '/admin/services',
   '/super',
+  '/vc',
+  '/vc/students',
+  '/vc/resources',
+  '/vc/reports',
 ];
 
 /** Any path the app is expected to answer with the not-found screen. */

@@ -2491,6 +2491,9 @@ export function AdminLoginPage() {
     } else if (res.role === 'admin') {
       toast('Authorized Administrator access granted', 'success');
       navigate('/admin');
+    } else if (res.role === 'vc') {
+      toast('Vice-Chancellor access granted', 'success');
+      navigate('/vc');
     } else if (res.role === 'lecturer') {
       toast('Lecturer account authenticated. Redirecting to Lecturer Portal...', 'info');
       navigate('/lecturer');
@@ -2526,6 +2529,9 @@ export function AdminLoginPage() {
       } else if (profile?.role === 'admin') {
         toast('Authorized Administrator access granted', 'success');
         navigate('/admin');
+      } else if (profile?.role === 'vc') {
+        toast('Vice-Chancellor access granted', 'success');
+        navigate('/vc');
       } else if (profile?.role === 'lecturer') {
         toast('Lecturer access granted', 'info');
         navigate('/lecturer');

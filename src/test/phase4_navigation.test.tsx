@@ -46,6 +46,7 @@ function buildMockAuth(): AuthContextType {
     isLandlord: false,
     isCaretaker: false,
     isProvider: false,
+    isVc: false,
     role: 'student' as any,
     permissions: [],
     hasPermission: () => true,

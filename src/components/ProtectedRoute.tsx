@@ -15,6 +15,8 @@ interface ProtectedRouteProps {
   studentOnly?: boolean;
   /** Requires a landlord or caretaker account (used by the /provider portal). */
   providerOnly?: boolean;
+  /** Requires the Vice-Chancellor account (used by the /vc portal). */
+  vcOnly?: boolean;
 }
 
 export function ProtectedRoute({
@@ -23,9 +25,10 @@ export function ProtectedRoute({
   superAdminOnly = false,
   lecturerOnly = false,
   studentOnly = false,
-  providerOnly = false
+  providerOnly = false,
+  vcOnly = false
 }: ProtectedRouteProps) {
-  const { user, profile, isLoading, isAuthenticated, isAdmin, isSuperAdmin, isLecturer, isProvider, refreshProfile, signOut } = useAuth();
+  const { user, profile, isLoading, isAuthenticated, isAdmin, isSuperAdmin, isLecturer, isProvider, isVc, refreshProfile, signOut } = useAuth();
   const location = useLocation();
 
   if (isLoading) {
@@ -43,7 +46,7 @@ export function ProtectedRoute({
 
   // Unauthenticated user -> redirect to login
   if (!isAuthenticated || !user) {
-    const loginTarget = superAdminOnly || adminOnly ? '/admin/login' : '/login';
+    const loginTarget = vcOnly ? '/vc/login' : superAdminOnly || adminOnly ? '/admin/login' : '/login';
     return <Navigate to={loginTarget} state={{ from: location }} replace />;
   }
 
@@ -86,10 +89,18 @@ export function ProtectedRoute({
 
   // First-time onboarding redirection: ensure new users complete role-specific onboarding.
   // Landlords and caretakers complete a dedicated provider registration instead, so
-  // they are never pushed into the student onboarding flow.
+  // they are never pushed into the student onboarding flow. The Vice-Chancellor is
+  // provisioned by the Super Admin and never runs the student onboarding.
   const isProviderRole = profile.role === 'landlord' || profile.role === 'caretaker';
-  if (profile.onboardingCompleted === false && !isProviderRole && !location.pathname.startsWith('/onboarding')) {
+  if (profile.onboardingCompleted === false && !isProviderRole && profile.role !== 'vc' && !location.pathname.startsWith('/onboarding')) {
     return <Navigate to="/onboarding" replace />;
+  }
+
+  // The Vice-Chancellor lives exclusively in the executive portal. Any attempt to
+  // reach a student, lecturer, admin, super admin or Campus Hub route (including
+  // a direct URL) is redirected back to /vc.
+  if (isVc && !vcOnly) {
+    return <Navigate to="/vc" replace />;
   }
 
   // Super Admin portal
@@ -110,6 +121,11 @@ export function ProtectedRoute({
   // Provider routes: landlords and caretakers only their own portal.
   if (providerOnly && !isProvider) {
     return <Navigate to={isAdmin ? '/admin' : isLecturer ? '/lecturer' : '/student'} replace />;
+  }
+
+  // VC routes: only the Vice-Chancellor may enter.
+  if (vcOnly && !isVc) {
+    return <Navigate to={isSuperAdmin ? '/super' : isAdmin ? '/admin' : isLecturer ? '/lecturer' : isProvider ? '/provider' : '/student'} replace />;
   }
 
   // Student routes: redirect staff and providers to their own portal.

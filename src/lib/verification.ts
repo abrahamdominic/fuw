@@ -19,11 +19,24 @@ export interface VerificationRequest {
   department: string;
   level: string | null;
   student_note: string | null;
+  /** Private storage object name for the student ID card. */
+  student_id_path: string | null;
+  student_id_name: string | null;
+  /** Private storage object name for the admission letter. */
+  admission_letter_path: string | null;
+  admission_letter_name: string | null;
+  /** Legacy single-document slot, kept for requests made before registration capture. */
   evidence_path: string | null;
   evidence_name: string | null;
   reviewer_note: string | null;
   reviewed_at: string | null;
   created_at: string;
+}
+
+/** Result of uploading one private verification document. */
+export interface VerificationDocument {
+  path: string;
+  name: string;
 }
 
 export interface VerificationState {
@@ -75,6 +88,12 @@ function friendly(message: string, fallback: string): string {
   if (m.includes('give a reason')) return 'Please give the student a reason for the decision.';
   if (m.includes('already been decided')) return 'That request has already been decided.';
   if (m.includes('administrator privileges')) return 'You do not have permission to do that.';
+  if (m.includes('upload both your student id'))
+    return 'Upload both your student ID and your admission letter to complete verification.';
+  if (m.includes('could not find one of your uploaded documents'))
+    return 'We could not find one of your uploaded documents. Please re-upload and try again.';
+  if (m.includes('files in your own upload folder'))
+    return 'Those documents could not be attached to your account. Please re-upload them.';
   return message || fallback;
 }
 
@@ -119,58 +138,84 @@ export async function fetchMyVerificationRequests(): Promise<VerificationRequest
   return (data as VerificationRequest[]) ?? [];
 }
 
-export async function submitVerification(input: {
-  note?: string;
-  file?: File | null;
-}): Promise<VerificationRequest> {
+/** Upload one identity document into the caller's private storage folder. */
+export async function uploadVerificationDocument(file: File): Promise<VerificationDocument> {
   const client = requireSupabase();
-  let evidencePath: string | null = null;
-  let evidenceName: string | null = null;
+  const uid = (await client.auth.getUser()).data.user?.id;
+  if (!uid) throw new Error('You must be signed in to upload documents.');
 
-  if (input.file) {
-    const safeName = input.file.name.replace(/[^A-Za-z0-9._-]/g, '-').slice(-60);
-    evidencePath = `${(await client.auth.getUser()).data.user?.id}/${Date.now()}-${safeName}`;
-    const { error: upErr } = await client.storage
-      .from(EVIDENCE_BUCKET)
-      .upload(evidencePath, input.file, { upsert: false });
-    if (upErr) {
-      throw new Error(
-        /row-level security|not exist/i.test(upErr.message)
-          ? 'Evidence uploads are unavailable. Submit without a file, or ask the library to enable the upload bucket.'
-          : `Evidence upload failed: ${upErr.message}`
-      );
-    }
-    evidenceName = input.file.name;
-  }
-
-  const { data, error } = await client.rpc('submit_verification', {
-    p_student_note: input.note?.trim() || null,
-    p_evidence_path: evidencePath,
-    p_evidence_name: evidenceName,
-  });
+  const safeName = file.name.replace(/[^A-Za-z0-9._-]/g, '-').slice(-60);
+  const path = `${uid}/${Date.now()}-${safeName}`;
+  const { error } = await client.storage
+    .from(EVIDENCE_BUCKET)
+    .upload(path, file, { upsert: false });
   if (error) {
-    // The RPC is the transaction, so a refusal here means no request was
-    // created. Remove the uploaded file so a rejected attempt cannot leave an
-    // orphaned private document behind.
-    if (evidencePath) {
-      await client.storage.from(EVIDENCE_BUCKET).remove([evidencePath]).catch(() => {});
-    }
-    throw new Error(friendly(error.message, 'Could not submit your verification request.'));
+    throw new Error(
+      /row-level security|not exist/i.test(error.message)
+        ? 'Document uploads are unavailable right now. Please try again in a moment.'
+        : `Document upload failed: ${error.message}`
+    );
   }
-
-  const request = Array.isArray(data) ? data[0] : data;
-  return request as VerificationRequest;
+  return { path, name: file.name };
 }
 
-/** Signed, short-lived link to the student's own evidence file. */
-export async function getEvidenceUrl(request: VerificationRequest): Promise<string | null> {
-  if (!request.evidence_path) return null;
+/**
+ * Submit a student's identity for verification. Both the student ID and the
+ * admission letter are required; the server auto-verifies well-formed, unique
+ * matriculation numbers and defers collisions to the library queue.
+ */
+export async function submitVerification(input: {
+  studentId: File;
+  admissionLetter: File;
+  note?: string;
+}): Promise<VerificationRequest> {
+  const client = requireSupabase();
+  let studentId: VerificationDocument | null = null;
+  let admissionLetter: VerificationDocument | null = null;
+
+  try {
+    studentId = await uploadVerificationDocument(input.studentId);
+    admissionLetter = await uploadVerificationDocument(input.admissionLetter);
+
+    const { data, error } = await client.rpc('submit_verification', {
+      p_student_id_path: studentId.path,
+      p_student_id_name: studentId.name,
+      p_admission_letter_path: admissionLetter.path,
+      p_admission_letter_name: admissionLetter.name,
+      p_student_note: input.note?.trim() || null,
+    });
+    if (error) {
+      throw new Error(friendly(error.message, 'Could not submit your verification request.'));
+    }
+
+    return (Array.isArray(data) ? data[0] : data) as VerificationRequest;
+  } catch (err) {
+    // The RPC is the transaction; a refusal means no request was created, so
+    // remove the uploads rather than leave orphaned private documents behind.
+    const orphans = [studentId?.path, admissionLetter?.path].filter(
+      (p): p is string => Boolean(p)
+    );
+    if (orphans.length) {
+      await client.storage.from(EVIDENCE_BUCKET).remove(orphans).catch(() => {});
+    }
+    throw err;
+  }
+}
+
+/** Signed, short-lived link to a private verification document. */
+export async function getDocumentUrl(path: string | null): Promise<string | null> {
+  if (!path) return null;
   const client = requireSupabase();
   const { data, error } = await client.storage
     .from(EVIDENCE_BUCKET)
-    .createSignedUrl(request.evidence_path, 600);
+    .createSignedUrl(path, 600);
   if (error || !data?.signedUrl) return null;
   return data.signedUrl;
+}
+
+/** Backwards-compatible helper for the legacy single-evidence slot. */
+export async function getEvidenceUrl(request: VerificationRequest): Promise<string | null> {
+  return getDocumentUrl(request.evidence_path);
 }
 
 // ─── Premium entitlement ─────────────────────────────────────────────────────
@@ -253,7 +298,7 @@ export async function fetchVerificationQueue(
       // The FK hint names the constraint explicitly: user_id has two foreign
       // keys (auth.users and public.profiles), and pinning the profiles one keeps
       // the embed deterministic on every deployment.
-      'id, user_id, status, matric_number, faculty, department, level, student_note, evidence_path, evidence_name, reviewer_note, reviewed_at, created_at, profiles!verification_requests_user_id_fkey_profiles!inner(full_name, email, username, is_active)'
+      'id, user_id, status, matric_number, faculty, department, level, student_note, student_id_path, student_id_name, admission_letter_path, admission_letter_name, evidence_path, evidence_name, reviewer_note, reviewed_at, created_at, profiles!verification_requests_user_id_fkey_profiles!inner(full_name, email, username, is_active)'
     )
     .order('created_at', { ascending: true })
     .limit(100);

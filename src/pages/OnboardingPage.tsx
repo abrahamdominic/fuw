@@ -115,6 +115,12 @@ export const OnboardingPage: React.FC = () => {
     return 4;
   }, [isStudent, isLecturer, isAdmin, isSuperAdmin]);
 
+  // Details captured at registration lock the corresponding review step, so the
+  // student never re-types what they already provided. Legacy accounts missing
+  // any field keep the editable form.
+  const academicLocked = Boolean(profile?.faculty && profile?.department && profile?.level);
+  const matricLocked = Boolean(profile?.matricNumber && profile.matricNumber.trim());
+
   // Sync state if profile loads asynchronously
   useEffect(() => {
     if (profile?.onboardingStep && profile.onboardingStep > currentStep) {
@@ -526,8 +532,89 @@ export const OnboardingPage: React.FC = () => {
               </div>
             )}
 
-            {/* Step 2: Student Academic Structure */}
-            {currentStep === 2 && (
+            {/* Step 2: Student Academic Structure (read-only review once captured at registration) */}
+            {currentStep === 2 && academicLocked && (
+              <form onSubmit={handleStudentAcademicSubmit}>
+                <div style={{ marginBottom: 16 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--green-800, #12603d)', textTransform: 'uppercase' }}>
+                    Step 2 · Academic Details
+                  </span>
+                  <h2 style={{ fontSize: 20, fontWeight: 800, margin: '4px 0 6px', color: 'var(--green-900, #0d4a2f)' }}>
+                    Review Your Faculty & Department
+                  </h2>
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary, #55675b)', margin: 0 }}>
+                    These details were captured during registration. If something is wrong, correct it in Settings.
+                  </p>
+                </div>
+
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 10,
+                    background: 'var(--surface-alt, #f7faf8)',
+                    border: '1px solid var(--border, #dcebe0)',
+                    borderRadius: 12,
+                    padding: 16,
+                    marginBottom: 24
+                  }}
+                >
+                  {[
+                    { label: 'Faculty', value: profile?.faculty },
+                    { label: 'Department', value: profile?.department },
+                    { label: 'Current Level', value: profile?.level }
+                  ].map((row) => (
+                    <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 14 }}>
+                      <span style={{ color: 'var(--text-secondary, #55675b)' }}>{row.label}</span>
+                      <strong style={{ color: 'var(--green-900, #0d4a2f)', textAlign: 'right' }}>{row.value}</strong>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentStep(1)}
+                    className="btn btn-secondary"
+                    style={{
+                      padding: '10px 16px',
+                      borderRadius: 8,
+                      border: '1px solid var(--border, #dcebe0)',
+                      background: 'transparent',
+                      cursor: 'pointer',
+                      fontSize: 14
+                    }}
+                  >
+                    <ArrowLeft size={16} /> Back
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="btn btn-primary"
+                    style={{
+                      flex: 1,
+                      padding: '12px 20px',
+                      borderRadius: 8,
+                      background: 'var(--green-900, #0d4a2f)',
+                      color: '#fff',
+                      border: 'none',
+                      fontSize: 14,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      gap: 8
+                    }}
+                  >
+                    {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <>Continue <ArrowRight size={16} /></>}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* Step 2: Student Academic Structure (legacy editable fallback) */}
+            {currentStep === 2 && !academicLocked && (
               <form onSubmit={handleStudentAcademicSubmit}>
                 <div style={{ marginBottom: 16 }}>
                   <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--green-800, #12603d)', textTransform: 'uppercase' }}>
@@ -666,8 +753,112 @@ export const OnboardingPage: React.FC = () => {
               </form>
             )}
 
-            {/* Step 3: Student Matric Number & Verification */}
-            {currentStep === 3 && (
+            {/* Step 3: Student Matric Number & Verification (read-only review once captured) */}
+            {currentStep === 3 && matricLocked && (
+              <form onSubmit={handleStudentMatricSubmit}>
+                <div style={{ marginBottom: 16 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--green-800, #12603d)', textTransform: 'uppercase' }}>
+                    Step 3 · Academic Identity
+                  </span>
+                  <h2 style={{ fontSize: 20, fontWeight: 800, margin: '4px 0 6px', color: 'var(--green-900, #0d4a2f)' }}>
+                    Your Matriculation Number
+                  </h2>
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary, #55675b)', margin: 0 }}>
+                    This is the number on file and the identity documents you submitted at registration.
+                  </p>
+                </div>
+
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 6 }}>
+                    FUW Matriculation Number
+                  </label>
+                  <div
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: 8,
+                      border: '1px solid var(--border, #dcebe0)',
+                      fontSize: 14,
+                      background: 'var(--surface-alt, #f4f8f5)',
+                      fontFamily: 'monospace'
+                    }}
+                  >
+                    {profile?.matricNumber}
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    background: 'var(--surface-alt, #f7faf8)',
+                    border: '1px solid var(--border, #dcebe0)',
+                    borderRadius: 12,
+                    padding: 16,
+                    marginBottom: 20
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                    <ShieldCheck size={18} color="var(--green-800, #12603d)" />
+                    <strong style={{ fontSize: 14 }}>Institutional Verification Status</strong>
+                  </div>
+                  <div style={{ fontSize: 13, color: 'var(--text-secondary, #55675b)' }}>
+                    {profile?.verificationStatus === 'verified' ? (
+                      <span style={{ color: '#065f46', fontWeight: 700 }}>
+                        ✓ Verified FUW Student Account
+                      </span>
+                    ) : profile?.verificationStatus === 'pending' ? (
+                      <span style={{ color: '#b45309', fontWeight: 700 }}>
+                        ⏳ Verification Submission in Review
+                      </span>
+                    ) : (
+                      <span>Not verified yet — you can submit your documents from your student portal.</span>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentStep(2)}
+                    className="btn btn-secondary"
+                    style={{
+                      padding: '10px 16px',
+                      borderRadius: 8,
+                      border: '1px solid var(--border, #dcebe0)',
+                      background: 'transparent',
+                      cursor: 'pointer',
+                      fontSize: 14
+                    }}
+                  >
+                    <ArrowLeft size={16} /> Back
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="btn btn-primary"
+                    style={{
+                      flex: 1,
+                      padding: '12px 20px',
+                      borderRadius: 8,
+                      background: 'var(--green-900, #0d4a2f)',
+                      color: '#fff',
+                      border: 'none',
+                      fontSize: 14,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      gap: 8
+                    }}
+                  >
+                    {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <>Continue <ArrowRight size={16} /></>}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* Step 3: Student Matric Number & Verification (legacy editable fallback) */}
+            {currentStep === 3 && !matricLocked && (
               <form onSubmit={handleStudentMatricSubmit}>
                 <div style={{ marginBottom: 16 }}>
                   <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--green-800, #12603d)', textTransform: 'uppercase' }}>

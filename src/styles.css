@@ -17960,4 +17960,438 @@ body[data-theme='dark'],
   }
 }
 
+/* ---------------------------------------------------------------------------
+   Expense tracker, Opportunities hub & Campus safety additions.
+   Reuses the platform-* design vocabulary; only the small progress bars and
+   deadline chips are new.
+--------------------------------------------------------------------------- */
+.budget-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border, #dcebe0);
+}
+.budget-row:last-child {
+  border-bottom: none;
+}
+.budget-row-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.budget-row-head span {
+  color: var(--text-muted, #5b6b63);
+  font-size: 0.85rem;
+}
+.budget-progress {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface-muted, #eef4f0);
+  overflow: hidden;
+}
+.budget-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--green-800, #12603d);
+  transition: width 240ms ease;
+}
+.budget-progress-fill.is-warn {
+  background: #d99a2b;
+}
+.budget-progress-fill.is-over {
+  background: #c0392b;
+}
+.opportunity-deadline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted, #5b6b63);
+}
+.opportunity-deadline.is-urgent {
+  color: #b9770e;
+}
+.opportunity-deadline.is-expired {
+  color: #9aa7a0;
+  text-decoration: line-through;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   VICE-CHANCELLOR EXECUTIVE PORTAL
+   Read-only institutional dashboard for the Office of the Vice-Chancellor.
+   Sidebar uses a royal-gold executive accent distinct from the admin surface.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.side.vc-side {
+  background: linear-gradient(180deg, #0e2c22 0%, #0a2019 100%);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.side.vc-side .brand.vc-brand {
+  color: #f4e3a8;
+}
+
+.side.vc-side .brand.vc-brand b {
+  color: #f4e3a8;
+}
+
+.vc-avatar {
+  background: #8a6d1a;
+}
+
+.side.vc-side .vc-user-card {
+  background: rgba(244, 227, 168, 0.08);
+  border: 1px solid rgba(244, 227, 168, 0.2);
+}
+
+.side.vc-side .side-nav-heading {
+  color: #c9b877;
+}
+
+.side.vc-side .side-link {
+  color: #dde6e0;
+}
+
+.side.vc-side .side-link:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: #ffffff;
+}
+
+.side.vc-side .side-link.active {
+  background: linear-gradient(135deg, #8a6d1a, #5f4c10);
+  color: #ffffff;
+  font-weight: 700;
+  box-shadow: inset 3px 0 0 rgba(255, 255, 255, 0.4), 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.vc-primary-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(135deg, #8a6d1a, #6b5310);
+  color: #ffffff;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 14px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.vc-primary-link:hover {
+  filter: brightness(1.12);
+  color: #ffffff;
+}
+
+.vc-stat-skeleton {
+  display: grid;
+  place-items: center;
+}
+
+.vc-stat-skeleton .spin-icon {
+  color: #9db8a8;
+}
+
+.vc-overview-panels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+.vc-panel-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.vc-panel-stat {
+  background: #ffffff;
+  border: 1px solid #e2e8e4;
+  border-radius: 12px;
+  padding: 14px 10px;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(16, 44, 32, 0.04);
+}
+
+.vc-panel-stat b {
+  display: block;
+  font-size: 22px;
+  color: #12603d;
+  font-weight: 800;
+}
+
+.vc-panel-stat span {
+  display: block;
+  font-size: 11px;
+  color: #5b7267;
+  margin-top: 2px;
+}
+
+.vc-governance-card {
+  background:
+    radial-gradient(circle at 90% 0%, rgba(138, 109, 26, 0.08), transparent 55%),
+    #ffffff;
+}
+
+.vc-governance-text {
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: #43584c;
+  margin: 6px 0 0;
+}
+
+.vc-charts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr));
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.vc-table {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.vc-table-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2.4fr) minmax(0, 1.6fr) minmax(0, 0.8fr) minmax(0, 0.8fr) minmax(0, 0.8fr);
+  gap: 12px;
+  align-items: center;
+  padding: 10px 14px;
+  background: #f8faf9;
+  border: 1px solid #e5e9e5;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #3a4f43;
+}
+
+.vc-table-head {
+  background: #eef4ef;
+  font-weight: 800;
+  font-size: 11px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: #5b7267;
+}
+
+.vc-table-title {
+  font-weight: 700;
+  color: #112a1d;
+}
+
+.vc-table-title em {
+  display: block;
+  font-style: normal;
+  font-size: 11px;
+  color: #8a6d1a;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+}
+
+.vc-reports-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+.vc-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.vc-list-item {
+  background: #f8faf9;
+  border: 1px solid #e5e9e5;
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+.vc-list-item h4 {
+  margin: 0;
+  font-size: 14px;
+  color: #112a1d;
+  font-weight: 700;
+}
+
+.vc-list-item p {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #43584c;
+}
+
+.vc-list-meta {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: #8a6d1a;
+  font-weight: 600;
+}
+
+.vc-list-material p {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── VC login page accents ── */
+.vc-auth-panel {
+  border-top: 4px solid #8a6d1a;
+}
+
+.vc-submit-btn {
+  background: linear-gradient(135deg, #8a6d1a, #6b5310);
+}
+
+.vc-submit-btn:hover {
+  filter: brightness(1.12);
+}
+
+.vc-login-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: #5b7267;
+  margin: 14px 0 0;
+}
+
+[data-theme='dark'] .vc-panel-stat,
+[data-theme='dark'] .vc-governance-card,
+[data-theme='dark'] .vc-stat-skeleton {
+  background: #13231b;
+  border-color: #274033;
+}
+
+[data-theme='dark'] .vc-panel-stat span {
+  color: #9db8a8;
+}
+
+[data-theme='dark'] .vc-table-row,
+[data-theme='dark'] .vc-list-item {
+  background: #13231b;
+  border-color: #274033;
+}
+
+[data-theme='dark'] .vc-table-head {
+  background: #1a2f24;
+  color: #9db8a8;
+}
+
+[data-theme='dark'] .vc-table-title,
+[data-theme='dark'] .vc-list-item h4 {
+  color: #eaf2ec;
+}
+
+[data-theme='dark'] .vc-list-item p,
+[data-theme='dark'] .vc-table-row {
+  color: #c3d5c9;
+}
+
+/* ── VC first-visit welcome presentation ── */
+.fuw-vc-welcome-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 99998;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(16px, 3vw, 32px);
+  background:
+    radial-gradient(circle at 70% 15%, rgba(138, 109, 26, 0.16), transparent 45%),
+    radial-gradient(circle at 50% 30%, #0d4a31 0%, #062b1c 55%, #03170e 100%);
+  overflow-y: auto;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.fuw-vc-welcome-card {
+  width: 100%;
+  max-width: 680px;
+  background: rgba(7, 40, 28, 0.94);
+  border: 1px solid rgba(244, 227, 168, 0.34);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+}
+
+.fuw-vc-welcome-badge {
+  background: rgba(138, 109, 26, 0.22);
+  border: 1px solid rgba(244, 227, 168, 0.35);
+  color: #f4e3a8;
+}
+
+.fuw-vc-subtitle {
+  color: #f4e3a8 !important;
+}
+
+.fuw-vc-glow {
+  background: radial-gradient(circle, rgba(138, 109, 26, 0.45) 0%, rgba(138, 109, 26, 0) 70%) !important;
+}
+
+.fuw-vc-orb {
+  filter: blur(90px);
+  background: rgba(244, 227, 168, 0.1) !important;
+}
+
+.fuw-vc-welcome-card .fuw-welcome-icon-lib {
+  background: rgba(16, 96, 61, 0.92);
+}
+
+.fuw-vc-welcome-card .fuw-vc-icon-overview {
+  background: rgba(138, 109, 26, 0.92);
+}
+
+.fuw-vc-welcome-card .fuw-vc-icon-students {
+  background: rgba(16, 96, 61, 0.92);
+}
+
+.fuw-vc-welcome-card .fuw-vc-icon-resources {
+  background: rgba(138, 109, 26, 0.92);
+}
+
+.fuw-vc-progress-bar {
+  background: linear-gradient(90deg, #f4e3a8 0%, #8a6d1a 100%) !important;
+}
+
+.fuw-vc-continue-btn {
+  background: linear-gradient(135deg, #8a6d1a, #6b5310) !important;
+}
+
+.fuw-vc-continue-btn:hover {
+  filter: brightness(1.12);
+}
+
+@media (max-width: 920px) {
+  .vc-overview-panels,
+  .vc-reports-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .vc-panel-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .vc-table-row {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 0.7fr);
+  }
+
+  .vc-table-row span:nth-child(3),
+  .vc-table-row span:nth-child(5) {
+    display: none;
+  }
+}
+
+
 

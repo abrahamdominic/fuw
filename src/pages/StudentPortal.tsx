@@ -70,7 +70,10 @@ import {
   Sparkles,
   Award,
   Calculator,
-  CheckCheck
+  CheckCheck,
+  Trophy,
+  ShieldAlert,
+  PiggyBank
 } from 'lucide-react';
 import { useStore } from '../lib/useStore';
 import { getMarketplaceUrl } from '../lib/hub';
@@ -136,6 +139,9 @@ import { fx, staggerDelay } from '../lib/motion';
 import { AnimatedModal } from '../components/animations/AnimatedModal';
 import { fetchPremiumPublicConfiguration, type PremiumPublicConfiguration } from '../lib/payments';
 import { CampusAcademicsModule, CampusListingsModule } from '../components/CampusModules';
+import { ExpenseTrackerTab } from '../components/ExpenseTrackerTab';
+import { OpportunitiesHubTab } from '../components/OpportunitiesHubTab';
+import { CampusSafetyTab } from '../components/CampusSafetyTab';
 import {
   fetchNotificationPreferences,
   upsertNotificationPreference,
@@ -172,6 +178,8 @@ const studentNavGroups = [
         path: '/marketplace/browse?listingType=service',
         icon: ShieldCheck,
       },
+      { label: 'Opportunities', path: '/student/opportunities', icon: Trophy },
+      { label: 'Safety & Issues', path: '/student/safety', icon: ShieldAlert },
     ]
   },
   {
@@ -204,6 +212,7 @@ const studentNavGroups = [
     items: [
       { label: 'My courses', path: '/student/courses', icon: List },
       { label: 'Study planner', path: '/student/planner', icon: CalendarRange },
+      { label: 'Expense tracker', path: '/student/expenses', icon: PiggyBank },
       { label: 'My notes', path: '/student/notes', icon: StickyNote },
       { label: 'Messages', path: '/student/messages', icon: MessageSquare },
     ]
@@ -832,6 +841,12 @@ export function StudentPortal({ onReadOnline }: StudentPortalProps) {
           <StudyPlannerTab />
         ) : currentPath.startsWith('/student/notes') ? (
           <StudentNotesTab />
+        ) : currentPath.startsWith('/student/expenses') ? (
+          <ExpenseTrackerTab />
+        ) : currentPath.startsWith('/student/opportunities') ? (
+          <OpportunitiesHubTab />
+        ) : currentPath.startsWith('/student/safety') ? (
+          <CampusSafetyTab />
         ) : currentPath.startsWith('/student/reading-lists/') ? (
           <ReadingListDetailTab />
         ) : currentPath.startsWith('/student/reading-lists') ? (

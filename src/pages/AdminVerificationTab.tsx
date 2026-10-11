@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import {
   fetchVerificationQueue,
-  getEvidenceUrl,
+  getDocumentUrl,
   reviewVerification,
   type RequestStatus,
   type VerificationQueueRow
@@ -95,11 +95,10 @@ export function AdminVerificationTab() {
     }
   };
 
-  const openEvidence = async (row: VerificationQueueRow) => {
-    if (!row.evidence_path) return;
-    const url = await getEvidenceUrl(row);
+  const openDocument = async (path: string | null) => {
+    const url = await getDocumentUrl(path);
     if (!url) {
-      setError('That evidence file could not be opened.');
+      setError('That document could not be opened.');
       return;
     }
     window.open(url, '_blank', 'noopener,noreferrer');
@@ -211,8 +210,18 @@ export function AdminVerificationTab() {
 
               {row.status === 'pending' && (
                 <div className="verify-admin-actions">
+                  {row.student_id_path && (
+                    <button type="button" className="secondary-btn" onClick={() => void openDocument(row.student_id_path)}>
+                      <FileText size={14} aria-hidden="true" /> Student ID
+                    </button>
+                  )}
+                  {row.admission_letter_path && (
+                    <button type="button" className="secondary-btn" onClick={() => void openDocument(row.admission_letter_path)}>
+                      <FileText size={14} aria-hidden="true" /> Admission letter
+                    </button>
+                  )}
                   {row.evidence_path && (
-                    <button type="button" className="secondary-btn" onClick={() => void openEvidence(row)}>
+                    <button type="button" className="secondary-btn" onClick={() => void openDocument(row.evidence_path)}>
                       <FileText size={14} aria-hidden="true" /> View evidence
                     </button>
                   )}

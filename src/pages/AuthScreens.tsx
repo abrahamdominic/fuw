@@ -52,6 +52,7 @@ import { passkeyErrorMessage } from '../lib/authErrors';
 import { fx, staggerDelay } from '../lib/motion';
 import { safeMediaPlay, usePrefersStaticBackdrop } from '../lib/backdrop';
 import { applyReferralCode } from '../lib/affiliate';
+import { submitVerification } from '../lib/verification';
 
 type AuthMode = 'login' | 'register' | 'forgot';
 
@@ -567,6 +568,13 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
     bio: ''
   });
 
+  // Identity documents captured at registration (student ID + admission letter).
+  const [studentIdFile, setStudentIdFile] = useState<File | null>(null);
+  const [admissionLetterFile, setAdmissionLetterFile] = useState<File | null>(null);
+  const [docError, setDocError] = useState<string | null>(null);
+  const studentIdRef = useRef<HTMLInputElement>(null);
+  const admissionLetterRef = useRef<HTMLInputElement>(null);
+
   // MFA challenge
   const [otp, setOtp] = useState('');
   const [otpBusy, setOtpBusy] = useState(false);
@@ -691,6 +699,7 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
     const role = roleOverride || profile?.role;
     if (role === 'super_admin') navigate('/super', { replace: true });
     else if (role === 'admin') navigate('/admin', { replace: true });
+    else if (role === 'vc') navigate('/vc', { replace: true });
     else if (role === 'lecturer') navigate('/lecturer', { replace: true });
     else if (role === 'landlord' || role === 'caretaker') navigate('/provider', { replace: true });
     else navigate('/hub', { replace: true });
@@ -712,6 +721,8 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
         navigate('/super', { replace: true });
       } else if (profile.role === 'admin') {
         navigate('/admin', { replace: true });
+      } else if (profile.role === 'vc') {
+        navigate('/vc', { replace: true });
       } else if (profile.role === 'lecturer') {
         navigate('/lecturer', { replace: true });
       } else if (profile.role === 'landlord' || profile.role === 'caretaker') {
@@ -872,6 +883,33 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
     return true;
   };
 
+  const ACCEPTED_DOC_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+  const MAX_DOC_BYTES = 5 * 1024 * 1024;
+
+  // Shared upload guard for the two identity documents. Keeps the same
+  // type/size contract the private storage bucket enforces server-side.
+  const pickDocument = (
+    which: 'studentId' | 'admissionLetter',
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const picked = e.target.files?.[0] ?? null;
+    if (!picked) return;
+    const label = which === 'studentId' ? 'Your student ID' : 'Your admission letter';
+    if (picked.size > MAX_DOC_BYTES) {
+      setDocError(`${label} is larger than 5 MB. Please upload a smaller scan or photo.`);
+      e.target.value = '';
+      return;
+    }
+    if (!ACCEPTED_DOC_TYPES.includes(picked.type)) {
+      setDocError(`${label} must be a JPG, PNG, WebP or PDF file.`);
+      e.target.value = '';
+      return;
+    }
+    setDocError(null);
+    if (which === 'studentId') setStudentIdFile(picked);
+    else setAdmissionLetterFile(picked);
+  };
+
   // Register — step 2 validation + account creation
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -903,6 +941,14 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
     }
     if (!validPhone) {
       setErrorMsg('Please enter a valid phone number (8–15 digits).');
+      return;
+    }
+
+    // Both identity documents are required before an account is created, so a
+    // student can never end up registered but unverifiable.
+    if (!studentIdFile || !admissionLetterFile) {
+      setDocError('Upload both your student ID and your admission letter to continue.');
+      setErrorMsg('Student ID and admission letter are both required.');
       return;
     }
 
@@ -973,6 +1019,25 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
     if (cp.error) {
       setErrorMsg(cp.error.message);
       return;
+    }
+
+    // Account and profile exist now; submit the identity documents so the
+    // server can auto-verify the student in the same breath as registration.
+    // A failure here must not strand the account, so it is surfaced as a
+    // notification and the student can retry from their portal.
+    try {
+      await submitVerification({
+        studentId: studentIdFile,
+        admissionLetter: admissionLetterFile
+      });
+    } catch (verifyErr) {
+      toast(
+        verifyErr instanceof Error
+          ? verifyErr.message
+          : 'Your documents could not be submitted. You can retry from your student portal.',
+        'error',
+        9000
+      );
     }
 
     // Auto-bind referral code if available
@@ -1500,6 +1565,88 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
                   autoComplete="tel"
                   disabled={busy}
                 />
+
+                {docError && <MacBanner type="error">{docError}</MacBanner>}
+
+                <div className="mac-field">
+                  <label className="mac-label">Student ID Card *</label>
+                  <input
+                    ref={studentIdRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,application/pdf"
+                    className="sr-only"
+                    onChange={(e) => pickDocument('studentId', e)}
+                    disabled={busy}
+                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      className="mac-btn mac-btn-back"
+                      style={{ width: 'auto' }}
+                      onClick={() => studentIdRef.current?.click()}
+                      disabled={busy}
+                    >
+                      <IdCard size={16} aria-hidden /> {studentIdFile ? 'Replace ID' : 'Upload student ID'}
+                    </button>
+                    {studentIdFile && (
+                      <span className="mac-hint" style={{ display: 'flex', alignItems: 'center', gap: 6, margin: 0 }}>
+                        <FileText size={14} aria-hidden /> {studentIdFile.name}
+                        <button
+                          type="button"
+                          className="link-btn"
+                          aria-label="Remove student ID"
+                          onClick={() => {
+                            setStudentIdFile(null);
+                            if (studentIdRef.current) studentIdRef.current.value = '';
+                          }}
+                        >
+                          <X size={13} aria-hidden />
+                        </button>
+                      </span>
+                    )}
+                  </div>
+                  <p className="mac-hint">Clear photo or scan of your FUW student ID (JPG, PNG, WebP or PDF, max 5 MB).</p>
+                </div>
+
+                <div className="mac-field">
+                  <label className="mac-label">Admission Letter *</label>
+                  <input
+                    ref={admissionLetterRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,application/pdf"
+                    className="sr-only"
+                    onChange={(e) => pickDocument('admissionLetter', e)}
+                    disabled={busy}
+                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      className="mac-btn mac-btn-back"
+                      style={{ width: 'auto' }}
+                      onClick={() => admissionLetterRef.current?.click()}
+                      disabled={busy}
+                    >
+                      <FileText size={16} aria-hidden /> {admissionLetterFile ? 'Replace letter' : 'Upload admission letter'}
+                    </button>
+                    {admissionLetterFile && (
+                      <span className="mac-hint" style={{ display: 'flex', alignItems: 'center', gap: 6, margin: 0 }}>
+                        <FileText size={14} aria-hidden /> {admissionLetterFile.name}
+                        <button
+                          type="button"
+                          className="link-btn"
+                          aria-label="Remove admission letter"
+                          onClick={() => {
+                            setAdmissionLetterFile(null);
+                            if (admissionLetterRef.current) admissionLetterRef.current.value = '';
+                          }}
+                        >
+                          <X size={13} aria-hidden />
+                        </button>
+                      </span>
+                    )}
+                  </div>
+                  <p className="mac-hint">Your FUW admission letter. Stored privately and only visible to the library.</p>
+                </div>
 
                 <div className="mac-btn-row">
                   <button

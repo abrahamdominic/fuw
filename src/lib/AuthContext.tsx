@@ -78,6 +78,8 @@ export interface AuthContextType {
   isCaretaker: boolean;
   /** A landlord or a caretaker — either may open the accommodation portal. */
   isProvider: boolean;
+  /** The provisioned Vice-Chancellor account (read-only executive portal). */
+  isVc: boolean;
   isProfileComplete: boolean;
   onboardingCompleted: boolean;
   onboardingStep: number;
@@ -1290,6 +1292,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isLandlord = role === 'landlord';
   const isCaretaker = role === 'caretaker';
   const isProvider = isLandlord || isCaretaker;
+  const isVc = role === 'vc';
   const permissions = profile?.permissions ?? [];
   const hasPermission = (permission: string) =>
     can({ role, permissions, isActive: profile?.isActive !== false }, permission);
@@ -1368,6 +1371,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isLandlord,
       isCaretaker,
       isProvider,
+      isVc,
       isProfileComplete,
       onboardingCompleted,
       onboardingStep,
@@ -1391,7 +1395,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       hasPremium,
       refreshEntitlement
     }),
-    [user, session, profile, isLoading, isAuthenticated, isAdmin, isSuperAdmin, isLecturer, isStudent, isLandlord, isCaretaker, isProvider, isProfileComplete, onboardingCompleted, onboardingStep, setOnboardingState, role, permissions, mfaRequired, mfaVerifiedFactor, plan, hasPremium, refreshEntitlement]
+    [user, session, profile, isLoading, isAuthenticated, isAdmin, isSuperAdmin, isLecturer, isStudent, isLandlord, isCaretaker, isProvider, isVc, isProfileComplete, onboardingCompleted, onboardingStep, setOnboardingState, role, permissions, mfaRequired, mfaVerifiedFactor, plan, hasPremium, refreshEntitlement]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

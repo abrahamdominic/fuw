@@ -19,18 +19,21 @@ import { useAuth } from '../lib/AuthContext';
 import {
   fetchMyVerificationRequests,
   fetchVerificationState,
-  getEvidenceUrl,
+  getDocumentUrl,
   submitVerification,
   type VerificationRequest,
   type VerificationState
 } from '../lib/verification';
 
 const STEPS = [
-  'Add your matriculation number, faculty and department',
-  'Upload a clear photo of your student ID or admission letter',
-  'Wait for the library to review it',
+  'Confirm your matriculation number, faculty and department',
+  'Upload your student ID and admission letter',
+  'Wait for the library to review them',
   'Unlock premium access once approved'
 ];
+
+const ACCEPTED_DOC_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+const MAX_DOC_BYTES = 5 * 1024 * 1024;
 
 export function StudentVerificationTab() {
   const { profile, isProfileComplete, refreshProfile, refreshEntitlement, plan, hasPremium } = useAuth();
@@ -41,8 +44,10 @@ export function StudentVerificationTab() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [note, setNote] = useState('');
-  const [file, setFile] = useState<File | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const [studentIdFile, setStudentIdFile] = useState<File | null>(null);
+  const [admissionLetterFile, setAdmissionLetterFile] = useState<File | null>(null);
+  const studentIdRef = useRef<HTMLInputElement>(null);
+  const admissionLetterRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -70,15 +75,25 @@ export function StudentVerificationTab() {
   }, [load]);
 
   const handleSubmit = async () => {
+    if (!studentIdFile || !admissionLetterFile) {
+      setError('Upload both your student ID and your admission letter.');
+      return;
+    }
     setSubmitting(true);
     setError(null);
     setNotice(null);
     try {
-      await submitVerification({ note, file });
+      const request = await submitVerification({ note, studentId: studentIdFile, admissionLetter: admissionLetterFile });
       setNote('');
-      setFile(null);
-      if (fileRef.current) fileRef.current.value = '';
-      setNotice('Sent to the library. You will get a notification as soon as it is reviewed.');
+      setStudentIdFile(null);
+      setAdmissionLetterFile(null);
+      if (studentIdRef.current) studentIdRef.current.value = '';
+      if (admissionLetterRef.current) admissionLetterRef.current.value = '';
+      setNotice(
+        request?.status === 'approved'
+          ? 'Verified! Your academic identity is confirmed.'
+          : 'Sent to the library. You will get a notification as soon as it is reviewed.'
+      );
       await Promise.all([load(), refreshProfile(), refreshEntitlement()]);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not submit your request.');
@@ -87,36 +102,45 @@ export function StudentVerificationTab() {
     }
   };
 
-  const openEvidence = async (req: VerificationRequest) => {
-    const url = await getEvidenceUrl(req);
+  const openDocument = async (path: string | null) => {
+    const url = await getDocumentUrl(path);
     if (!url) {
-      setError('That evidence file could not be opened. Try again in a moment.');
+      setError('That document could not be opened. Try again in a moment.');
       return;
     }
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
-  const removeFile = () => {
-    setFile(null);
-    if (fileRef.current) fileRef.current.value = '';
+  const removeDocument = (which: 'studentId' | 'admissionLetter') => {
+    if (which === 'studentId') {
+      setStudentIdFile(null);
+      if (studentIdRef.current) studentIdRef.current.value = '';
+    } else {
+      setAdmissionLetterFile(null);
+      if (admissionLetterRef.current) admissionLetterRef.current.value = '';
+    }
   };
 
-  const onPickFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onPickDocument = (
+    which: 'studentId' | 'admissionLetter',
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const picked = e.target.files?.[0] ?? null;
     if (!picked) return;
-    if (picked.size > 5 * 1024 * 1024) {
-      setError('That file is larger than 5 MB. Please compress it or upload a smaller photo.');
+    const label = which === 'studentId' ? 'Your student ID' : 'Your admission letter';
+    if (picked.size > MAX_DOC_BYTES) {
+      setError(`${label} is larger than 5 MB. Please compress it or upload a smaller photo.`);
       e.target.value = '';
       return;
     }
-    const ok = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'].includes(picked.type);
-    if (!ok) {
-      setError('Evidence must be a JPG, PNG, WebP or PDF.');
+    if (!ACCEPTED_DOC_TYPES.includes(picked.type)) {
+      setError(`${label} must be a JPG, PNG, WebP or PDF.`);
       e.target.value = '';
       return;
     }
     setError(null);
-    setFile(picked);
+    if (which === 'studentId') setStudentIdFile(picked);
+    else setAdmissionLetterFile(picked);
   };
 
   const status = state?.status ?? 'unsubmitted';
@@ -161,7 +185,7 @@ export function StudentVerificationTab() {
               {status === 'rejected' &&
                 (state?.reason || 'Your submission was not accepted. Review the reason and submit again.').toString()}
               {status === 'unsubmitted' &&
-                'Submit your student ID or admission letter so the library can confirm your identity.'}
+                'Submit your student ID and admission letter so the library can confirm your identity.'}
             </span>
           </div>
           <button
@@ -246,46 +270,77 @@ export function StudentVerificationTab() {
               placeholder="e.g. My admission letter lists Computer Science, but I registered late."
             />
 
-            <label className="field-label" htmlFor="verify-evidence">
-              Student ID or admission letter <span className="muted">(optional, max 5 MB)</span>
+            <label className="field-label" htmlFor="verify-student-id">
+              Student ID card <span className="muted">(required, max 5 MB)</span>
             </label>
             <div className="verify-file-row">
               <input
-                ref={fileRef}
-                id="verify-evidence"
+                ref={studentIdRef}
+                id="verify-student-id"
                 type="file"
                 accept="image/jpeg,image/png,image/webp,application/pdf"
-                onChange={onPickFile}
+                onChange={(e) => onPickDocument('studentId', e)}
                 className="sr-only"
               />
               <button
                 type="button"
                 className="secondary-btn"
-                onClick={() => fileRef.current?.click()}
+                onClick={() => studentIdRef.current?.click()}
               >
                 <Paperclip size={15} aria-hidden="true" /> Choose file
               </button>
-              {file && (
+              {studentIdFile && (
                 <span className="verify-file-chip">
                   <FileText size={14} aria-hidden="true" />
-                  <span className="verify-file-name">{file.name}</span>
-                  <span className="muted">({Math.round(file.size / 1024)} KB)</span>
-                  <button type="button" className="link-btn" onClick={removeFile} aria-label="Remove selected file">
+                  <span className="verify-file-name">{studentIdFile.name}</span>
+                  <span className="muted">({Math.round(studentIdFile.size / 1024)} KB)</span>
+                  <button type="button" className="link-btn" onClick={() => removeDocument('studentId')} aria-label="Remove student ID">
+                    <Trash2 size={13} aria-hidden="true" />
+                  </button>
+                </span>
+              )}
+            </div>
+
+            <label className="field-label" htmlFor="verify-admission-letter">
+              Admission letter <span className="muted">(required, max 5 MB)</span>
+            </label>
+            <div className="verify-file-row">
+              <input
+                ref={admissionLetterRef}
+                id="verify-admission-letter"
+                type="file"
+                accept="image/jpeg,image/png,image/webp,application/pdf"
+                onChange={(e) => onPickDocument('admissionLetter', e)}
+                className="sr-only"
+              />
+              <button
+                type="button"
+                className="secondary-btn"
+                onClick={() => admissionLetterRef.current?.click()}
+              >
+                <Paperclip size={15} aria-hidden="true" /> Choose file
+              </button>
+              {admissionLetterFile && (
+                <span className="verify-file-chip">
+                  <FileText size={14} aria-hidden="true" />
+                  <span className="verify-file-name">{admissionLetterFile.name}</span>
+                  <span className="muted">({Math.round(admissionLetterFile.size / 1024)} KB)</span>
+                  <button type="button" className="link-btn" onClick={() => removeDocument('admissionLetter')} aria-label="Remove admission letter">
                     <Trash2 size={13} aria-hidden="true" />
                   </button>
                 </span>
               )}
             </div>
             <p className="verify-hint">
-              Only the library can open what you upload. It is stored privately and never shown on
-              your profile.
+              Only the library can open what you upload. Both documents stay private and are never
+              shown on your profile.
             </p>
 
             <button
               type="button"
               className="primary"
               onClick={() => void handleSubmit()}
-              disabled={submitting || !isProfileComplete}
+              disabled={submitting || !isProfileComplete || !studentIdFile || !admissionLetterFile}
               aria-busy={submitting}
             >
               {submitting ? (
@@ -319,8 +374,18 @@ export function StudentVerificationTab() {
                     {h.matric_number} · {h.department}
                   </span>
                   {h.reviewer_note && <span className="verify-history-note">“{h.reviewer_note}”</span>}
+                  {h.student_id_path && (
+                    <button type="button" className="link-btn" onClick={() => void openDocument(h.student_id_path)}>
+                      <FileText size={13} aria-hidden="true" /> Student ID
+                    </button>
+                  )}
+                  {h.admission_letter_path && (
+                    <button type="button" className="link-btn" onClick={() => void openDocument(h.admission_letter_path)}>
+                      <FileText size={13} aria-hidden="true" /> Admission letter
+                    </button>
+                  )}
                   {h.evidence_path && (
-                    <button type="button" className="link-btn" onClick={() => void openEvidence(h)}>
+                    <button type="button" className="link-btn" onClick={() => void openDocument(h.evidence_path)}>
                       <FileText size={13} aria-hidden="true" /> View file
                     </button>
                   )}
