@@ -177,6 +177,7 @@ export interface MarketplaceProduct {
   service_area?: string;
   status: ListingStatus;
   is_service: boolean;
+  is_demo?: boolean;
   thumbnail_url?: string;
   views_count: number;
   favourites_count: number;

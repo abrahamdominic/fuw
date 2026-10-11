@@ -145,7 +145,8 @@
     Cache-Control = "public, max-age=0, must-revalidate"
 
 # Security headers (CFG-01). Served with every response.
-# CSP: SPA assets from 'self'; Google Fonts; Supabase API/Realtime/storage.
+# CSP: SPA assets from 'self'; Google Fonts; Supabase API/Realtime/storage;
+# Unsplash CDN (demo/seed accommodation + marketplace imagery).
 [[headers]]
   for = "/*"
   [headers.values]
@@ -156,4 +157,4 @@
     Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=()"
     Cross-Origin-Resource-Policy = "same-origin"
     Cross-Origin-Opener-Policy = "same-origin"
-    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co; frame-src 'self' https://*.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; worker-src 'self' blob:"
+    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co https://images.unsplash.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co; frame-src 'self' https://*.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; worker-src 'self' blob:"

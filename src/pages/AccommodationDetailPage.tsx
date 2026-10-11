@@ -392,7 +392,21 @@ export function AccommodationDetailPage() {
               >
                 {availability.label}
               </span>
-              {property.is_verified && (
+              {property.is_demo && (
+                <span
+                  style={{
+                    background: '#785400',
+                    color: '#ffe8a3',
+                    padding: '3px 8px',
+                    borderRadius: 6,
+                    fontSize: 12,
+                    fontWeight: 700
+                  }}
+                >
+                  Demo listing
+                </span>
+              )}
+              {property.is_verified && !property.is_demo && (
                 <span
                   style={{
                     background: 'var(--green-100)',

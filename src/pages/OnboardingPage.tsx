@@ -642,7 +642,7 @@ export const OnboardingPage: React.FC = () => {
                   </button>
                   <button
                     type="submit"
-                    disabled={isSubmitting || !matricNumber.trim()}
+                    disabled={isSubmitting || !faculty || !department || !level}
                     className="btn btn-primary"
                     style={{
                       flex: 1,

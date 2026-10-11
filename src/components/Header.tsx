@@ -12,7 +12,6 @@ import {
   Sun,
   Moon,
   Home,
-  LayoutGrid,
   Search,
   GraduationCap
 } from 'lucide-react';
@@ -77,20 +76,8 @@ export function Header() {
         </Link>
 
         <nav className="desktop-nav" aria-label="Main Navigation">
-          <NavLink to="/hub" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
-            Campus Hub
-          </NavLink>
           <NavLink to="/" end className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
             Home
-          </NavLink>
-          <NavLink to="/library" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
-            Library
-          </NavLink>
-          <NavLink to="/accommodation" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
-            Accommodation
-          </NavLink>
-          <NavLink to="/marketplace" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
-            Marketplace
           </NavLink>
           <NavLink to="/faculties" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
             Faculties
@@ -215,20 +202,8 @@ export function Header() {
             </div>
 
             <div className="mobile-nav-links">
-              <NavLink to="/hub" className={({ isActive }) => (isActive ? 'mobile-link active' : 'mobile-link')}>
-                FUW Campus Hub
-              </NavLink>
               <NavLink to="/" end className={({ isActive }) => (isActive ? 'mobile-link active' : 'mobile-link')}>
                 Home
-              </NavLink>
-              <NavLink to="/library" className={({ isActive }) => (isActive ? 'mobile-link active' : 'mobile-link')}>
-                Library Collection
-              </NavLink>
-              <NavLink to="/accommodation" className={({ isActive }) => (isActive ? 'mobile-link active' : 'mobile-link')}>
-                Accommodation
-              </NavLink>
-              <NavLink to="/marketplace" className={({ isActive }) => (isActive ? 'mobile-link active' : 'mobile-link')}>
-                FUW Marketplace
               </NavLink>
               <NavLink to="/faculties" className={({ isActive }) => (isActive ? 'mobile-link active' : 'mobile-link')}>
                 Faculties &amp; Departments
@@ -256,10 +231,6 @@ export function Header() {
             {isAuthenticated ? (
               <div className="mobile-nav-portals">
                 <span className="mobile-portal-label">AUTHENTICATED PORTAL</span>
-                <Link to="/hub" className="mobile-portal-btn student" style={{ marginBottom: 8 }}>
-                  <LayoutGrid size={17} />
-                  <span>Campus Hub Gateway</span>
-                </Link>
                 {isAdmin ? (
                   <Link to="/admin" className="mobile-portal-btn admin">
                     <ShieldCheck size={17} />

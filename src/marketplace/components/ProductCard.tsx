@@ -80,6 +80,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   const handleQuickAdd = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (product.is_demo) {
+      toast('This is a demo listing and cannot be purchased.', 'info');
+      return;
+    }
     addItem(product, undefined, 1);
     toast(`Added "${product.title}" to cart`, 'success');
   };
@@ -147,6 +151,27 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         >
           {product.is_service ? 'CAMPUS SERVICE' : formatCondition(product.condition)}
         </span>
+
+        {product.is_demo && (
+          <span
+            style={{
+              position: 'absolute',
+              top: 40,
+              left: 10,
+              padding: '3px 8px',
+              borderRadius: 6,
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
+              background: 'rgba(120, 84, 0, 0.94)',
+              color: '#ffe8a3',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.12)',
+            }}
+          >
+            Demo
+          </span>
+        )}
 
         {/* Favourite Button */}
         <button
@@ -259,6 +284,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           </div>
 
           {!product.is_service ? (
+            product.is_demo ? (
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#785400', letterSpacing: '0.02em' }}>
+                Demo
+              </span>
+            ) : (
             <button
               type="button"
               onClick={handleQuickAdd}
@@ -280,6 +310,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               <ShoppingBag size={14} />
               <span>Add</span>
             </button>
+            )
           ) : (
             <Link
               to={mpPath(`/product/${product.slug || product.id}`)}

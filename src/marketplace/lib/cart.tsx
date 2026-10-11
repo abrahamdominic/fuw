@@ -35,6 +35,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [items]);
 
   const addItem = (product: MarketplaceProduct, variant?: MarketplaceProductVariant, quantity: number = 1) => {
+    if (product.is_demo) return;
     setItems((prev) => {
       const idx = prev.findIndex(
         (it) => it.productId === product.id && (it.variantId || '') === (variant?.id || '')

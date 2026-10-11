@@ -1,4 +1,6 @@
 *.md
+# private domain research notes (explicit; also covered by *.md)
+DOMAIN_RESEARCH.md
 node_modules
 .env
 .env.example

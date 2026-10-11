@@ -26,7 +26,7 @@ import {
 import { useAuth } from '../lib/AuthContext';
 import { useToast } from '../components/Toast';
 import { requireSupabase } from '../lib/supabase';
-import { formatNaira, REQUIRED_PHOTO_SLOTS, type PhotoSlotKey } from '../lib/accommodation';
+import { formatNaira, REQUIRED_PHOTO_SLOTS, ACCOMMODATION_FALLBACK_IMAGE, type PhotoSlotKey } from '../lib/accommodation';
 import { previewAdvertFee, advertFeeKobo, annualRentKobo, type RentPeriod } from '../lib/advertFee';
 import {
   assignCaretaker,
@@ -896,6 +896,10 @@ function ListingEditor({
                           <img
                             src={url}
                             alt={slot.label}
+                            onError={(event) => {
+                              const img = event.currentTarget;
+                              if (img.src !== ACCOMMODATION_FALLBACK_IMAGE) img.src = ACCOMMODATION_FALLBACK_IMAGE;
+                            }}
                             style={{ width: '100%', height: 96, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)' }}
                           />
                           <button

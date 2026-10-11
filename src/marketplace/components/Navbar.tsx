@@ -885,15 +885,6 @@ export const Navbar: React.FC = () => {
                 </Link>
               </>
             )}
-            <Link to={PLATFORM_PATHS.hub} style={{ fontSize: 14, fontWeight: 700, color: 'var(--green-800, #12603d)', textDecoration: 'none', padding: '6px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span>Return to FUW Campus Hub</span>
-            </Link>
-            <Link to={PLATFORM_PATHS.library} style={{ fontSize: 14, color: 'var(--text-secondary, #55675b)', textDecoration: 'none', padding: '6px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span>FUW E-Library</span>
-            </Link>
-            <Link to={PLATFORM_PATHS.accommodation} style={{ fontSize: 14, color: 'var(--text-secondary, #55675b)', textDecoration: 'none', padding: '6px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span>FUW Accommodation & Lodges</span>
-            </Link>
           </div>
         </div>
       )}

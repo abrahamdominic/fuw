@@ -106,6 +106,50 @@ describe('Personalized Onboarding & Security Suite', () => {
     });
   });
 
+  it('enables the academic details Continue button without a matric number (regression)', async () => {
+    const mockSetOnboarding = vi.fn().mockResolvedValue(undefined);
+    vi.spyOn(AuthContextModule, 'useAuth').mockReturnValue(
+      buildMockAuth({
+        onboardingStep: 2,
+        profile: {
+          id: 'test-user-id',
+          fullName: 'Abraham Peter',
+          displayName: 'Abraham',
+          email: 'abraham@fuw.edu.ng',
+          role: 'student' as any,
+          matricNumber: '',
+          faculty: 'Faculty of Science',
+          department: 'Computer Science',
+          level: '400 Level',
+          permissions: [],
+          isActive: true,
+          onboardingCompleted: false,
+          onboardingStarted: false,
+          onboardingStep: 2
+        },
+        setOnboardingState: mockSetOnboarding
+      })
+    );
+
+    render(
+      <MemoryRouter>
+        <OnboardingPage />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText(/Step 2 of 5/i)).toBeDefined();
+
+    const continueBtn = screen.getByRole('button', { name: /Continue/i }) as HTMLButtonElement;
+    expect(continueBtn.disabled).toBe(false);
+
+    const form = continueBtn.closest('form') as HTMLFormElement;
+    fireEvent.submit(form);
+
+    await waitFor(() => {
+      expect(mockSetOnboarding).toHaveBeenCalledWith(3, false);
+    });
+  });
+
   it('renders personalized lecturer onboarding with academic scope & clearance notice', () => {
     vi.spyOn(AuthContextModule, 'useAuth').mockReturnValue(
       buildMockAuth({

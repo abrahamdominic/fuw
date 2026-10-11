@@ -35,6 +35,8 @@ export type SchemaKind =
   | 'course'
   | 'learningResource'
   | 'scholarlyArticle'
+  | 'product'
+  | 'store'
   | 'none';
 
 export interface Crumb {

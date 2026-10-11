@@ -217,6 +217,84 @@ function courseNode(page: PageMeta, data: Data): Record<string, unknown> {
   });
 }
 
+/**
+ * Marketplace listing. Emits a `Product` for goods or a `Service` for campus
+ * services, using only fields the listing actually stores: title, description,
+ * price, currency, availability, category and seller. Ratings are claimed only
+ * when the record has real reviews (`ratingCount > 0`); nothing is invented
+ * (seo.md §22, §45).
+ */
+function productNode(page: PageMeta, data: Data): Record<string, unknown> {
+  const merged = { ...data, ...(page.schemaData || {}) };
+  const isService = merged.isService === true;
+  const priceKobo = typeof merged.priceKobo === 'number' ? (merged.priceKobo as number) : undefined;
+  const availability = merged.availability as string | undefined;
+  const sellerName = merged.sellerName as string | undefined;
+  const seller = sellerName ? { '@type': 'Organization', name: sellerName } : undefined;
+
+  const offers =
+    priceKobo !== undefined
+      ? compact({
+          '@type': 'Offer',
+          price: (priceKobo / 100).toFixed(2),
+          priceCurrency: 'NGN',
+          availability: availability ? `https://schema.org/${availability}` : undefined,
+          url: absoluteUrl(page.path),
+          seller
+        })
+      : undefined;
+
+  const ratingValue = merged.ratingValue;
+  const ratingCount = merged.ratingCount;
+  const aggregateRating =
+    typeof ratingValue === 'number' && typeof ratingCount === 'number' && ratingCount > 0
+      ? { '@type': 'AggregateRating', ratingValue, reviewCount: ratingCount }
+      : undefined;
+
+  return compact({
+    '@type': isService ? 'Service' : 'Product',
+    '@id': `${absoluteUrl(page.path)}#listing`,
+    name: page.title,
+    description: page.description,
+    url: absoluteUrl(page.path),
+    category: isService ? merged.serviceCategory : merged.categoryName,
+    image: merged.imageUrl,
+    brand: isService ? undefined : seller,
+    provider: isService ? seller : undefined,
+    areaServed: isService ? merged.areaServed : undefined,
+    offers,
+    aggregateRating
+  });
+}
+
+/**
+ * Vendor storefront. Emits a `Store` for a real, active marketplace vendor
+ * using only stored fields: store name, description, location/area and the
+ * vendor's own aggregate rating when the record actually has reviews.
+ */
+function storeNode(page: PageMeta, data: Data): Record<string, unknown> {
+  const merged = { ...data, ...(page.schemaData || {}) };
+  const area = merged.areaServed;
+  const ratingValue = merged.ratingValue;
+  const ratingCount = merged.ratingCount;
+  const aggregateRating =
+    typeof ratingValue === 'number' && typeof ratingCount === 'number' && ratingCount > 0
+      ? { '@type': 'AggregateRating', ratingValue, reviewCount: ratingCount }
+      : undefined;
+
+  return compact({
+    '@type': 'Store',
+    '@id': `${absoluteUrl(page.path)}#store`,
+    name: merged.storeName || page.title,
+    description: page.description,
+    url: absoluteUrl(page.path),
+    image: merged.imageUrl,
+    areaServed: typeof area === 'string' ? { '@type': 'Place', name: area } : undefined,
+    parentOrganization: { '@id': LIBRARY_ORG_ID },
+    aggregateRating
+  });
+}
+
 /** A directory page that enumerates other pages (faculties, courses). */
 function itemListNode(page: PageMeta, items?: Array<{ name: string; path: string }>): Record<string, unknown> {
   const base: Record<string, unknown> = {
@@ -291,6 +369,12 @@ export function buildGraph(page: PageMeta, items?: Array<{ name: string; path: s
       break;
     case 'scholarlyArticle':
       inner['@graph'].push(articleNode(page), scholarlyArticleNode(page, page.schemaData || {}));
+      break;
+    case 'product':
+      inner['@graph'].push(articleNode(page), productNode(page, page.schemaData || {}));
+      break;
+    case 'store':
+      inner['@graph'].push(articleNode(page), storeNode(page, page.schemaData || {}));
       break;
     case 'webPage':
       inner['@graph'].push(webPageNode(page));

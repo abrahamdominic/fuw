@@ -25,6 +25,7 @@ import { getProductFallbackImage } from '../components/ProductCard';
 import { VerifiedScholarBadge } from '../components/VerifiedScholarBadge';
 import { mpPath, PLATFORM_PATHS } from '../lib/routes';
 import { scrollToTop } from '../lib/scroll';
+import { SEO } from '../../components/SEO';
 
 export const ProductDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -118,11 +119,19 @@ export const ProductDetailPage: React.FC = () => {
     : product.quantity_total - product.quantity_sold - product.quantity_reserved;
 
   const handleAddToCart = () => {
+    if (product.is_demo) {
+      toast('This is a demo listing and cannot be purchased.', 'info');
+      return;
+    }
     addItem(product, selectedVariant || undefined, quantity);
     toast(`Added ${quantity} × "${product.title}" to cart!`, 'success');
   };
 
   const handleBuyNow = () => {
+    if (product.is_demo) {
+      toast('This is a demo listing and cannot be purchased.', 'info');
+      return;
+    }
     addItem(product, selectedVariant || undefined, quantity);
     navigate(mpPath('/checkout'));
   };
@@ -196,8 +205,52 @@ export const ProductDetailPage: React.FC = () => {
     }
   };
 
+  const seoPath = mpPath(`/product/${product.slug || product.id}`);
+  const primaryImage = images[0]?.resolvedUrl || getProductFallbackImage(product);
+  const availability = availableStock > 0 ? 'InStock' : 'OutOfStock';
+  const sellerName = product.vendor?.store_name;
+  const seoKeywords = [
+    product.title,
+    ...(product.category ? [product.category.name] : []),
+    ...(sellerName ? [sellerName] : []),
+    'FUW marketplace'
+  ];
+
   return (
     <div style={{ paddingBottom: 60 }}>
+      <SEO
+        title={`${product.title} | FUW Marketplace`}
+        description={
+          product.description?.trim() ||
+          `${product.title} available on the FUW Marketplace from verified Federal University Wukari student vendors.`
+        }
+        path={seoPath}
+        keywords={seoKeywords}
+        index={!product.is_demo}
+        noindex={product.is_demo}
+        breadcrumbs={[
+          { name: 'Home', path: '/' },
+          { name: 'Marketplace', path: '/marketplace' },
+          { name: 'Browse', path: '/marketplace/browse' },
+          ...(product.category
+            ? [{ name: product.category.name, path: `/marketplace/browse?category=${product.category.slug}` }]
+            : []),
+          { name: product.title, path: seoPath }
+        ]}
+        schema="product"
+        image={primaryImage}
+        imageAlt={product.title}
+        schemaData={{
+          isService: product.is_service,
+          priceKobo: product.price_kobo,
+          availability,
+          sellerName,
+          categoryName: product.category?.name,
+          imageUrl: primaryImage,
+          ratingValue: product.rating_avg,
+          ratingCount: product.rating_count
+        }}
+      />
       {/* Breadcrumb Navigation */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--text-secondary, #55675b)', marginBottom: 20, flexWrap: 'wrap' }}>
         <Link to={mpPath("/")} style={{ color: 'inherit', textDecoration: 'none' }}>Home</Link>
@@ -300,6 +353,22 @@ export const ProductDetailPage: React.FC = () => {
             >
               {product.is_service ? 'Campus Service' : formatCondition(product.condition)}
             </span>
+            {product.is_demo && (
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 800,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                  padding: '4px 10px',
+                  borderRadius: 6,
+                  background: '#785400',
+                  color: '#ffe8a3',
+                }}
+              >
+                Demo listing
+              </span>
+            )}
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <button
@@ -440,6 +509,10 @@ export const ProductDetailPage: React.FC = () => {
                     <Store size={18} />
                     <span>Manage Your Product</span>
                   </Link>
+                </div>
+              ) : product.is_demo ? (
+                <div style={{ marginTop: 4, padding: '12px 14px', borderRadius: 10, background: '#fff7e0', border: '1px solid #f0d68a', color: '#785400', fontSize: 13, fontWeight: 600, lineHeight: 1.5 }}>
+                  This is a demo listing created to showcase the marketplace. It cannot be purchased.
                 </div>
               ) : (
                 <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>

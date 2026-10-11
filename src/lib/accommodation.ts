@@ -29,6 +29,7 @@ export interface AccommodationProperty {
   is_verified: boolean;
   is_featured: boolean;
   is_published: boolean;
+  is_demo?: boolean;
   view_count: number;
   created_at: string;
   updated_at: string;

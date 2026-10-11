@@ -18,6 +18,7 @@ import { useAuth } from '../lib/auth';
 import { useToast } from '../components/Toast';
 import { mpPath, PLATFORM_PATHS } from '../lib/routes';
 import { scrollToTop } from '../lib/scroll';
+import { SEO } from '../../components/SEO';
 
 export const VendorStorePage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -108,8 +109,44 @@ export const VendorStorePage: React.FC = () => {
   const physicalProducts = products.filter((p) => !p.is_service);
   const campusServices = products.filter((p) => p.is_service);
 
+  const vendorPath = mpPath(`/vendor/${vendor.slug || vendor.id}`);
+  const vendorDescription =
+    vendor.description?.trim() ||
+    vendor.tagline?.trim() ||
+    `Shop ${vendor.store_name} on the FUW Marketplace — verified Federal University Wukari student vendor.`;
+  const vendorImage = vendor.banner_url || vendor.logo_url;
+
   return (
     <div style={{ paddingBottom: 60 }}>
+      <SEO
+        title={`${vendor.store_name} | FUW Marketplace`}
+        description={vendorDescription}
+        path={vendorPath}
+        keywords={[
+          vendor.store_name,
+          ...(vendor.campus_area ? [vendor.campus_area] : []),
+          'FUW marketplace vendor',
+          'student vendor Wukari'
+        ]}
+        index={vendor.status === 'active'}
+        noindex={vendor.status !== 'active'}
+        breadcrumbs={[
+          { name: 'Home', path: '/' },
+          { name: 'Marketplace', path: '/marketplace' },
+          { name: 'Browse', path: '/marketplace/browse' },
+          { name: vendor.store_name, path: vendorPath }
+        ]}
+        schema="store"
+        image={vendorImage}
+        imageAlt={`${vendor.store_name} storefront`}
+        schemaData={{
+          storeName: vendor.store_name,
+          areaServed: vendor.campus_area,
+          imageUrl: vendorImage,
+          ratingValue: vendor.rating_avg,
+          ratingCount: vendor.rating_count
+        }}
+      />
       {/* Vendor Header Banner */}
       <div
         style={{

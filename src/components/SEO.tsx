@@ -43,6 +43,8 @@ export interface SEOProps {
   /** Terms this page serves. Keep short and page-specific. */
   keywords?: string[];
   noindex?: boolean;
+  /** Force `index, follow` for a dynamic page whose base meta is the noindex fallback. */
+  index?: boolean;
   /** Force `noindex, follow` (auth, transactional and portal pages). */
   follow?: boolean;
   breadcrumbs?: Crumb[];
@@ -70,6 +72,7 @@ function resolveMeta(props: SEOProps): PageMeta {
     if (props.description) merged.description = props.description;
     if (props.keywords) merged.keywords = props.keywords;
     if (props.noindex === true) merged.indexability = 'noindex';
+    if (props.index === true) merged.indexability = 'index';
     if (props.breadcrumbs) merged.breadcrumbs = props.breadcrumbs;
     if (props.image) merged.image = props.image;
     if (props.imageAlt) merged.imageAlt = props.imageAlt;
@@ -89,7 +92,8 @@ function resolveMeta(props: SEOProps): PageMeta {
     image: props.image || base.image,
     imageAlt: props.imageAlt || base.imageAlt,
     ogType: props.type || base.ogType,
-    indexability: props.noindex === true ? 'noindex' : base.indexability
+    indexability:
+      props.noindex === true ? 'noindex' : props.index === true ? 'index' : base.indexability
   };
 }
 

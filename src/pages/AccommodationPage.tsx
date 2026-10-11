@@ -494,7 +494,22 @@ export function AccommodationPage() {
                     >
                       {badge.label}
                     </span>
-                    {prop.is_verified && (
+                    {prop.is_demo && (
+                      <span
+                        className="badge"
+                        style={{
+                          background: 'rgba(120, 84, 0, 0.92)',
+                          color: '#ffe8a3',
+                          fontWeight: 700,
+                          fontSize: 11,
+                          padding: '4px 8px',
+                          borderRadius: 6
+                        }}
+                      >
+                        Demo listing
+                      </span>
+                    )}
+                    {prop.is_verified && !prop.is_demo && (
                       <span
                         className="badge"
                         style={{
