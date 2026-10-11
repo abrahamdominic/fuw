@@ -94,6 +94,12 @@ export interface AuthContextType {
     username: string;
     email: string;
     password: string;
+    matricNumber?: string;
+    faculty?: string;
+    department?: string;
+    level?: string;
+    gender?: string;
+    phoneNumber?: string;
   }) => Promise<{ error: Error | null; needsEmailConfirmation?: boolean }>;
   completeProfile: (data: {
     fullName: string;
@@ -788,6 +794,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     username: string;
     email: string;
     password: string;
+    // Academic identity captured during registration. Persisted by the
+    // handle_new_user trigger so a fresh student profile is already complete
+    // and never has to be re-entered during onboarding.
+    matricNumber?: string;
+    faculty?: string;
+    department?: string;
+    level?: string;
+    gender?: string;
+    phoneNumber?: string;
   }): Promise<{ error: Error | null; needsEmailConfirmation?: boolean }> => {
     if (!supabase) {
       return { error: new Error('Supabase client is not configured.') };
@@ -827,11 +842,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       const displayName = fullName.split(/\s+/)[0] || uname;
+      const metadata: Record<string, string> = {
+        full_name: fullName,
+        display_name: displayName,
+        username: uname
+      };
+      if (input.matricNumber?.trim()) metadata.matric_number = input.matricNumber.trim();
+      if (input.faculty?.trim()) metadata.faculty = input.faculty.trim();
+      if (input.department?.trim()) metadata.department = input.department.trim();
+      if (input.level?.trim()) metadata.level = input.level.trim();
+      if (input.gender?.trim()) metadata.gender = input.gender.trim();
+      if (input.phoneNumber?.trim()) metadata.phone_number = input.phoneNumber.trim();
       const { data, error } = await supabase.auth.signUp({
         email: cleanEmail,
         password: input.password,
         options: {
-          data: { full_name: fullName, display_name: displayName, username: uname }
+          data: metadata
         }
       });
 
@@ -1377,4 +1403,37 @@ export function useAuth() {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
+}
+
+/**
+ * Server-side validation of the student registration fields (matric format,
+ * faculty/department presence, level). Returns a per-field map so the
+ * registration stepper can pinpoint which input needs attention, and falls back
+ * to an empty map when the RPC is unavailable so the client never blocks signup
+ * on a transient network error.
+ */
+export async function validateStudentRegistration(input: {
+  matricNumber: string;
+  faculty: string;
+  department: string;
+  level: string;
+}): Promise<{ ok: boolean; errors: Record<string, string> }> {
+  if (!supabase) return { ok: true, errors: {} };
+  try {
+    const { data, error } = await supabase.rpc('validate_student_registration', {
+      p_matric_number: input.matricNumber,
+      p_faculty: input.faculty,
+      p_department: input.department,
+      p_level: input.level
+    });
+    if (error || !data || typeof data !== 'object') return { ok: true, errors: {} };
+    const payload = data as { ok?: boolean; errors?: Array<{ field?: string; message?: string }> };
+    const errors: Record<string, string> = {};
+    for (const e of payload.errors ?? []) {
+      if (e?.field) errors[e.field] = e.message || 'Invalid value.';
+    }
+    return { ok: payload.ok !== false && Object.keys(errors).length === 0, errors };
+  } catch {
+    return { ok: true, errors: {} };
+  }
 }

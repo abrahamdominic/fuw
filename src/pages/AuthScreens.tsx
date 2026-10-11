@@ -39,7 +39,7 @@ import { BootFallback } from '../components/BootFallback';
 import { Logo } from '../components/Logo';
 import { useToast } from '../components/Toast';
 import { useLivePlatformStats } from '../lib/platformStats';
-import { useAuth, USERNAME_PATTERN, normalizeUsername, validatePasswordPolicy, PASSWORD_REQUIREMENTS_TEXT } from '../lib/AuthContext';
+import { useAuth, USERNAME_PATTERN, normalizeUsername, validatePasswordPolicy, PASSWORD_REQUIREMENTS_TEXT, validateStudentRegistration } from '../lib/AuthContext';
 import { catalogue, facultyByName, departmentByName, levelsFor, groupedFaculties } from '../data/catalogue';
 import {
   aal2LoginChallenge,
@@ -543,6 +543,7 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
   const [busy, setBusy] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   // Credentials
   const [fullName, setFullName] = useState('');
@@ -715,11 +716,13 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
         navigate('/lecturer', { replace: true });
       } else if (profile.role === 'landlord' || profile.role === 'caretaker') {
         navigate('/provider', { replace: true });
+      } else if (profile.role === 'student' && (profile.onboardingCompleted === false || !isProfileComplete)) {
+        navigate('/onboarding', { replace: true });
       } else {
         navigate('/hub', { replace: true });
       }
     }
-  }, [isAuthenticated, profile, isLoading, navigate, step, mfaRequired, fromPath]);
+  }, [isAuthenticated, profile, isLoading, navigate, step, mfaRequired, fromPath, isProfileComplete]);
 
   // Login handler
   const handleLogin = async (e: React.FormEvent) => {
@@ -874,6 +877,7 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
     e.preventDefault();
     setErrorMsg(null);
     setSuccessMsg(null);
+    setFieldErrors({});
 
     const matric = profileData.matricNumber.trim();
     if (!matric) {
@@ -903,7 +907,35 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
     }
 
     setBusy(true);
-    const res = await signUpWithPassword({ fullName, username, email, password });
+
+    // Server-side validation of the academic identity (matric format, duplicate
+    // matric detection, faculty/department/level presence) before an account is
+    // ever created — mirrors what handle_new_user will enforce.
+    const validation = await validateStudentRegistration({
+      matricNumber: matric,
+      faculty: profileData.faculty,
+      department: profileData.department,
+      level: profileData.level
+    });
+    if (!validation.ok) {
+      setBusy(false);
+      setFieldErrors(validation.errors);
+      setErrorMsg(validation.errors.matricNumber || 'Please correct the highlighted fields.');
+      return;
+    }
+
+    const res = await signUpWithPassword({
+      fullName,
+      username,
+      email,
+      password,
+      matricNumber: matric,
+      faculty: profileData.faculty,
+      department: profileData.department,
+      level: profileData.level,
+      gender: profileData.gender,
+      phoneNumber: phone
+    });
     if (res.error) {
       setBusy(false);
       setErrorMsg(res.error.message);
@@ -1049,7 +1081,9 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
             ? '/lecturer'
             : profile.role === 'landlord' || profile.role === 'caretaker'
               ? '/provider'
-              : '/hub';
+              : profile.role === 'student' && (profile.onboardingCompleted === false || !isProfileComplete)
+                ? '/onboarding'
+                : '/hub';
     const dest = fromPath && fromPath !== '/login' && fromPath !== '/register' && fromPath !== '/' ? fromPath : defaultTarget;
     return <Navigate to={dest} replace />;
   }
@@ -1365,11 +1399,18 @@ export function AuthPage({ initialMode = 'login' }: { initialMode?: AuthMode }) 
                   onChange={(v) => {
                     setProfileData((prev) => ({ ...prev, matricNumber: v.toUpperCase() }));
                     if (errorMsg) setErrorMsg(null);
+                    if (fieldErrors.matricNumber) setFieldErrors((prev) => ({ ...prev, matricNumber: '' }));
                   }}
                   placeholder="e.g. CIS/CSC/20/001"
                   autoComplete="off"
                   disabled={busy}
                 />
+
+                {fieldErrors.matricNumber && (
+                  <p style={{ margin: '-6px 0 0', fontSize: 12.5, color: 'var(--red-700)' }}>
+                    {fieldErrors.matricNumber}
+                  </p>
+                )}
 
                 <SelectControl
                   icon={<School size={18} className="mac-icon" aria-hidden />}

@@ -486,11 +486,11 @@ export function App() {
             <Route
               path="/hub"
               element={
-                <RequireAuth>
+                <ProtectedRoute>
                   <PublicLayout onReadOnline={handleReadOnline}>
                     <CampusHubPage />
                   </PublicLayout>
-                </RequireAuth>
+                </ProtectedRoute>
               }
             />
             <Route path="/campus-hub" element={<Navigate to="/hub" replace />} />

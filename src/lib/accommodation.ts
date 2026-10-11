@@ -21,6 +21,9 @@ export interface AccommodationProperty {
   images: string[];
   amenities: string[];
   rules_notes?: string | null;
+  photo_slots?: PhotoSlot[] | null;
+  photos_complete?: boolean;
+  connection_fee_required?: boolean;
   contact_phone: string;
   contact_whatsapp?: string | null;
   is_verified: boolean;
@@ -181,6 +184,161 @@ export function getAccommodationFallbackImage(propertyType?: string): string {
     return ACCOMMODATION_TYPE_FALLBACKS[propertyType];
   }
   return 'https://images.unsplash.com/photo-1555854877-bab0e564b8d5?auto=format&fit=crop&w=800&q=80';
+}
+
+/* -------------------------------------------------------------------------- */
+/* Required photo slots + connection fee                                      */
+/* -------------------------------------------------------------------------- */
+
+export type PhotoSlotKey = 'main_room' | 'toilet' | 'kitchen' | 'front_view';
+
+export interface PhotoSlot {
+  key: PhotoSlotKey;
+  url: string;
+}
+
+/**
+ * The four labelled photographs every published listing must carry, in display
+ * order. Single source of truth for the provider form, the detail gallery and
+ * any "what's missing" messaging.
+ */
+export const REQUIRED_PHOTO_SLOTS: ReadonlyArray<{
+  key: PhotoSlotKey;
+  label: string;
+  hint: string;
+}> = [
+  { key: 'main_room', label: 'Main Room', hint: 'The main living/sleeping space, wide and lit.' },
+  { key: 'toilet', label: 'Toilet / Bathroom', hint: 'The toilet and bathroom in its current state.' },
+  { key: 'kitchen', label: 'Kitchen', hint: 'The kitchen or kitchenette area.' },
+  { key: 'front_view', label: 'Front View', hint: 'The building entrance from the street.' }
+];
+
+export function photoSlotLabel(key: string): string {
+  return REQUIRED_PHOTO_SLOTS.find((s) => s.key === key)?.label ?? 'Photo';
+}
+
+/**
+ * Ordered, renderable photographs for a listing: categorized slots first (in
+ * category order), then any legacy `images` that are not already covered. The
+ * result is always safe to hand to `<img src>`.
+ */
+export function galleryImagesFor(
+  property: Pick<AccommodationProperty, 'images' | 'photo_slots'> | null | undefined
+): string[] {
+  if (!property) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const slots = Array.isArray(property.photo_slots) ? property.photo_slots : [];
+  const urlByKey = new Map<string, string>();
+  for (const slot of slots) {
+    if (slot && typeof slot.url === 'string' && isRenderableImage(slot.url)) {
+      urlByKey.set(slot.key, slot.url.trim());
+    }
+  }
+  // Emit in the canonical category order (main_room first) so the cover image is
+  // deterministic regardless of the order the slots were stored in.
+  for (const category of REQUIRED_PHOTO_SLOTS) {
+    const url = urlByKey.get(category.key);
+    if (url && !seen.has(url)) {
+      seen.add(url);
+      out.push(url);
+    }
+  }
+  for (const url of property.images ?? []) {
+    if (isRenderableImage(url) && !seen.has(url.trim())) {
+      seen.add(url.trim());
+      out.push(url.trim());
+    }
+  }
+  return out;
+}
+
+/** Which of the four required categories a listing is still missing. */
+export function missingPhotoSlots(
+  photoSlots: PhotoSlot[] | null | undefined
+): { key: PhotoSlotKey; label: string }[] {
+  const have = new Set(
+    (Array.isArray(photoSlots) ? photoSlots : [])
+      .filter((s) => s && isRenderableImage(s.url))
+      .map((s) => s.key)
+  );
+  return REQUIRED_PHOTO_SLOTS.filter((s) => !have.has(s.key)).map((s) => ({ key: s.key, label: s.label }));
+}
+
+/* ── Connection fee (server-verified contact unlock) ───────────────────────── */
+
+export interface ListingConnectionFee {
+  required: boolean;
+  amount_kobo: number;
+  currency: string;
+  paid: boolean;
+}
+
+export interface ContactBlock {
+  required: boolean;
+  allowed: boolean;
+  fee_kobo: number;
+  currency: string;
+  title: string | null;
+  provider_name: string | null;
+  address_landmark: string | null;
+  contact_phone: string | null;
+  contact_whatsapp: string | null;
+}
+
+export async function fetchListingConnectionFee(
+  propertyId: string
+): Promise<ListingConnectionFee | null> {
+  try {
+    if (!supabase) return null;
+    const { data, error } = await supabase.rpc('acc_listing_connection_fee', {
+      p_property_id: propertyId
+    });
+    if (error) throw error;
+    return (data as ListingConnectionFee) ?? null;
+  } catch (err) {
+    console.error('Failed to load connection fee:', err);
+    return null;
+  }
+}
+
+export async function fetchContactBlock(propertyId: string): Promise<ContactBlock | null> {
+  try {
+    if (!supabase) return null;
+    const { data, error } = await supabase.rpc('acc_get_contact_block', {
+      p_property_id: propertyId
+    });
+    if (error) throw error;
+    return (data as ContactBlock) ?? null;
+  } catch (err) {
+    console.error('Failed to load contact block:', err);
+    return null;
+  }
+}
+
+export async function payConnectionFee(propertyId: string): Promise<{
+  ok: boolean;
+  required: boolean;
+  amount_kobo: number;
+  currency: string;
+  paid: boolean;
+  already?: boolean;
+  payment_id?: string;
+}> {
+  const client = requireSupabase();
+  const { data, error } = await client.rpc('acc_pay_connection_fee', {
+    p_property_id: propertyId
+  });
+  if (error) throw error;
+  return data as {
+    ok: boolean;
+    required: boolean;
+    amount_kobo: number;
+    currency: string;
+    paid: boolean;
+    already?: boolean;
+    payment_id?: string;
+  };
 }
 
 /**

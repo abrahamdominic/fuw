@@ -9,6 +9,7 @@
 
 import { requireSupabase, supabase } from './supabase';
 import type { RentPeriod } from './advertFee';
+import type { PhotoSlot } from './accommodation';
 
 export type ProviderType = 'landlord' | 'caretaker';
 export type VerificationStatus = 'pending_verification' | 'verified' | 'rejected' | 'suspended';
@@ -62,6 +63,9 @@ export interface ProviderProperty {
   rent_period: RentPeriod;
   advert_rent_kobo: number | null;
   images: string[] | null;
+  photo_slots?: PhotoSlot[] | null;
+  photos_complete?: boolean;
+  connection_fee_required?: boolean;
   availability_status: string;
   available_units: number | null;
   total_units: number | null;
@@ -261,6 +265,8 @@ export interface SavePropertyInput {
   serviceChargeKobo?: number;
   rulesNotes?: string;
   contactWhatsapp?: string;
+  photoSlots?: PhotoSlot[] | null;
+  connectionFeeRequired?: boolean;
 }
 
 export function saveProperty(input: SavePropertyInput) {
@@ -285,7 +291,9 @@ export function saveProperty(input: SavePropertyInput) {
       p_caution_deposit_kobo: input.cautionDepositKobo ?? 0,
       p_service_charge_kobo: input.serviceChargeKobo ?? 0,
       p_rules_notes: input.rulesNotes ?? null,
-      p_contact_whatsapp: input.contactWhatsapp ?? null
+      p_contact_whatsapp: input.contactWhatsapp ?? null,
+      p_photo_slots: input.photoSlots ?? null,
+      p_connection_fee_required: input.connectionFeeRequired ?? null
     })
     .then(({ data, error }) => {
       if (error) throw error;
@@ -298,6 +306,8 @@ export function saveProperty(input: SavePropertyInput) {
         fee_bps: number;
         fee_kobo: number;
         currency: string;
+        photos_complete?: boolean;
+        connection_fee_required?: boolean;
       };
     });
 }
@@ -496,6 +506,36 @@ export function adminUpdateAdvertSettings(input: { feeBps?: number; enabled?: bo
     .then(({ data, error }) => {
       if (error) throw error;
       return data as AdvertSettings;
+    });
+}
+
+/* -------------------------------------------------------------------------- */
+/* Connection fee (admin config + student payment)                            */
+/* -------------------------------------------------------------------------- */
+
+export interface ConnectionFeeConfig {
+  enabled: boolean;
+  amount_kobo: number;
+  currency: string;
+}
+
+export async function fetchConnectionFeeConfig(): Promise<ConnectionFeeConfig> {
+  if (!supabase) return { enabled: false, amount_kobo: 0, currency: 'NGN' };
+  const { data, error } = await supabase.rpc('acc_connection_fee_config');
+  if (error) return { enabled: false, amount_kobo: 0, currency: 'NGN' };
+  return unwrap<ConnectionFeeConfig>(data, { enabled: false, amount_kobo: 0, currency: 'NGN' });
+}
+
+export function adminUpdateConnectionFee(input: { enabled: boolean; amountKobo?: number }) {
+  const client = requireSupabase();
+  return client
+    .rpc('acc_admin_update_connection_fee', {
+      p_enabled: input.enabled,
+      p_amount_kobo: input.amountKobo ?? null
+    })
+    .then(({ data, error }) => {
+      if (error) throw error;
+      return data as ConnectionFeeConfig;
     });
 }
 

@@ -26,10 +26,11 @@ import {
 import { useAuth } from '../lib/AuthContext';
 import { useToast } from '../components/Toast';
 import { requireSupabase } from '../lib/supabase';
-import { formatNaira } from '../lib/accommodation';
+import { formatNaira, REQUIRED_PHOTO_SLOTS, type PhotoSlotKey } from '../lib/accommodation';
 import { previewAdvertFee, advertFeeKobo, annualRentKobo, type RentPeriod } from '../lib/advertFee';
 import {
   assignCaretaker,
+  fetchConnectionFeeConfig,
   fetchMyAdvertPayments,
   fetchMyAssignments,
   fetchMyProperties,
@@ -42,6 +43,7 @@ import {
   uploadListingImage,
   type AdvertPayment,
   type CaretakerAssignment,
+  type ConnectionFeeConfig,
   type ProviderProfile,
   type ProviderProperty
 } from '../lib/accommodationPortal';
@@ -572,6 +574,11 @@ function ListingsTab({
                       <div style={{ color: 'var(--text-secondary)', fontSize: 12, marginTop: 2 }}>
                         {p.location_area} {p.is_owner ? '' : '· assigned'}
                       </div>
+                      {p.photos_complete === false && (
+                        <div style={{ color: 'var(--amber-700)', fontSize: 11.5, marginTop: 3, fontWeight: 700 }}>
+                          ⚠ Photos incomplete — add all 4 categories to publish
+                        </div>
+                      )}
                     </td>
                     <td style={{ padding: '14px 16px', fontWeight: 700, color: 'var(--green-800)' }}>
                       {annualRentKobo(p.advert_rent_kobo, p.rent_period) ? formatNaira((p.advert_rent_kobo ?? 0) / 100) : formatNaira(p.price_annual)}
@@ -685,24 +692,55 @@ function ListingEditor({
   const [contactPhone, setContactPhone] = useState(property?.contact_phone ?? '');
   const [contactWhatsapp, setContactWhatsapp] = useState(property?.contact_whatsapp ?? '');
   const [rulesNotes, setRulesNotes] = useState('');
-  const [images, setImages] = useState<string[]>(property?.images ?? []);
-  const [uploadingImage, setUploadingImage] = useState(false);
+  const [slots, setSlots] = useState<Record<PhotoSlotKey, string | null>>(() => {
+    const initial: Record<PhotoSlotKey, string | null> = {
+      main_room: null,
+      toilet: null,
+      kitchen: null,
+      front_view: null
+    };
+    const existing = Array.isArray(property?.photo_slots) ? property!.photo_slots! : [];
+    for (const s of existing) {
+      if (s && REQUIRED_PHOTO_SLOTS.some((r) => r.key === s.key)) {
+        initial[s.key] = s.url ?? null;
+      }
+    }
+    // Seed from legacy images when no categorized slots exist yet, in order.
+    if (existing.length === 0 && property?.images?.length) {
+      REQUIRED_PHOTO_SLOTS.forEach((r, i) => {
+        if (property.images![i]) initial[r.key] = property.images![i];
+      });
+    }
+    return initial;
+  });
+  const [uploadingSlot, setUploadingSlot] = useState<PhotoSlotKey | null>(null);
+  const [photosComplete, setPhotosComplete] = useState<boolean>(!!property?.photos_complete);
   const [amenities, setAmenities] = useState<string[]>(property?.amenities ?? []);
+  const [connectionFeeRequired, setConnectionFeeRequired] = useState<boolean>(!!property?.connection_fee_required);
+  const [feeConfig, setFeeConfig] = useState<ConnectionFeeConfig | null>(null);
+
+  useEffect(() => {
+    fetchConnectionFeeConfig()
+      .then(setFeeConfig)
+      .catch(() => setFeeConfig(null));
+  }, []);
+
+  const filledSlotCount = REQUIRED_PHOTO_SLOTS.filter((s) => !!slots[s.key]).length;
 
   const amountKobo = Math.round((rentAmountNaira || 0) * 100);
   const preview = previewAdvertFee(amountKobo, rentPeriod, 150);
 
-  const handleUpload = async (file: File | undefined) => {
+  const handleUploadSlot = async (key: PhotoSlotKey, file: File | undefined) => {
     if (!file) return;
-    setUploadingImage(true);
+    setUploadingSlot(key);
     try {
       const url = await uploadListingImage(file);
-      setImages((prev) => [...prev, url]);
-      toast('Photo added.', 'success');
+      setSlots((prev) => ({ ...prev, [key]: url }));
+      toast(`${REQUIRED_PHOTO_SLOTS.find((s) => s.key === key)?.label} photo added.`, 'success');
     } catch (err: any) {
       toast(err?.message || 'Upload failed.', 'error');
     } finally {
-      setUploadingImage(false);
+      setUploadingSlot(null);
     }
   };
 
@@ -714,7 +752,10 @@ function ListingEditor({
     }
     setBusy(true);
     try {
-      await saveProperty({
+      const photoSlots = REQUIRED_PHOTO_SLOTS.map((s) => ({ key: s.key, url: slots[s.key] })).filter(
+        (s): s is { key: PhotoSlotKey; url: string } => !!s.url
+      );
+      const result = await saveProperty({
         propertyId: property?.id ?? null,
         title,
         description,
@@ -726,15 +767,18 @@ function ListingEditor({
         totalUnits,
         availableUnits,
         availabilityStatus,
-        images,
+        images: photoSlots.map((s) => s.url),
         amenities,
         contactPhone,
         contactWhatsapp: contactWhatsapp.trim() || undefined,
         distanceToCampus: undefined,
         cautionDepositKobo: 0,
         serviceChargeKobo: 0,
-        rulesNotes: rulesNotes.trim() || undefined
+        rulesNotes: rulesNotes.trim() || undefined,
+        photoSlots,
+        connectionFeeRequired
       });
+      setPhotosComplete(!!result.photos_complete);
       toast(property ? 'Listing updated.' : 'Draft listing created.', 'success');
       await onSaved();
     } catch (err: any) {
@@ -820,26 +864,77 @@ function ListingEditor({
             </select>
           </Field>
 
-          <Field label="Photos">
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-              {images.map((img, i) => (
-                <div key={i} style={{ position: 'relative' }}>
-                  <img src={img} alt={`Photo ${i + 1}`} style={{ width: 72, height: 54, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)' }} />
-                  <button
-                    type="button"
-                    onClick={() => setImages((prev) => prev.filter((_, j) => j !== i))}
-                    style={{ position: 'absolute', top: -6, right: -6, background: 'var(--error-bg)', border: 'none', borderRadius: 999, width: 18, height: 18, cursor: 'pointer', color: 'var(--red-700)', display: 'grid', placeItems: 'center' }}
-                    title="Remove photo"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-              <label className="btn btn-secondary" style={{ cursor: uploadingImage ? 'not-allowed' : 'pointer', gap: 6, padding: '8px 12px' }}>
-                {uploadingImage ? <Loader2 className="animate-spin" size={15} /> : <Plus size={15} />}
-                {uploadingImage ? 'Uploading…' : 'Add photo'}
-                <input type="file" accept="image/jpeg,image/png,image/webp,image/avif" style={{ display: 'none' }} disabled={uploadingImage} onChange={(e) => { handleUpload(e.target.files?.[0]); e.target.value = ''; }} />
-              </label>
+          <Field label={`Photos * (${filledSlotCount}/4 categories)`}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                Every live listing needs one photo for each category below. The Main Room photo becomes the cover
+                image shown to students.
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
+                {REQUIRED_PHOTO_SLOTS.map((slot) => {
+                  const url = slots[slot.key];
+                  const uploading = uploadingSlot === slot.key;
+                  return (
+                    <div
+                      key={slot.key}
+                      style={{
+                        border: url ? '1px solid var(--border)' : '1px dashed var(--border)',
+                        borderRadius: 8,
+                        padding: 8,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 6,
+                        background: url ? 'var(--surface)' : 'var(--surface-alt)'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                        <strong style={{ fontSize: 12.5 }}>{slot.label}</strong>
+                        {url ? <Check size={14} color="#047857" /> : <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Required</span>}
+                      </div>
+                      {url ? (
+                        <div style={{ position: 'relative' }}>
+                          <img
+                            src={url}
+                            alt={slot.label}
+                            style={{ width: '100%', height: 96, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)' }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setSlots((prev) => ({ ...prev, [slot.key]: null }))}
+                            style={{ position: 'absolute', top: -6, right: -6, background: 'var(--error-bg)', border: 'none', borderRadius: 999, width: 20, height: 20, cursor: 'pointer', color: 'var(--red-700)', display: 'grid', placeItems: 'center' }}
+                            title={`Remove ${slot.label} photo`}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ height: 96, display: 'grid', placeItems: 'center', color: 'var(--text-secondary)', fontSize: 11, textAlign: 'center', padding: 4 }}>
+                          {slot.hint}
+                        </div>
+                      )}
+                      <label className="btn btn-secondary" style={{ cursor: uploading ? 'not-allowed' : 'pointer', gap: 6, padding: '6px 10px', justifyContent: 'center', fontSize: 12 }}>
+                        {uploading ? <Loader2 className="animate-spin" size={14} /> : <Plus size={14} />}
+                        {uploading ? 'Uploading…' : url ? 'Replace' : 'Upload photo'}
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,image/avif"
+                          style={{ display: 'none' }}
+                          disabled={uploading}
+                          onChange={(e) => {
+                            handleUploadSlot(slot.key, e.target.files?.[0]);
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ fontSize: 12, color: photosComplete ? '#047857' : 'var(--amber-700)', fontWeight: 600 }}>
+                {photosComplete
+                  ? 'All four photo categories are complete — this listing can be published.'
+                  : `Add the remaining ${4 - filledSlotCount} photo categor${4 - filledSlotCount === 1 ? 'y' : 'ies'} before submitting for review.`}
+              </div>
             </div>
           </Field>
 
@@ -870,6 +965,29 @@ function ListingEditor({
             <textarea className="form-input" style={{ width: '100%' }} rows={2} value={rulesNotes} onChange={(e) => setRulesNotes(e.target.value)} />
           </Field>
 
+          <Field label="Connection fee">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, cursor: feeConfig?.enabled ? 'pointer' : 'not-allowed', opacity: feeConfig?.enabled ? 1 : 0.6 }}>
+                <input
+                  type="checkbox"
+                  checked={connectionFeeRequired}
+                  disabled={!feeConfig?.enabled}
+                  onChange={(e) => setConnectionFeeRequired(e.target.checked)}
+                  style={{ marginTop: 2 }}
+                />
+                <span>
+                  Require students to pay a connection fee of{' '}
+                  <strong>{formatNaira((feeConfig?.amount_kobo ?? 0) / 100)}</strong> to unlock my contact details.
+                </span>
+              </label>
+              <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                {feeConfig?.enabled
+                  ? 'When enabled, students pay this one-off fee from their wallet to view your phone number and WhatsApp link. Inspections remain free to arrange.'
+                  : 'Connection fees are currently disabled platform-wide by the administrator, so contact details stay open to all signed-in students.'}
+              </p>
+            </div>
+          </Field>
+
           <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
             <button type="button" onClick={onClose} className="btn btn-secondary" style={{ flex: 1, justifyContent: 'center' }}>Cancel</button>
             <button type="submit" disabled={busy} className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>
@@ -888,6 +1006,20 @@ function SubmitModal({ property, onClose, onDone }: { property: ProviderProperty
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
   const fee = advertFeeKobo(property.advert_rent_kobo ?? (property.price_annual * 100), 150);
+  if (property.photos_complete === false) {
+    return (
+      <ConfirmDialog
+        open
+        tone="danger"
+        title="Photos incomplete"
+        message={`"${property.title}" needs one photo for each of the four categories (Main Room, Toilet, Kitchen, Front View) before it can be submitted for review. Open the listing and add the missing photos.`}
+        confirmLabel="Close"
+        cancelLabel="Back"
+        onConfirm={() => {}}
+        onClose={onClose}
+      />
+    );
+  }
   return (
     <ConfirmDialog
       open

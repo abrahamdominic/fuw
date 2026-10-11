@@ -40,7 +40,14 @@ import {
   ACCOMMODATION_FALLBACK_IMAGE,
   getAccommodationFallbackImage,
   handleAccommodationImageError,
-  resolveAccommodationImage
+  resolveAccommodationImage,
+  galleryImagesFor,
+  photoSlotLabel,
+  fetchContactBlock,
+  fetchListingConnectionFee,
+  payConnectionFee,
+  type ContactBlock,
+  type ListingConnectionFee
 } from '../lib/accommodation';
 import { useAuth } from '../lib/AuthContext';
 import { useToast } from '../components/Toast';
@@ -78,6 +85,33 @@ export function AccommodationDetailPage() {
   const { isAuthenticated, user, profile } = useAuth();
   const { toast } = useToast();
   const [isSaved, setIsSaved] = useState(false);
+  const [contactBlock, setContactBlock] = useState<ContactBlock | null>(null);
+  const [listingFee, setListingFee] = useState<ListingConnectionFee | null>(null);
+  const [loadingContact, setLoadingContact] = useState(false);
+  const [payingFee, setPayingFee] = useState(false);
+
+  useEffect(() => {
+    const load = async () => {
+      if (!property) {
+        setContactBlock(null);
+        setListingFee(null);
+        return;
+      }
+      // The listing fee is readable by anyone (incl. signed-out visitors), so the
+      // page can show the lock before login; the contact block itself needs auth.
+      const feeInfo = await fetchListingConnectionFee(property.id);
+      setListingFee(feeInfo);
+      if (!isAuthenticated) {
+        setContactBlock(null);
+        return;
+      }
+      setLoadingContact(true);
+      const block = await fetchContactBlock(property.id);
+      setContactBlock(block);
+      setLoadingContact(false);
+    };
+    void load();
+  }, [property, isAuthenticated]);
 
   useEffect(() => {
     if (!slug) return;
@@ -146,6 +180,42 @@ export function AccommodationDetailPage() {
       setInquiryPhone(profile.phoneNumber || '');
     }
   }, [profile]);
+
+  const feeRequired = listingFee?.required ?? false;
+  const feePaid = contactBlock?.allowed ?? false;
+  const contactLocked = feeRequired && !feePaid;
+  const feeAmountKobo = contactBlock?.fee_kobo || listingFee?.amount_kobo || 0;
+  const visiblePhone = feeRequired ? (feePaid ? contactBlock?.contact_phone : null) : property?.contact_phone ?? null;
+  const visibleWhatsapp = feeRequired
+    ? feePaid
+      ? contactBlock?.contact_whatsapp
+      : null
+    : property?.contact_whatsapp ?? null;
+
+  const handlePayFee = async () => {
+    if (!property) return;
+    setPayingFee(true);
+    try {
+      const res = await payConnectionFee(property.id);
+      toast(
+        res.already ? 'You have already unlocked this contact.' : 'Contact unlocked — you can now call or chat.',
+        'success'
+      );
+      setListingFee((prev) => (prev ? { ...prev, paid: true, required: res.required } : prev));
+      const block = await fetchContactBlock(property.id);
+      setContactBlock(block);
+    } catch (err: any) {
+      if (err?.code === '28000' || err?.message === 'Sign in to connect with a landlord or caretaker') {
+        toast('Please sign in to unlock this contact.', 'info');
+      } else if (err?.message?.startsWith('INSUFFICIENT_FUNDS')) {
+        toast('Your wallet balance is too low. Fund your wallet, then try again.', 'error');
+      } else {
+        toast(err?.message || 'Could not complete the connection fee.', 'error');
+      }
+    } finally {
+      setPayingFee(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -262,8 +332,17 @@ export function AccommodationDetailPage() {
   // Resolve the gallery photograph up front. `images[activeImageIdx] || images[0]`
   // evaluated to `undefined` for a listing with no photographs, which left an
   // empty frame; an `<img>` must always be given a resolvable source.
-  const galleryImage = resolveAccommodationImage(property.images, activeImageIdx);
-  const galleryAlt = galleryImage ? property.title : 'Photo coming soon';
+  // Categorized slots (main_room first) lead the gallery, then any legacy images.
+  const galleryImages = galleryImagesFor(property);
+  const slotLabelByUrl = new Map<string, string>();
+  for (const slot of property.photo_slots ?? []) {
+    if (slot && typeof slot.url === 'string' && slot.url.trim()) {
+      slotLabelByUrl.set(slot.url.trim(), photoSlotLabel(slot.key));
+    }
+  }
+  const galleryImage = galleryImages[activeImageIdx] ?? galleryImages[0] ?? null;
+  const galleryAlt = galleryImage ? `${property.title} — ${slotLabelByUrl.get(galleryImage) ?? 'photo'}` : 'Photo coming soon';
+  const activeSlotLabel = galleryImage ? slotLabelByUrl.get(galleryImage) : undefined;
 
   return (
     <>
@@ -378,19 +457,37 @@ export function AccommodationDetailPage() {
             <img
               src={galleryImage ?? getAccommodationFallbackImage(property.property_type)}
               alt={galleryAlt}
-              onError={(event) => handleAccommodationImageError(event, property.images, activeImageIdx, property.property_type)}
+              onError={(event) => handleAccommodationImageError(event, galleryImages, activeImageIdx, property.property_type)}
               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
             />
+            {activeSlotLabel && (
+              <span
+                style={{
+                  position: 'absolute',
+                  left: 12,
+                  bottom: 12,
+                  background: 'rgba(0,0,0,0.62)',
+                  color: '#fff',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  padding: '4px 10px',
+                  borderRadius: 999,
+                  letterSpacing: 0.2
+                }}
+              >
+                {activeSlotLabel}
+              </span>
+            )}
           </div>
 
-          {property.images.length > 1 && (
+          {galleryImages.length > 1 && (
             <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 6 }}>
-              {property.images.map((_img, idx) => (
+              {galleryImages.map((_img, idx) => (
                 <button
                   key={idx}
                   type="button"
                   onClick={() => setActiveImageIdx(idx)}
-                  aria-label={`Show photo ${idx + 1} of ${property.images.length}`}
+                  aria-label={`Show photo ${idx + 1} of ${galleryImages.length}`}
                   aria-current={activeImageIdx === idx}
                   style={{
                     border: activeImageIdx === idx ? '2px solid var(--green-800)' : '2px solid transparent',
@@ -405,9 +502,9 @@ export function AccommodationDetailPage() {
                   }}
                 >
                   <img
-                    src={resolveAccommodationImage(property.images, idx) ?? getAccommodationFallbackImage(property.property_type)}
+                    src={resolveAccommodationImage(galleryImages, idx) ?? getAccommodationFallbackImage(property.property_type)}
                     alt=""
-                    onError={(event) => handleAccommodationImageError(event, property.images, idx, property.property_type)}
+                    onError={(event) => handleAccommodationImageError(event, galleryImages, idx, property.property_type)}
                     style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                   />
                 </button>
@@ -601,40 +698,52 @@ export function AccommodationDetailPage() {
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
-                <a
-                  href={`tel:${property.contact_phone}`}
-                  className="btn btn-primary"
-                  style={{ width: '100%', justifyContent: 'center', padding: '12px 16px', gap: 8, fontSize: 14 }}
-                >
-                  <Phone size={16} /> Call Caretaker ({property.contact_phone})
-                </a>
-
-                {property.contact_whatsapp && (
-                  <a
-                    href={`https://wa.me/${property.contact_whatsapp}?text=${encodeURIComponent(
-                      `Hello, I am interested in inspecting ${property.title} listed on the FUW Campus Platform.`
-                    )}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn"
-                    style={{
-                      width: '100%',
-                      justifyContent: 'center',
-                      padding: '12px 16px',
-                      background: '#25D366',
-                      color: '#ffffff',
-                      border: 'none',
-                      gap: 8,
-                      fontSize: 14,
-                      fontWeight: 700
-                    }}
-                  >
-                    <MessageCircle size={16} /> Chat on WhatsApp
-                  </a>
-                )}
-
-                {isAuthenticated ? (
+                {contactLocked ? (
                   <>
+                    <div
+                      style={{
+                        background: 'var(--surface-alt)',
+                        border: '1px dashed var(--border)',
+                        borderRadius: 10,
+                        padding: '14px 16px',
+                        textAlign: 'center'
+                      }}
+                    >
+                      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>
+                        Contact details are locked
+                      </div>
+                      <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                        Pay a one-off connection fee of{' '}
+                        <strong>{formatNaira(feeAmountKobo / 100)}</strong> to reveal this caretaker&apos;s phone
+                        number and WhatsApp. You only pay once per listing — inspections are always arranged
+                        directly with the caretaker.
+                      </div>
+                    </div>
+                    {isAuthenticated ? (
+                      <button
+                        type="button"
+                        onClick={handlePayFee}
+                        disabled={payingFee}
+                        className="btn btn-primary"
+                        style={{ width: '100%', justifyContent: 'center', padding: '12px 16px', gap: 8, fontSize: 14 }}
+                      >
+                        {payingFee ? (
+                          <>Processing…</>
+                        ) : (
+                          <>
+                            <DollarSign size={16} /> Unlock contact for {formatNaira(feeAmountKobo / 100)}
+                          </>
+                        )}
+                      </button>
+                    ) : (
+                      <Link
+                        to="/login"
+                        className="btn btn-primary"
+                        style={{ width: '100%', justifyContent: 'center', padding: '12px 16px', gap: 8, fontSize: 14 }}
+                      >
+                        <DollarSign size={16} /> Sign in to unlock contact ({formatNaira(feeAmountKobo / 100)})
+                      </Link>
+                    )}
                     <button
                       type="button"
                       onClick={() => setShowInquiryModal(true)}
@@ -643,29 +752,88 @@ export function AccommodationDetailPage() {
                     >
                       <Send size={15} /> Send Move-in Inquiry
                     </button>
-                    <button
-                      type="button"
-                      onClick={handleToggleSave}
-                      className="btn btn-secondary"
-                      style={{ width: '100%', justifyContent: 'center', padding: '11px 16px', gap: 8, fontSize: 14 }}
-                    >
-                      <Bookmark size={16} fill={isSaved ? "currentColor" : "none"} color={isSaved ? "var(--green-800)" : "currentColor"} />
-                      <span>{isSaved ? 'Saved to Bookmarks' : 'Save Lodge'}</span>
-                    </button>
                   </>
                 ) : (
-                  <Link
-                    to="/login"
-                    className="btn btn-secondary"
-                    style={{ width: '100%', justifyContent: 'center', padding: '11px 16px', gap: 8, fontSize: 14 }}
-                  >
-                    <Send size={15} /> Sign in to send an inquiry
-                  </Link>
+                  <>
+                    {visiblePhone ? (
+                      <a
+                        href={`tel:${visiblePhone}`}
+                        className="btn btn-primary"
+                        style={{ width: '100%', justifyContent: 'center', padding: '12px 16px', gap: 8, fontSize: 14 }}
+                      >
+                        <Phone size={16} /> Call Caretaker ({visiblePhone})
+                      </a>
+                    ) : (
+                      <Link
+                        to="/login"
+                        className="btn btn-primary"
+                        style={{ width: '100%', justifyContent: 'center', padding: '12px 16px', gap: 8, fontSize: 14 }}
+                      >
+                        <Phone size={16} /> Sign in to view phone number
+                      </Link>
+                    )}
+
+                    {visibleWhatsapp && (
+                      <a
+                        href={`https://wa.me/${visibleWhatsapp}?text=${encodeURIComponent(
+                          `Hello, I am interested in inspecting ${property.title} listed on the FUW Campus Platform.`
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn"
+                        style={{
+                          width: '100%',
+                          justifyContent: 'center',
+                          padding: '12px 16px',
+                          background: '#25D366',
+                          color: '#ffffff',
+                          border: 'none',
+                          gap: 8,
+                          fontSize: 14,
+                          fontWeight: 700
+                        }}
+                      >
+                        <MessageCircle size={16} /> Chat on WhatsApp
+                      </a>
+                    )}
+
+                    {isAuthenticated ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setShowInquiryModal(true)}
+                          className="btn btn-secondary"
+                          style={{ width: '100%', justifyContent: 'center', padding: '11px 16px', gap: 8, fontSize: 14 }}
+                        >
+                          <Send size={15} /> Send Move-in Inquiry
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleToggleSave}
+                          className="btn btn-secondary"
+                          style={{ width: '100%', justifyContent: 'center', padding: '11px 16px', gap: 8, fontSize: 14 }}
+                        >
+                          <Bookmark size={16} fill={isSaved ? "currentColor" : "none"} color={isSaved ? "var(--green-800)" : "currentColor"} />
+                          <span>{isSaved ? 'Saved to Bookmarks' : 'Save Lodge'}</span>
+                        </button>
+                      </>
+                    ) : (
+                      <Link
+                        to="/login"
+                        className="btn btn-secondary"
+                        style={{ width: '100%', justifyContent: 'center', padding: '11px 16px', gap: 8, fontSize: 14 }}
+                      >
+                        <Send size={15} /> Sign in to send an inquiry
+                      </Link>
+                    )}
+                  </>
                 )}
               </div>
 
               <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center', lineHeight: 1.4 }}>
-                Inspections are arranged directly with the caretaker.
+                {feePaid && feeRequired
+                  ? 'You have unlocked this caretaker’s contact details.'
+                  : 'Inspections are arranged directly with the caretaker.'}
               </p>
             </div>
 

@@ -10,6 +10,14 @@ export interface AffiliateStats {
   available_wallet_kobo: number;
   has_plus_lifetime: boolean;
   commission_rate_percent: number;
+  /** Converted referrals needed for the one-semester premium reward. */
+  milestone_target_converted: number;
+  /** Converted referrals still needed before the reward unlocks. */
+  milestone_remaining: number;
+  milestone_reward_type: string;
+  /** True once the one-semester premium reward has been granted. */
+  milestone_reward_granted: boolean;
+  milestone_reward_expires_at?: string | null;
 }
 
 export async function fetchAffiliateStats(userId?: string): Promise<AffiliateStats> {
@@ -38,6 +46,7 @@ export async function generateMyReferralCode(userId?: string): Promise<string> {
 
 export async function applyReferralCode(code: string): Promise<{
   success: boolean;
+  already?: boolean;
   referrer_name?: string;
   referral_code?: string;
   message?: string;

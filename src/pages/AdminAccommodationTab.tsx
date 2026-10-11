@@ -42,10 +42,13 @@ import {
   adminReviewAdvert,
   adminReviewProviderApplication,
   adminUpdateAdvertSettings,
+  adminUpdateConnectionFee,
   fetchAdvertSettings,
+  fetchConnectionFeeConfig,
   signProviderDocument,
   type AdminAdvert,
   type AdvertSettings,
+  type ConnectionFeeConfig,
   type ModerationStatus,
   type ProviderApplication,
   type VerificationStatus
@@ -1589,15 +1592,22 @@ function AdvertSettingsPanel() {
   const [currency, setCurrency] = useState('NGN');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [connFee, setConnFee] = useState<ConnectionFeeConfig | null>(null);
+  const [connEnabled, setConnEnabled] = useState(false);
+  const [connAmountNaira, setConnAmountNaira] = useState(0);
+  const [connBusy, setConnBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const s = await fetchAdvertSettings();
+      const [s, conn] = await Promise.all([fetchAdvertSettings(), fetchConnectionFeeConfig()]);
       setSettings(s);
       setFeeBps(s.fee_bps);
       setEnabled(s.enabled);
       setCurrency(s.currency);
+      setConnFee(conn);
+      setConnEnabled(conn.enabled);
+      setConnAmountNaira(conn.amount_kobo / 100);
     } catch (err: any) {
       toast(err?.message || 'Failed to load advert fee settings.', 'error');
     } finally {
@@ -1620,6 +1630,25 @@ function AdvertSettingsPanel() {
       toast(err?.message || 'Failed to save advert fee settings.', 'error');
     } finally {
       setBusy(false);
+    }
+  };
+
+  const saveConnFee = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setConnBusy(true);
+    try {
+      const updated = await adminUpdateConnectionFee({
+        enabled: connEnabled,
+        amountKobo: Math.round((connAmountNaira || 0) * 100)
+      });
+      setConnFee(updated);
+      setConnEnabled(updated.enabled);
+      setConnAmountNaira(updated.amount_kobo / 100);
+      toast('Connection fee settings saved.', 'success');
+    } catch (err: any) {
+      toast(err?.message || 'Failed to save connection fee settings.', 'error');
+    } finally {
+      setConnBusy(false);
     }
   };
 
@@ -1726,6 +1755,58 @@ function AdvertSettingsPanel() {
             Saved: {(settings.fee_bps / 100).toFixed(2)}% · {settings.currency} · {settings.enabled ? 'enabled' : 'disabled'}
           </p>
         )}
+      </div>
+
+      <div className="card" style={{ padding: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+          <ShieldCheck size={18} color="var(--primary)" />
+          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800 }}>Connection fee (contact unlock)</h3>
+        </div>
+        <p style={{ margin: '0 0 18px', fontSize: 12, color: 'var(--text-secondary)' }}>
+          A one-off fee students pay from their wallet to reveal a listing&apos;s caretaker contact details. It only
+          applies to listings whose owner opted in. The amount becomes platform revenue.
+        </p>
+
+        <form onSubmit={saveConnFee} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+            <input type="checkbox" checked={connEnabled} onChange={(e) => setConnEnabled(e.target.checked)} />
+            <span>
+              <strong>Enabled</strong> — students must pay to unlock opted-in listings
+            </span>
+          </label>
+
+          <div>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>
+              Fee per listing (₦)
+            </label>
+            <input
+              type="number"
+              min={0}
+              max={1000000}
+              step={50}
+              value={connAmountNaira}
+              onChange={(e) => setConnAmountNaira(Number(e.target.value))}
+              className="form-input"
+              style={{ width: 160 }}
+              disabled={!connEnabled}
+            />
+            <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--text-secondary)' }}>
+              Each student pays this once per listing. Currently{' '}
+              <strong>{formatNaira(connAmountNaira || 0)}</strong>.
+            </p>
+          </div>
+
+          <button type="submit" disabled={connBusy} className="btn btn-primary" style={{ justifyContent: 'center' }}>
+            {connBusy ? 'Saving...' : 'Save connection fee'}
+          </button>
+
+          {connFee && (
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0 }}>
+              Saved: {formatNaira(connFee.amount_kobo / 100)} · {connFee.currency} ·{' '}
+              {connFee.enabled ? 'enabled' : 'disabled'}
+            </p>
+          )}
+        </form>
       </div>
     </div>
   );

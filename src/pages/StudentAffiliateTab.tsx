@@ -130,10 +130,16 @@ export function StudentAffiliateTab() {
       setApplyingCode(true);
       const res = await applyReferralCode(inputCode.trim());
       if (res.success) {
-        toast(`Referral code applied! Referred by ${res.referrer_name || 'Student'}.`, 'success');
+        if (res.already) {
+          toast(`You're already linked to ${res.referrer_name || 'an ambassador'}.`, 'info');
+        } else {
+          toast(`Referral code applied! Referred by ${res.referrer_name || 'Student'}.`, 'success');
+        }
         setAppliedReferrer(res.referrer_name || 'Verified Ambassador');
         setInputCode('');
         loadData();
+      } else {
+        toast(res.message || 'That referral code is not valid.', 'error');
       }
     } catch (err: any) {
       toast(err.message || 'Could not apply referral code.', 'error');
@@ -188,9 +194,11 @@ export function StudentAffiliateTab() {
   }
 
   const convertedCount = stats?.converted_referrals ?? 0;
-  const milestoneTarget = 5;
+  const milestoneTarget = stats?.milestone_target_converted ?? 10;
+  const milestoneRemaining = stats?.milestone_remaining ?? Math.max(0, milestoneTarget - convertedCount);
   const milestoneProgress = Math.min(100, Math.round((convertedCount / milestoneTarget) * 100));
-  const hasLifetimePlus = stats?.has_plus_lifetime || convertedCount >= milestoneTarget;
+  const hasLifetimePlus = stats?.has_plus_lifetime || stats?.milestone_reward_granted || convertedCount >= milestoneTarget;
+  const milestoneExpiresAt = stats?.milestone_reward_expires_at ?? null;
 
   return (
     <div className="student-affiliate-view" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '1000px', margin: '0 auto' }}>
@@ -244,7 +252,7 @@ export function StudentAffiliateTab() {
                     gap: '4px'
                   }}
                 >
-                  <Sparkles size={13} /> Plus Lifetime Unlocked
+                  <Sparkles size={13} /> Plus Semester Unlocked
                 </span>
               )}
             </div>
@@ -252,7 +260,7 @@ export function StudentAffiliateTab() {
               Course Rep &amp; Student Affiliate Program
             </h1>
             <p style={{ margin: 0, opacity: 0.9, fontSize: '0.95rem', maxWidth: '620px', lineHeight: 1.5 }}>
-              Earn <strong>10% instant commission</strong> (₦120 per student) on every Campus Hub Plus subscription and vendor onboarding. Refer 5 students to unlock permanent <strong>Lifetime Plus</strong> access for yourself!
+              Earn <strong>10% instant commission</strong> (₦120 per student) on every Campus Hub Plus subscription and vendor onboarding. Refer {milestoneTarget} students to unlock a free <strong>semester of Campus Hub Plus</strong> for yourself!
             </p>
           </div>
 
@@ -455,12 +463,14 @@ export function StudentAffiliateTab() {
             </div>
             <div>
               <strong style={{ fontSize: '15px', color: '#17231d', display: 'block' }}>
-                Campus Hub Plus Lifetime Access Milestone
+                One-Semester Plus Reward Milestone
               </strong>
               <span style={{ fontSize: '13px', color: '#55675b' }}>
                 {hasLifetimePlus
-                  ? 'Congratulations! You have unlocked permanent Lifetime Plus access.'
-                  : `${convertedCount} of ${milestoneTarget} student Plus conversions completed`}
+                  ? milestoneExpiresAt
+                    ? `Congratulations! A free semester of Campus Hub Plus is active until ${new Date(milestoneExpiresAt).toLocaleDateString()}.`
+                    : 'Congratulations! You have unlocked a free semester of Campus Hub Plus.'
+                  : `${convertedCount} of ${milestoneTarget} student Plus conversions completed — ${milestoneRemaining} to go`}
               </span>
             </div>
           </div>
@@ -493,7 +503,10 @@ export function StudentAffiliateTab() {
         </div>
 
         <p style={{ margin: 0, fontSize: '12.5px', color: '#55675b', lineHeight: 1.5 }}>
-          <strong>Reward details:</strong> Course reps and student ambassadors who convert 5 peers to Campus Hub Plus (₦1,200/semester) receive lifetime entitlement to encrypted PDF downloads, offline study vaults, and AI CBT study preps without ever paying semester renewals.
+          <strong>Reward details:</strong> Course reps and student ambassadors who convert {milestoneTarget} peers to
+          Campus Hub Plus (₦1,200/semester) receive one free semester of Plus access — encrypted PDF downloads,
+          offline study vaults and AI CBT study preps — worth ₦1,200, granted automatically and expiring after 120
+          days.
         </p>
       </div>
 

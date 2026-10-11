@@ -223,7 +223,15 @@ export const OnboardingPage: React.FC = () => {
   const handleStudentMatricSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanMatric = matricNumber.trim().toUpperCase();
-    if (cleanMatric && cleanMatric !== profile?.matricNumber) {
+    if (!cleanMatric) {
+      toast('Enter your FUW matriculation number to continue.', 'error');
+      return;
+    }
+    if (cleanMatric.length < 5 || !/[A-Z]/.test(cleanMatric) || !/[0-9]/.test(cleanMatric)) {
+      toast('Enter a valid matriculation number (e.g. FUW/2022/CS/1042).', 'error');
+      return;
+    }
+    if (cleanMatric !== profile?.matricNumber) {
       setIsSubmitting(true);
       try {
         await updateProfile({
@@ -634,7 +642,7 @@ export const OnboardingPage: React.FC = () => {
                   </button>
                   <button
                     type="submit"
-                    disabled={isSubmitting || !faculty || !department}
+                    disabled={isSubmitting || !matricNumber.trim()}
                     className="btn btn-primary"
                     style={{
                       flex: 1,
@@ -703,7 +711,7 @@ export const OnboardingPage: React.FC = () => {
 
                 <div style={{ marginBottom: 24 }}>
                   <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 6 }}>
-                    FUW Matriculation Number
+                    FUW Matriculation Number *
                   </label>
                   <input
                     type="text"
