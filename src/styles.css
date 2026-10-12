@@ -18245,6 +18245,30 @@ body[data-theme='dark'],
   text-overflow: ellipsis;
 }
 
+.vc-list-announcement-body {
+  margin-top: 6px;
+  color: #43584c;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.vc-list-announcement-body .msg-body > :first-child {
+  margin-top: 0;
+}
+
+.vc-list-announcement-body .msg-para {
+  margin: 0 0 6px;
+}
+
+.vc-list-announcement-body .msg-para:last-child {
+  margin-bottom: 0;
+}
+
+.vc-list-announcement-body .msg-list {
+  margin: 6px 0;
+  padding-left: 18px;
+}
+
 /* ── VC login page accents ── */
 .vc-auth-panel {
   border-top: 4px solid #8a6d1a;

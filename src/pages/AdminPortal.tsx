@@ -69,7 +69,8 @@ import {
   Briefcase,
   SearchX,
   BookOpen,
-  UserPlus
+  UserPlus,
+  BrainCircuit
 } from 'lucide-react';
 import { fx, staggerDelay } from '../lib/motion';
 import { AnimatedModal } from '../components/animations/AnimatedModal';
@@ -123,6 +124,7 @@ import { AdminVerificationTab } from './AdminVerificationTab';
 import { AdminPlansTab } from './AdminPlansTab';
 import { AdminCampusTab } from './AdminCampusTab';
 import { AdminAccommodationTab } from './AdminAccommodationTab';
+import { AdminCbtLibraryTab } from './AdminCbtLibraryTab';
 
 interface AdminPortalProps {
   onReadOnline: (material: MaterialItem) => void;
@@ -151,6 +153,7 @@ const adminNavItems = [
   { label: 'Courses & levels', path: '/admin/courses', icon: GraduationCap, permission: 'manage_catalogue' },
   { label: 'Student Courses', path: '/admin/student-courses', icon: List, permission: 'manage_catalogue' },
   { label: 'Categories & sessions', path: '/admin/categories', icon: Bookmark, permission: 'manage_catalogue' },
+  { label: 'CBT & library', path: '/admin/cbt-bank', icon: BrainCircuit, permission: 'manage_catalogue' },
   { label: 'Academic records', path: '/admin/academics', icon: GraduationCap, permission: null },
   { label: 'Events', path: '/admin/events', icon: CalendarRange, permission: 'manage_events' },
   { label: 'Organizations', path: '/admin/organizations', icon: Users, permission: 'manage_organizations' },
@@ -501,6 +504,16 @@ export function AdminPortal({ onReadOnline }: AdminPortalProps) {
             <div className="empty-state card-empty">
               <Lock size={40} />
               <b>Repository management is restricted.</b>
+              <span>Your account does not have the "Manage catalogue" permission.</span>
+            </div>
+          )
+        ) : currentPath.startsWith('/admin/cbt-bank') ? (
+          hasPermission('manage_catalogue') ? (
+            <AdminCbtLibraryTab />
+          ) : (
+            <div className="empty-state card-empty">
+              <Lock size={40} />
+              <b>CBT &amp; library report is restricted.</b>
               <span>Your account does not have the "Manage catalogue" permission.</span>
             </div>
           )

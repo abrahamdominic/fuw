@@ -23,6 +23,7 @@ import { roleLabel } from '../lib/rbac';
 import { useToast } from '../components/Toast';
 import { fx, staggerDelay } from '../lib/motion';
 import { AnalyticsChart, type AnalyticsDatum } from '../components/AnalyticsCharts';
+import { MessageText } from '../components/MessageText';
 import { VcWelcome } from '../components/VcWelcome';
 import {
   fetchVcOverview,
@@ -613,9 +614,11 @@ function VcAnnouncementList({ rows, loading }: { rows: AnnouncementRow[]; loadin
       ) : (
         <div className="vc-list">
           {rows.map((a) => (
-            <article className="vc-list-item" key={a.id}>
+            <article className="vc-list-item vc-list-announcement" key={a.id}>
               <h4>{a.title}</h4>
-              <p>{a.body}</p>
+              <div className="vc-list-announcement-body">
+                <MessageText body={a.body} />
+              </div>
               <span className="vc-list-meta">
                 {formatDate(a.published_at)}
                 {a.audience && a.audience !== 'everyone' ? ` · Audience: ${a.audience}` : ''}
