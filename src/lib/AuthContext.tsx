@@ -28,7 +28,14 @@ export interface ProfileData {
   avatarUrl?: string;
   isVerified?: boolean;
   /** Server-owned academic identity verification state. */
-  verificationStatus?: 'unsubmitted' | 'pending' | 'verified' | 'rejected';
+  verificationStatus?:
+    | 'unsubmitted'
+    | 'processing'
+    | 'pending'
+    | 'verified'
+    | 'rejected'
+    | 'action_required'
+    | 'verification_unavailable';
   /** Student-visible reviewer explanation when a submission was rejected. */
   verificationReason?: string;
   verificationSubmittedAt?: string;

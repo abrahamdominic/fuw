@@ -119,6 +119,48 @@ export async function chatComplete(
   return data.choices?.[0]?.message?.content ?? '';
 }
 
+/**
+ * Vision/text completion used by the document-verification pipeline.
+ * `imageDataUrl` is a `data:image/...;base64,...` URL; callers may omit it for
+ * text-only extraction (e.g. the text layer of a PDF). `jsonMode` asks the
+ * provider for a JSON object response so the caller can parse it directly.
+ */
+export async function visionComplete(
+  cfg: ReturnType<typeof aiConfig>,
+  prompt: string,
+  imageDataUrl?: string,
+  opts: { jsonMode?: boolean; maxTokens?: number } = {}
+): Promise<string> {
+  if (!cfg.configured) throw new Error('AI_NOT_CONFIGURED');
+
+  const content: unknown = imageDataUrl
+    ? [
+        { type: 'text', text: prompt },
+        { type: 'image_url', image_url: { url: imageDataUrl, detail: 'high' } }
+      ]
+    : prompt;
+
+  const body: Record<string, unknown> = {
+    model: cfg.chatModel,
+    messages: [{ role: 'user', content }],
+    max_tokens: opts.maxTokens ?? 900,
+    temperature: 0
+  };
+  if (opts.jsonMode) body.response_format = { type: 'json_object' };
+
+  const res = await fetch(`${cfg.baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${cfg.apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(`VISION_FAILED:${res.status}:${detail.slice(0, 300)}`);
+  }
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content ?? '';
+}
+
 /** Split raw text into overlapping chunks suitable for retrieval. */
 export function chunkText(text: string, size = 1200, overlap = 150): string[] {
   const clean = text.replace(/\u0000/g, '').replace(/[ \t]+/g, ' ').trim();

@@ -90,7 +90,7 @@ export function HelpPage() {
           },
           {
             title: 'Get premium access',
-            desc: 'Downloads and full-text reading need a verified identity plus an active plan, which a library officer activates for you. Nothing is charged automatically.'
+            desc: 'Downloads and full-text reading need a verified identity plus an active plan, which you unlock instantly by paying from your FUW wallet.'
           },
           {
             title: 'Get help',
@@ -144,8 +144,9 @@ export function HelpPage() {
           <Crown size={24} />
           <b>2. An active plan</b>
           <p>
-            Plans are activated by a library officer after you have been verified: there is no
-            online payment and no auto-renewal. Ask at the library office or message staff.
+            Plans are activated instantly once you have been verified: pay from your FUW wallet
+            (or use the other available payment methods) and your Premium access starts immediately.
+            There is no auto-renewal.
           </p>
         </div>
         <div className="help-access-card">

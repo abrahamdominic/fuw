@@ -313,7 +313,7 @@ export async function refundPaymentTransactionToWallet(
 
 export async function giftPremiumPlanFromWallet(
   recipientIdentifier: string,
-  planSlug: string = 'semester-access'
+  planSlug: string = 'premium'
 ): Promise<{
   success: boolean;
   recipient_name: string;

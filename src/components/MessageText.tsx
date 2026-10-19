@@ -17,9 +17,11 @@ function renderInlineNodes(nodes: InlineNode[], inlineLink = false): React.React
           </code>
         );
       case 'link': {
-        // Only safe schemes become real anchors; anything else renders as
-        // plain text (mirrors the mobile guard so both platforms agree).
         const safe = isSafeUrl(n.href);
+        const isImg = /\.(jpg|jpeg|png|gif|webp|svg)(\$|\?)/i.test(n.href);
+        if (isImg && safe) {
+          return <img key={i} src={n.href} alt="" style={{ maxWidth: '120px', maxHeight: '120px', borderRadius: '6px', display: 'block', marginTop: '4px' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />;
+        }
         if (inlineLink || !safe) {
           return (
             <span key={i} className="msg-inline-link">

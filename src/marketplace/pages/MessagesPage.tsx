@@ -15,6 +15,8 @@ import { Skeleton } from '../components/Skeleton';
 import { EmptyState } from '../components/EmptyState';
 import { mpPath, PLATFORM_PATHS } from '../lib/routes';
 import { MessageText } from '../../components/MessageText';
+import { EmojiPicker } from '../../components/EmojiPicker';
+import { StickerPicker } from '../../components/StickerPicker';
 
 export const MessagesPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -27,6 +29,8 @@ export const MessagesPage: React.FC = () => {
   const [messages, setMessages] = useState<MarketplaceMessage[]>([]);
   const [activeConv, setActiveConv] = useState<MarketplaceConversation | null>(null);
   const [newMessage, setNewMessage] = useState('');
+  const [showEmoji, setShowEmoji] = useState(false);
+  const [showSticker, setShowSticker] = useState(false);
   const [loadingConvs, setLoadingConvs] = useState(true);
   const [loadingMsgs, setLoadingMsgs] = useState(false);
   const [sending, setSending] = useState(false);

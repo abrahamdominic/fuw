@@ -1,12 +1,6 @@
-// e2ee.ts — Web Crypto End-to-End Encryption (AES-GCM / HKDF)
-//
-// Implements client-side end-to-end encryption for private campus messaging.
-// - Standard W3C Web Cryptography API (crypto.subtle).
-// - AES-GCM (256-bit key, 12-byte initialization vector, 128-bit authentication tag).
-// - Key derivation via HKDF with SHA-256 for deterministic pairwise channel keys.
-// - Backward compatibility: gracefully displays unencrypted legacy messages.
-
+// e2ee.ts — Hybrid encryption support (legacy HKDF AES-GCM + Signal Protocol envelope)
 const E2EE_PREFIX = 'e2e:v1:';
+const SIGNAL_PREFIX = 'sig:v1:';
 
 function arrayBufferToBase64(buffer: ArrayBuffer | Uint8Array): string {
   let binary = '';
@@ -26,7 +20,6 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
   return bytes.buffer;
 }
 
-// Derive a shared symmetric 256-bit AES-GCM key per conversation using HKDF
 const conversationKeyCache = new Map<string, CryptoKey>();
 
 export async function getConversationKey(conversationId: string): Promise<CryptoKey> {
@@ -93,9 +86,24 @@ export async function encryptMessage(
 
 export async function decryptMessage(
   ciphertextOrPlain: string,
-  conversationId: string
+  conversationId: string,
+  senderId?: string
 ): Promise<{ text: string; isEncrypted: boolean }> {
-  if (!ciphertextOrPlain || !ciphertextOrPlain.startsWith(E2EE_PREFIX)) {
+  if (!ciphertextOrPlain) {
+    return { text: ciphertextOrPlain || '', isEncrypted: false };
+  }
+
+  if (ciphertextOrPlain.startsWith(SIGNAL_PREFIX)) {
+    try {
+      const { decryptIfSignal } = await import('./signalMessageAdapter');
+      const res = await decryptIfSignal(ciphertextOrPlain, senderId || '');
+      return res;
+    } catch (e) {
+      return { text: '[Signal decrypt failed]', isEncrypted: true };
+    }
+  }
+
+  if (!ciphertextOrPlain.startsWith(E2EE_PREFIX)) {
     return { text: ciphertextOrPlain || '', isEncrypted: false };
   }
 

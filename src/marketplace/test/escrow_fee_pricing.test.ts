@@ -21,10 +21,12 @@ const MIGRATIONS = join(ROOT, 'supabase/migrations');
 const ENUM_MIGRATION = '20261009135000_marketplace_escrow_fee_entry_types.sql';
 const PRICING_MIGRATION = '20261009140000_marketplace_escrow_fee_pricing.sql';
 const RELEASE_FIX = '20261009150000_fix_escrow_release_with_escrow_fee.sql';
+const PREMIUM_POLICY_MIGRATION = '20261019160000_premium_escrow_policy_5pct.sql';
 
 const enumSql = readFileSync(join(MIGRATIONS, ENUM_MIGRATION), 'utf8');
 const pricing = readFileSync(join(MIGRATIONS, PRICING_MIGRATION), 'utf8');
 const releaseFix = readFileSync(join(MIGRATIONS, RELEASE_FIX), 'utf8');
+const premiumPolicy = readFileSync(join(MIGRATIONS, PREMIUM_POLICY_MIGRATION), 'utf8');
 
 /**
  * The exact table required by the product spec. ₦ amounts in, kobo out.
@@ -149,5 +151,33 @@ describe('escrow fee migrations', () => {
     // not be independently callable by an anon or authenticated JWT.
     expect(pricing).not.toMatch(/GRANT EXECUTE ON FUNCTION public\.mp_create_orders/);
     expect(pricing).not.toMatch(/GRANT EXECUTE ON FUNCTION public\.mp_sync_wallet/);
+  });
+});
+
+describe('premium escrow policy (5% for the semester)', () => {
+  it('pins the live policy to 5% off with no credit grant', () => {
+    expect(premiumPolicy).toMatch(/premium_escrow_discount_pct\s*=\s*5/);
+    expect(premiumPolicy).toMatch(/premium_escrow_credit_kobo\s*=\s*0/);
+  });
+
+  it('keeps the function fallbacks aligned with the policy', () => {
+    // Both the credit lookup and the checkout preview must fall back to 5%/0.
+    expect(premiumPolicy).toMatch(/v_disc_pct INT := 5/);
+    expect(premiumPolicy).toMatch(/v_granted BIGINT := 0/);
+    expect(premiumPolicy).toMatch(/COALESCE\(v_settings\.premium_escrow_discount_pct, 5\)/);
+  });
+
+  it('applies the discount to the eligible fee on the backend only', () => {
+    // The final fee is derived from the server-computed normal fee; there is no
+    // client-supplied amount anywhere in the preview function.
+    expect(premiumPolicy).toMatch(/normal_escrow_fee_kobo/);
+    expect(premiumPolicy).toMatch(/discount_applied_kobo/);
+    expect(premiumPolicy).toMatch(/final_escrow_fee_kobo/);
+  });
+
+  it('never rewrites historical ledger amounts', () => {
+    // The correction must only touch configuration/defaults, never past rows.
+    expect(premiumPolicy).not.toMatch(/UPDATE public\.marketplace_escrow_credit_ledger\s+SET\s+credit_granted_kobo/);
+    expect(premiumPolicy).not.toMatch(/UPDATE public\.marketplace_escrow_credit_ledger\s+SET\s+credit_used_kobo/);
   });
 });

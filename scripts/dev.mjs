@@ -55,6 +55,20 @@ import { fileURLToPath } from 'node:url';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const VITE_ARGS = process.argv.slice(2);
 
+// Browsers accumulate cookies for localhost (Supabase auth tokens are large
+// JWTs) until the request headers exceed Node's default 16 KB cap and every
+// subsequent request fails with 431. Raising the cap here keeps the dev
+// server usable regardless of cookie state; production is unaffected because
+// Netlify terminates TLS itself.
+function devServerEnv() {
+  const existing = process.env.NODE_OPTIONS ?? '';
+  if (existing.includes('--max-http-header-size')) return process.env;
+  return {
+    ...process.env,
+    NODE_OPTIONS: `${existing} --max-http-header-size=1048576`.trim()
+  };
+}
+
 /** Absolute path of the platform esbuild binary that Vite's pre-bundler uses. */
 function realEsbuildBinary() {
   for (const dir of [
@@ -149,12 +163,20 @@ if (process.argv.includes('--from-namespace')) {
   // still the original path (both work, but only the mount one is readable).
   const forwarded = process.argv.slice(2).filter((a) => a !== '--from-namespace');
   const cwd = process.env.FUW_DEV_ROOT || process.cwd();
-  const result = spawnSync('npx', ['vite', ...forwarded], { stdio: 'inherit', cwd });
+  const result = spawnSync('npx', ['vite', ...forwarded], {
+    stdio: 'inherit',
+    cwd,
+    env: devServerEnv()
+  });
   process.exit(result.status ?? 0);
 }
 
 if (esbuildCanReadRepo()) {
-  const result = spawnSync('npx', ['vite', ...VITE_ARGS], { stdio: 'inherit', cwd: ROOT });
+  const result = spawnSync('npx', ['vite', ...VITE_ARGS], {
+    stdio: 'inherit',
+    cwd: ROOT,
+    env: devServerEnv()
+  });
   process.exit(result.status ?? 0);
 }
 
@@ -162,7 +184,11 @@ console.warn(
   '[dev] the native esbuild binary on this host cannot read files under this\n' +
     '      repository, which breaks Vite\'s dependency pre-bundler. Starting the\n' +
     '      dev server from a bind-mounted copy of the path instead. Set\n' +
-    '      FUW_DEV_NO_REMAP=1 to disable this.'
+    '      FUW_DEV_NO_REMAP=1 to disable this.\n' +
+    '      Known cause: a symlink in a parent directory whose name matches this\n' +
+    '      repo folder (e.g. /home/abraham/fuw pointing at .../FUW/fuw) makes\n' +
+    '      esbuild resolve paths to a doubled <repo>/<repo> prefix. Remove the\n' +
+    '      colliding symlink and the probe passes natively.'
 );
 
 relaunchInNamespace();

@@ -809,6 +809,15 @@ export const OnboardingPage: React.FC = () => {
                       <span style={{ color: '#b45309', fontWeight: 700 }}>
                         ⏳ Verification Submission in Review
                       </span>
+                    ) : profile?.verificationStatus === 'processing' ? (
+                      <span style={{ color: '#b45309', fontWeight: 700 }}>
+                        ⏙ Checking your document now
+                      </span>
+                    ) : profile?.verificationStatus === 'action_required' ||
+                      profile?.verificationStatus === 'verification_unavailable' ? (
+                      <span style={{ color: '#b45309', fontWeight: 700 }}>
+                        ⚠ Upload a clearer document from your student portal
+                      </span>
                     ) : (
                       <span>Not verified yet — you can submit your documents from your student portal.</span>
                     )}
@@ -893,6 +902,15 @@ export const OnboardingPage: React.FC = () => {
                     ) : profile?.verificationStatus === 'pending' ? (
                       <span style={{ color: '#b45309', fontWeight: 700 }}>
                         ⏳ Verification Submission in Review
+                      </span>
+                    ) : profile?.verificationStatus === 'processing' ? (
+                      <span style={{ color: '#b45309', fontWeight: 700 }}>
+                        ⏙ Checking your document now
+                      </span>
+                    ) : profile?.verificationStatus === 'action_required' ||
+                      profile?.verificationStatus === 'verification_unavailable' ? (
+                      <span style={{ color: '#b45309', fontWeight: 700 }}>
+                        ⚠ Upload a clearer document from your student portal
                       </span>
                     ) : (
                       <span>Unverified · Entering your official matriculation number unlocks verified features.</span>

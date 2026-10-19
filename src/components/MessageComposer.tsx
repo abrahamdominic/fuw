@@ -1,6 +1,8 @@
-import React, { useCallback, useEffect, useRef } from 'react';
-import { Send, Loader2 } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Send, Loader2, Smile, Sticker } from 'lucide-react';
 import { capLength, richPasteText, MESSAGE_MAX_LENGTH } from '../lib/messageFormat';
+import { EmojiPicker } from './EmojiPicker';
+import { StickerPicker } from './StickerPicker';
 
 interface Props {
   value: string;
@@ -22,6 +24,8 @@ export function MessageComposer({
   maxLength = MESSAGE_MAX_LENGTH,
 }: Props) {
   const ref = useRef<HTMLTextAreaElement>(null);
+  const [showEmoji, setShowEmoji] = useState(false);
+  const [showSticker, setShowSticker] = useState(false);
 
   const autoGrow = useCallback(() => {
     const el = ref.current;
@@ -33,6 +37,24 @@ export function MessageComposer({
   useEffect(() => {
     autoGrow();
   }, [value, autoGrow]);
+
+  const handleEmojiSelect = useCallback((emoji: string) => {
+    const el = ref.current;
+    if (!el) return;
+    const start = el.selectionStart ?? value.length;
+    const end = el.selectionEnd ?? value.length;
+    onChange(capLength(value.slice(0, start) + emoji + value.slice(end), maxLength));
+    setShowEmoji(false);
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(start + emoji.length, start + emoji.length);
+    });
+  }, [value, onChange, maxLength]);
+
+  const handleStickerSelect = useCallback((sticker: { id: string; url: string; name: string }) => {
+    onChange(value + ' ' + sticker.url + ' ');
+    setShowSticker(false);
+  }, [value, onChange]);
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -75,23 +97,40 @@ export function MessageComposer({
   );
 
   return (
-    <div className="chat-input-row">
-      <textarea
-        ref={ref}
-        className="msg-composer"
-        value={value}
-        onChange={handleChange}
-        onPaste={handlePaste}
-        onKeyDown={handleKeyDown}
-        placeholder={placeholder}
-        disabled={sending}
-        rows={1}
-        maxLength={maxLength}
-        aria-label="Message"
-      />
-      <button className="primary" onClick={onSend} disabled={sending || !value.trim()}>
-        {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Send
-      </button>
+    <div className="chat-input-row" style={{ position: 'relative', flexDirection: 'column', alignItems: 'stretch' }}>
+      {(showEmoji || showSticker) && (
+        <div style={{ position: 'absolute', bottom: '100%', left: 0, marginBottom: '8px' }}>
+          {showEmoji && <EmojiPicker onSelect={handleEmojiSelect} onClose={() => setShowEmoji(false)} />}
+          {showSticker && <StickerPicker onSelect={handleStickerSelect} onClose={() => setShowSticker(false)} />}
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <button type="button" onClick={() => { setShowEmoji(!showEmoji); setShowSticker(false); }} style={{ background: 'none', border: '1px solid #e1ece3', borderRadius: '6px', padding: '6px', cursor: 'pointer' }}>
+            <Smile size={18} />
+          </button>
+          <button type="button" onClick={() => { setShowSticker(!showSticker); setShowEmoji(false); }} style={{ background: 'none', border: '1px solid #e1ece3', borderRadius: '6px', padding: '6px', cursor: 'pointer' }}>
+            <Sticker size={18} />
+          </button>
+        </div>
+        <textarea
+          ref={ref}
+          className="msg-composer"
+          value={value}
+          onChange={handleChange}
+          onPaste={handlePaste}
+          onKeyDown={handleKeyDown}
+          placeholder={placeholder}
+          disabled={sending}
+          rows={1}
+          maxLength={maxLength}
+          aria-label="Message"
+          style={{ flex: 1 }}
+        />
+        <button className="primary" onClick={onSend} disabled={sending || !value.trim()}>
+          {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Send
+        </button>
+      </div>
     </div>
   );
 }

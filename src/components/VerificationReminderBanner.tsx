@@ -26,8 +26,11 @@ export function VerificationReminderBanner() {
     dismissReminder('verification', user?.id);
   };
 
-  // A pending request is doing its job — no nagging while it is being reviewed.
-  if (status === 'pending') return null;
+  // A pending/processing request is doing its job — no nagging while it runs.
+  if (status === 'pending' || status === 'processing') return null;
+
+  const needsReplacement = status === 'rejected' || status === 'action_required';
+  const retryLater = status === 'verification_unavailable';
 
   return (
     <div
@@ -35,19 +38,25 @@ export function VerificationReminderBanner() {
       role="status"
     >
       <div className="profile-setup-banner-icon">
-        {status === 'rejected' ? <ShieldAlert size={19} /> : <BadgeCheck size={19} />}
+        {needsReplacement ? <ShieldAlert size={19} /> : <BadgeCheck size={19} />}
       </div>
       <div className="profile-setup-banner-body">
         <b>
           {status === 'rejected'
             ? 'Your verification was not approved'
-            : 'Verify your student identity'}
+            : status === 'action_required'
+              ? 'A clearer document is needed'
+              : retryLater
+                ? 'Verification could not be completed yet'
+                : 'Verify your student identity'}
         </b>
         <span>
-          {status === 'rejected'
+          {needsReplacement
             ? profile.verificationReason ||
               'Review the reason and submit again to unlock premium materials.'
-            : 'Submit your student ID or admission letter. Downloads stay locked until the library verifies you.'}
+            : retryLater
+              ? 'Automated verification was unavailable. Retry in a moment to finish verifying.'
+              : 'Submit your student ID card or admission letter. Downloads stay locked until verification passes.'}
         </span>
       </div>
       <button
@@ -55,7 +64,7 @@ export function VerificationReminderBanner() {
         className="primary profile-setup-banner-cta"
         onClick={() => navigate('/student/verification')}
       >
-        {status === 'rejected' ? 'Submit again' : 'Verify now'}
+        {needsReplacement ? 'Submit again' : retryLater ? 'Retry' : 'Verify now'}
         <ArrowRight size={15} />
       </button>
       <button

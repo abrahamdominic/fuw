@@ -6,9 +6,33 @@
 import { requireSupabase } from './supabase';
 
 export const EVIDENCE_BUCKET = 'verification-evidence';
+export const VERIFY_FUNCTION = 'verify-document';
 
-export type VerificationStatus = 'unsubmitted' | 'pending' | 'verified' | 'rejected';
-export type RequestStatus = 'pending' | 'approved' | 'rejected' | 'withdrawn';
+export type VerificationStatus =
+  | 'unsubmitted'
+  | 'processing'
+  | 'pending'
+  | 'verified'
+  | 'rejected'
+  | 'action_required'
+  | 'verification_unavailable';
+export type RequestStatus =
+  | 'pending'
+  | 'approved'
+  | 'rejected'
+  | 'withdrawn'
+  | 'processing'
+  | 'action_required'
+  | 'verification_unavailable';
+
+/** The student chooses exactly one document to verify with. */
+export type DocumentType = 'student_id' | 'admission_letter';
+
+export interface VerificationCheck {
+  id: string;
+  outcome: 'pass' | 'fail' | 'soft_fail' | 'info';
+  detail?: string;
+}
 
 export interface VerificationRequest {
   id: string;
@@ -19,6 +43,12 @@ export interface VerificationRequest {
   department: string;
   level: string | null;
   student_note: string | null;
+  /** Document the student chose to verify with (new pipeline). */
+  document_type: DocumentType | null;
+  /** Machine-readable reason for the latest automated decision. */
+  decision_code: string | null;
+  /** Auditable check outcomes — no document text. */
+  checks: VerificationCheck[] | null;
   /** Private storage object name for the student ID card. */
   student_id_path: string | null;
   student_id_name: string | null;
@@ -88,12 +118,15 @@ function friendly(message: string, fallback: string): string {
   if (m.includes('give a reason')) return 'Please give the student a reason for the decision.';
   if (m.includes('already been decided')) return 'That request has already been decided.';
   if (m.includes('administrator privileges')) return 'You do not have permission to do that.';
-  if (m.includes('upload both your student id'))
-    return 'Upload both your student ID and your admission letter to complete verification.';
-  if (m.includes('could not find one of your uploaded documents'))
-    return 'We could not find one of your uploaded documents. Please re-upload and try again.';
+  if (m.includes('choose either your student id'))
+    return 'Choose either your student ID card or your admission letter.';
+  if (m.includes('upload your document')) return 'Upload your document before submitting.';
+  if (m.includes('could not find your uploaded document'))
+    return 'We could not find your uploaded document. Please re-upload and try again.';
   if (m.includes('files in your own upload folder'))
-    return 'Those documents could not be attached to your account. Please re-upload them.';
+    return 'That document could not be attached to your account. Please re-upload it.';
+  if (m.includes('attempt limit'))
+    return 'You have reached today’s verification attempt limit. Please try again tomorrow.';
   return message || fallback;
 }
 
@@ -160,46 +193,74 @@ export async function uploadVerificationDocument(file: File): Promise<Verificati
 }
 
 /**
- * Submit a student's identity for verification. Both the student ID and the
- * admission letter are required; the server auto-verifies well-formed, unique
- * matriculation numbers and defers collisions to the library queue.
+ * Submit a student's identity document for automated verification.
+ *
+ * The student picks ONE document (student ID card or admission letter). The
+ * file is uploaded to the private bucket, the `submit_verification` RPC parks
+ * the request in `processing`, and the `verify-document` edge function runs the
+ * authenticity checks. The RPC alone can never grant verification.
  */
 export async function submitVerification(input: {
-  studentId: File;
-  admissionLetter: File;
+  documentType: DocumentType;
+  file: File;
   note?: string;
 }): Promise<VerificationRequest> {
   const client = requireSupabase();
-  let studentId: VerificationDocument | null = null;
-  let admissionLetter: VerificationDocument | null = null;
+  let uploaded: VerificationDocument | null = null;
 
   try {
-    studentId = await uploadVerificationDocument(input.studentId);
-    admissionLetter = await uploadVerificationDocument(input.admissionLetter);
+    uploaded = await uploadVerificationDocument(input.file);
 
     const { data, error } = await client.rpc('submit_verification', {
-      p_student_id_path: studentId.path,
-      p_student_id_name: studentId.name,
-      p_admission_letter_path: admissionLetter.path,
-      p_admission_letter_name: admissionLetter.name,
+      p_document_type: input.documentType,
+      p_document_path: uploaded.path,
+      p_document_name: uploaded.name,
       p_student_note: input.note?.trim() || null,
     });
     if (error) {
       throw new Error(friendly(error.message, 'Could not submit your verification request.'));
     }
 
-    return (Array.isArray(data) ? data[0] : data) as VerificationRequest;
+    const request = (Array.isArray(data) ? data[0] : data) as VerificationRequest;
+    // Kick off the automated pipeline. A failure here does not lose the
+    // submission: it stays in `processing`, and the student can retry from the
+    // portal (or it is re-triggered on status refresh).
+    void runDocumentVerification(request?.id).catch(() => {});
+    return request;
   } catch (err) {
     // The RPC is the transaction; a refusal means no request was created, so
-    // remove the uploads rather than leave orphaned private documents behind.
-    const orphans = [studentId?.path, admissionLetter?.path].filter(
-      (p): p is string => Boolean(p)
-    );
-    if (orphans.length) {
-      await client.storage.from(EVIDENCE_BUCKET).remove(orphans).catch(() => {});
+    // remove the upload rather than leave an orphaned private document behind.
+    if (uploaded?.path) {
+      await client.storage.from(EVIDENCE_BUCKET).remove([uploaded.path]).catch(() => {});
     }
     throw err;
   }
+}
+
+/**
+ * Trigger the server-side verification pipeline for a request. Safe to call
+ * repeatedly — the backend is idempotent and never re-decides a decided
+ * request. Returns the pipeline's safe summary (no document text).
+ */
+export async function runDocumentVerification(
+  requestId: string | null | undefined
+): Promise<{ decision?: string; decisionCode?: string; status?: string }> {
+  if (!requestId) return {};
+  const client = requireSupabase();
+  const { data, error } = await client.functions.invoke(VERIFY_FUNCTION, {
+    body: { request_id: requestId },
+  });
+  if (error) {
+    // A transient failure (or an unconfigured OCR provider) leaves the request
+    // in `processing`; surface it so the UI can offer a retry.
+    throw new Error('Verification is temporarily unavailable. Please retry in a moment.');
+  }
+  const result = (data ?? {}) as Record<string, unknown>;
+  return {
+    decision: result.decision as string | undefined,
+    decisionCode: (result.decision_code as string | undefined) ?? undefined,
+    status: result.status as string | undefined,
+  };
 }
 
 /** Signed, short-lived link to a private verification document. */
@@ -298,7 +359,7 @@ export async function fetchVerificationQueue(
       // The FK hint names the constraint explicitly: user_id has two foreign
       // keys (auth.users and public.profiles), and pinning the profiles one keeps
       // the embed deterministic on every deployment.
-      'id, user_id, status, matric_number, faculty, department, level, student_note, student_id_path, student_id_name, admission_letter_path, admission_letter_name, evidence_path, evidence_name, reviewer_note, reviewed_at, created_at, profiles!verification_requests_user_id_fkey_profiles!inner(full_name, email, username, is_active)'
+      'id, user_id, status, matric_number, faculty, department, level, student_note, document_type, decision_code, checks, student_id_path, student_id_name, admission_letter_path, admission_letter_name, evidence_path, evidence_name, reviewer_note, reviewed_at, created_at, profiles!verification_requests_user_id_fkey_profiles!inner(full_name, email, username, is_active)'
     )
     .order('created_at', { ascending: true })
     .limit(100);

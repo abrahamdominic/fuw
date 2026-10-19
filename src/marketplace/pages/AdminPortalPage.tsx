@@ -120,8 +120,8 @@ export const AdminPortalPage: React.FC = () => {
     escrowFeeMinNaira: '100',
     escrowFeeMaxNaira: '5000',
     escrowEnabled: true,
-    premiumEscrowCreditNaira: '500',
-    premiumEscrowDiscountPct: '50',
+    premiumEscrowCreditNaira: '0',
+    premiumEscrowDiscountPct: '5',
     premiumMarketplaceBenefitsEnabled: true,
     verifiedScholarBadgeEnabled: true,
     premiumVisibilityEnabled: true,
@@ -189,8 +189,8 @@ export const AdminPortalPage: React.FC = () => {
           escrowFeeMinNaira: String(Math.round((set.escrow_fee_min_kobo ?? 10000) / 100)),
           escrowFeeMaxNaira: String(Math.round((set.escrow_fee_max_kobo ?? 500000) / 100)),
           escrowEnabled: set.escrow_enabled !== false,
-          premiumEscrowCreditNaira: String(Math.round((set.premium_escrow_credit_kobo ?? 50000) / 100)),
-          premiumEscrowDiscountPct: String(set.premium_escrow_discount_pct ?? 50),
+          premiumEscrowCreditNaira: String(Math.round((set.premium_escrow_credit_kobo ?? 0) / 100)),
+          premiumEscrowDiscountPct: String(set.premium_escrow_discount_pct ?? 5),
           premiumMarketplaceBenefitsEnabled: set.premium_marketplace_benefits_enabled !== false,
           verifiedScholarBadgeEnabled: set.verified_scholar_badge_enabled !== false,
           premiumVisibilityEnabled: set.premium_visibility_enabled !== false,
@@ -351,7 +351,7 @@ export const AdminPortalPage: React.FC = () => {
     const escrowFeeMinKobo = Math.round(parseFloat(settingsForm.escrowFeeMinNaira || '0') * 100);
     const escrowFeeMaxKobo = Math.round(parseFloat(settingsForm.escrowFeeMaxNaira || '0') * 100);
     const premiumCreditKobo = Math.round(parseFloat(settingsForm.premiumEscrowCreditNaira || '0') * 100);
-    const premiumDiscountPct = parseInt(settingsForm.premiumEscrowDiscountPct || '50', 10);
+    const premiumDiscountPct = parseInt(settingsForm.premiumEscrowDiscountPct || '5', 10);
 
     if (isNaN(commBps) || commBps < 0 || commBps > 5000) {
       toast('Commission must be between 0% and 50%', 'error');
@@ -794,7 +794,7 @@ export const AdminPortalPage: React.FC = () => {
                 </div>
 
                 <div style={{ background: 'var(--surface-alt, #f7faf8)', padding: 14, borderRadius: 10, border: '1px solid var(--border, #dcebe0)' }}>
-                  <span style={{ fontSize: 12, color: 'var(--text-secondary, #55675b)', display: 'block', marginBottom: 4 }}>Discounts Waived (50%)</span>
+                  <span style={{ fontSize: 12, color: 'var(--text-secondary, #55675b)', display: 'block', marginBottom: 4 }}>Discounts Waived (5%)</span>
                   <strong style={{ fontSize: 20, color: '#047857' }}>
                     {formatNaira(escrowAnalytics.total_discounts_applied_kobo)}
                   </strong>
@@ -1371,12 +1371,12 @@ export const AdminPortalPage: React.FC = () => {
                     onChange={(e) => setSettingsForm({ ...settingsForm, premiumEscrowCreditNaira: e.target.value })}
                     style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border, #dcebe0)', fontSize: 14 }}
                   />
-                  <small style={{ color: 'var(--text-secondary, #55675b)', fontSize: 11 }}>Credit granted per subscription period (₦500)</small>
+                  <small style={{ color: 'var(--text-secondary, #55675b)', fontSize: 11 }}>Credit granted per subscription period (₦0 — credit concept removed; only the 5% discount applies)</small>
                 </div>
 
                 <div>
                   <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-                    Post-Credit Escrow Discount (%)
+                    Premium Escrow Discount (%)
                   </label>
                   <input
                     type="number"
@@ -1387,7 +1387,7 @@ export const AdminPortalPage: React.FC = () => {
                     onChange={(e) => setSettingsForm({ ...settingsForm, premiumEscrowDiscountPct: e.target.value })}
                     style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border, #dcebe0)', fontSize: 14 }}
                   />
-                  <small style={{ color: 'var(--text-secondary, #55675b)', fontSize: 11 }}>Discount on remaining escrow after credit (50%)</small>
+                  <small style={{ color: 'var(--text-secondary, #55675b)', fontSize: 11 }}>Discount on eligible escrow fees for Premium members (5%)</small>
                 </div>
               </div>
 
@@ -1407,7 +1407,7 @@ export const AdminPortalPage: React.FC = () => {
                     checked={settingsForm.premiumMarketplaceBenefitsEnabled}
                     onChange={(e) => setSettingsForm({ ...settingsForm, premiumMarketplaceBenefitsEnabled: e.target.checked })}
                   />
-                  <span><strong>Enable Premium Escrow Benefits:</strong> Grants ₦500 escrow credit &amp; 50% discount to Premium members.</span>
+                  <span><strong>Enable Premium Escrow Benefits:</strong> Grants 5% off eligible escrow fees to Premium members for the rest of the semester.</span>
                 </label>
 
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, cursor: 'pointer' }}>

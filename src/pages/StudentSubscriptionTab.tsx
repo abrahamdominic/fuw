@@ -1,10 +1,9 @@
 // StudentSubscriptionTab — premium plan status and what is (or is not) unlocked.
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BadgeCheck, Check, Clipboard, Copy, FileUp, Loader2, Lock, RefreshCw, ShieldAlert, Wallet, X, ShoppingBag, Gift } from 'lucide-react';
+import { BadgeCheck, Check, Clipboard, Copy, Crown, FileUp, Loader2, Lock, RefreshCw, ShieldAlert, Wallet, X, ShoppingBag, Gift } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { fetchCatalogPlans, fetchMyPremiumSource, naira, type CatalogPlan } from '../lib/verification';
-import { fetchUserEscrowCredit, type EscrowCreditInfo } from '../marketplace/lib/api';
 import { VerifiedScholarBadge } from '../components/VerifiedScholarBadge';
 import { formatNaira } from '../marketplace/lib/format';
 import {
@@ -46,10 +45,10 @@ export function StudentSubscriptionTab() {
   const [automaticLoading, setAutomaticLoading] = useState(false);
   const [verifyingReference, setVerifyingReference] = useState<string | null>(null);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [paymentSuccessMsg, setPaymentSuccessMsg] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
-  const [escrowCredit, setEscrowCredit] = useState<EscrowCreditInfo | null>(null);
   const [giftRecipient, setGiftRecipient] = useState('');
-  const [giftPlanSlug, setGiftPlanSlug] = useState('semester-access');
+  const [giftPlanSlug, setGiftPlanSlug] = useState('');
   const [giftLoading, setGiftLoading] = useState(false);
   const [giftSuccessMsg, setGiftSuccessMsg] = useState<string | null>(null);
   const [giftErrorMsg, setGiftErrorMsg] = useState<string | null>(null);
@@ -57,7 +56,6 @@ export function StudentSubscriptionTab() {
 
   useEffect(() => {
     let cancelled = false;
-    fetchUserEscrowCredit().then((res) => { if (!cancelled) setEscrowCredit(res); }).catch(() => {});
     Promise.allSettled([
       fetchCatalogPlans(),
       fetchPaymentConfiguration(),
@@ -72,7 +70,10 @@ export function StudentSubscriptionTab() {
         if (plansResult.status === 'fulfilled') {
           setPlans(plansResult.value);
           const premiumPlan = plansResult.value.find((item) => item.is_premium && item.price_kobo > 0);
-          if (premiumPlan) setSelectedPlan(premiumPlan.slug);
+          if (premiumPlan) {
+            setSelectedPlan(premiumPlan.slug);
+            setGiftPlanSlug(premiumPlan.slug);
+          }
         } else {
           setPaymentError(plansResult.reason instanceof Error ? plansResult.reason.message : 'Could not load premium plans.');
         }
@@ -99,6 +100,15 @@ export function StudentSubscriptionTab() {
   const premiumEnabled = premiumConfig?.enabled === true;
   const manualEnabled = premiumConfig?.manual_payment_enabled === true && paymentConfig?.manual_enabled === true;
   const automaticEnabled = premiumConfig?.automatic_payment_enabled === true && paymentConfig?.automatic_enabled === true;
+
+  const giftRecipientPlans = plans.filter((p) => p.is_premium && p.price_kobo > 0);
+  const giftPlanInfo = giftRecipientPlans.find((p) => p.slug === giftPlanSlug) ?? giftRecipientPlans[0];
+  const giftPriceKobo = giftPlanInfo?.price_kobo ?? 0;
+  const premiumPlan = giftRecipientPlans[0];
+  const canUpgrade = verified && !hasPremium && premiumEnabled && Boolean(premiumPlan);
+  const premiumPriceLabel = premiumPlan
+    ? `${naira(premiumPlan.price_kobo, premiumPlan.currency)} / per semester`
+    : 'Premium';
 
   const handleSubmitPayment = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -129,12 +139,14 @@ export function StudentSubscriptionTab() {
   const handleWalletPayment = async (planSlug: string) => {
     setWalletPaying(true);
     setPaymentError(null);
+    setPaymentSuccessMsg(null);
     try {
-      await payPremiumPlanFromWallet(planSlug);
+      const res = await payPremiumPlanFromWallet(planSlug);
       await refreshEntitlement();
       setTransactions(await fetchMyPaymentTransactions());
       setPremiumSource(await fetchMyPremiumSource());
       setWallet(await fetchMyWalletBalance().catch(() => null));
+      setPaymentSuccessMsg(`Payment confirmed. ${res.plan_name} is now active on your account.`);
     } catch (cause) {
       setPaymentError(cause instanceof Error ? cause.message : 'Could not complete payment from wallet.');
     } finally {
@@ -149,7 +161,7 @@ export function StudentSubscriptionTab() {
     setGiftErrorMsg(null);
     setGiftSuccessMsg(null);
     try {
-      const res = await giftPremiumPlanFromWallet(giftRecipient.trim(), giftPlanSlug);
+      const res = await giftPremiumPlanFromWallet(giftRecipient.trim(), giftPlanInfo?.slug ?? '');
       setGiftSuccessMsg(`Successfully gifted ${res.plan_name} to ${res.recipient_name} (${res.recipient_matric})! Reference: ${res.reference}`);
       setGiftRecipient('');
       setWallet(await fetchMyWalletBalance().catch(() => null));
@@ -246,7 +258,7 @@ export function StudentSubscriptionTab() {
                 : `You have ${plan.name} with no scheduled expiration.`)}
             {!hasPremium && verified &&
               (premiumEnabled
-                ? 'Your identity is confirmed. Choose an available payment option or ask the library to activate a plan.'
+                ? 'Your identity is confirmed. Pay with your FUW wallet or another available payment method below.'
                 : 'Your identity is confirmed. Premium purchases and Premium access are temporarily paused.')}
             {hasPremium && premiumSource === 'GLOBAL_PREMIUM' && ' Your access was granted by the library to all members; no payment was recorded.'}
             {hasPremium && premiumSource === 'PAYMENT' && ' Your access was activated after a verified payment.'}
@@ -266,6 +278,74 @@ export function StudentSubscriptionTab() {
         <p className="inline-notice is-error" role="alert">
           {error}
         </p>
+      )}
+      {paymentSuccessMsg && (
+        <p className="inline-notice" role="status" style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#065f46' }}>
+          <Check size={15} aria-hidden="true" /> {paymentSuccessMsg}
+        </p>
+      )}
+
+      {canUpgrade && (
+        <section
+          className="card"
+          aria-labelledby="premium-upgrade-title"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 16,
+            marginBottom: 20,
+            background: 'linear-gradient(135deg, #fffdf5 0%, #fef9e7 100%)',
+            border: '1.5px solid #f5c542'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <span
+              aria-hidden="true"
+              style={{
+                width: 46,
+                height: 46,
+                borderRadius: '50%',
+                background: '#fef3c7',
+                color: '#b45309',
+                display: 'grid',
+                placeItems: 'center',
+                flexShrink: 0
+              }}
+            >
+              <Crown size={24} />
+            </span>
+            <div>
+              <strong id="premium-upgrade-title" style={{ fontSize: 17, color: '#92400e', display: 'block' }}>
+                Upgrade to Premium
+              </strong>
+              <p style={{ margin: '2px 0 0', fontSize: 13, color: '#78350f' }}>
+                {premiumPriceLabel} — unlocks encrypted downloads, full-text reading, the AI Exam Tutor, revision
+                summaries and {premiumPlan?.features.length ?? 0} Premium benefits.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => {
+              if (premiumPlan) setSelectedPlan(premiumPlan.slug);
+              document.getElementById('premium-checkout')?.scrollIntoView({ behavior: 'smooth' });
+            }}
+            style={{
+              padding: '11px 22px',
+              fontSize: 14,
+              fontWeight: 700,
+              background: '#b45309',
+              border: 'none',
+              color: '#ffffff',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            Purchase Premium — {naira(premiumPlan?.price_kobo ?? 0, premiumPlan?.currency ?? 'NGN')}
+          </button>
+        </section>
       )}
 
       {/* Premium Expiration Alert Banner */}
@@ -313,7 +393,7 @@ export function StudentSubscriptionTab() {
               <div>
                 <strong style={{ fontSize: 15, color: isExpired ? '#991b1b' : '#92400e', display: 'block' }}>
                   {isExpired
-                    ? 'Your Campus Hub Plus Plan Has Expired'
+                    ? 'Your Premium plan has expired'
                     : `Plan Expiring Soon: ${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} remaining`}
                 </strong>
                 <p style={{ margin: '2px 0 0', fontSize: 13, color: isExpired ? '#7f1d1d' : '#78350f' }}>
@@ -363,36 +443,14 @@ export function StudentSubscriptionTab() {
 
         {hasPremium ? (
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <strong style={{ fontSize: 14, color: '#17231d' }}>Escrow Credit Balance</strong>
-              <span style={{ fontSize: 13, fontWeight: 700, color: '#047857' }}>
-                {formatNaira(escrowCredit?.credit_remaining_kobo ?? 50000)} / {formatNaira(escrowCredit?.credit_granted_kobo ?? 50000)} remaining
-              </span>
-            </div>
+            <p style={{ margin: '0 0 12px', fontSize: 14, color: '#047857', fontWeight: 700 }}>
+              Premium members receive 5% off eligible escrow fees for the rest of the semester.
+            </p>
+            <p style={{ margin: '0 0 14px', fontSize: 13, color: '#55675b', lineHeight: 1.5 }}>
+              The discount is applied automatically at checkout on every eligible escrow fee while your Premium subscription is active.
+            </p>
 
-            {/* Progress Bar */}
-            <div style={{ height: 10, background: '#e5e7eb', borderRadius: 999, overflow: 'hidden', marginBottom: 12 }}>
-              <div
-                style={{
-                  height: '100%',
-                  width: `${Math.min(100, Math.max(0, ((escrowCredit?.credit_remaining_kobo ?? 50000) / (escrowCredit?.credit_granted_kobo || 50000)) * 100))}%`,
-                  background: (escrowCredit?.credit_remaining_kobo ?? 50000) > 0 ? '#10b981' : '#f59e0b',
-                  transition: 'width 0.3s ease',
-                }}
-              />
-            </div>
-
-            {(escrowCredit?.credit_remaining_kobo ?? 50000) > 0 ? (
-              <p style={{ margin: 0, fontSize: 13, color: '#55675b', lineHeight: 1.5 }}>
-                You have <strong>{formatNaira(escrowCredit?.credit_remaining_kobo ?? 50000)}</strong> of Marketplace escrow credit remaining this semester.
-              </p>
-            ) : (
-              <p style={{ margin: 0, fontSize: 13, color: '#55675b', lineHeight: 1.5 }}>
-                Your escrow credit has been used. Premium members receive <strong>50% off eligible escrow fees</strong> for the rest of the semester.
-              </p>
-            )}
-
-            <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #f0fdf4', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10, fontSize: 12, color: '#374151' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10, fontSize: 12, color: '#374151' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <Check size={15} color="#059669" />
                 <span>Priority Marketplace Escrow Mediation</span>
@@ -410,7 +468,7 @@ export function StudentSubscriptionTab() {
         ) : (
           <div>
             <p style={{ margin: '0 0 10px', fontSize: 13, color: '#55675b' }}>
-              Upgrade to Campus Hub Plus (₦1,200/semester) and receive <strong>₦500 in Marketplace escrow credit</strong>, plus 50% discount on all subsequent escrow fees.
+              Upgrade to Premium ({premiumPriceLabel}) and receive <strong>5% off eligible escrow fees</strong> for the rest of the semester.
             </p>
           </div>
         )}
@@ -425,10 +483,10 @@ export function StudentSubscriptionTab() {
             </div>
             <div>
               <strong style={{ fontSize: 16, color: '#92400e', display: 'block' }}>
-                Gift Campus Hub Plus to a Classmate
+                Gift Premium to a Classmate
               </strong>
               <p style={{ margin: '2px 0 0', fontSize: 13, color: '#78350f' }}>
-                Sponsor a peer with ₦1,200 semester access directly from your FUW Wallet. They instantly unlock exam vaults &amp; ₦500 escrow credit!
+                Sponsor a peer with {giftPriceKobo > 0 ? naira(giftPriceKobo, giftPlanInfo?.currency ?? 'NGN') : 'Premium'} semester access directly from your FUW Wallet. They instantly unlock exam vaults &amp; 5% off eligible escrow fees!
               </p>
             </div>
           </div>
@@ -492,13 +550,13 @@ export function StudentSubscriptionTab() {
                   onChange={(e) => setGiftPlanSlug(e.target.value)}
                   style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 14, background: '#ffffff' }}
                 >
-                  {plans.filter((p) => p.is_premium && p.price_kobo > 0).map((p) => (
+                  {giftRecipientPlans.map((p) => (
                     <option key={p.slug} value={p.slug}>
                       {p.name} — {naira(p.price_kobo, p.currency)}
                     </option>
                   ))}
-                  {plans.filter((p) => p.is_premium && p.price_kobo > 0).length === 0 && (
-                    <option value="semester-access">Semester Access — ₦1,200</option>
+                  {giftRecipientPlans.length === 0 && (
+                    <option value="">No premium plan available</option>
                   )}
                 </select>
               </div>
@@ -507,7 +565,7 @@ export function StudentSubscriptionTab() {
                 <span style={{ fontSize: 13, color: '#55675b' }}>
                   Wallet Balance: <strong style={{ color: '#17231d' }}>{formatNaira(wallet?.available_kobo ?? 0)}</strong>
                 </span>
-                {(wallet?.available_kobo ?? 0) < 120000 && (
+                {giftPriceKobo > 0 && (wallet?.available_kobo ?? 0) < giftPriceKobo && (
                   <Link
                     to="/marketplace/wallet"
                     target="_blank"
@@ -521,7 +579,7 @@ export function StudentSubscriptionTab() {
 
               <button
                 type="submit"
-                disabled={giftLoading || !giftRecipient.trim() || (wallet?.available_kobo ?? 0) < 120000}
+                disabled={giftLoading || !giftRecipient.trim() || giftPriceKobo === 0 || (wallet?.available_kobo ?? 0) < giftPriceKobo}
                 className="btn btn-primary"
                 style={{
                   padding: '10px 18px',
@@ -534,8 +592,8 @@ export function StudentSubscriptionTab() {
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: 8,
-                  cursor: (wallet?.available_kobo ?? 0) < 120000 ? 'not-allowed' : 'pointer',
-                  opacity: (wallet?.available_kobo ?? 0) < 120000 ? 0.6 : 1
+                  cursor: giftLoading || !giftRecipient.trim() || giftPriceKobo === 0 || (wallet?.available_kobo ?? 0) < giftPriceKobo ? 'not-allowed' : 'pointer',
+                  opacity: giftLoading || !giftRecipient.trim() || giftPriceKobo === 0 || (wallet?.available_kobo ?? 0) < giftPriceKobo ? 0.6 : 1
                 }}
               >
                 {giftLoading ? <Loader2 size={16} className="animate-spin" /> : <Gift size={16} />}
@@ -576,7 +634,7 @@ export function StudentSubscriptionTab() {
                   <p className="plan-current">
                     <BadgeCheck size={14} aria-hidden="true" /> Your current plan
                   </p>
-                ) : p.is_premium && verified && !hasPremium && premiumEnabled && (automaticEnabled || manualEnabled) && p.price_kobo > 0 ? (
+                ) : p.is_premium && verified && !hasPremium && premiumEnabled && p.price_kobo > 0 ? (
                   <button
                     type="button"
                     className={selectedPlan === p.slug ? 'primary' : 'secondary-btn'}
@@ -590,9 +648,11 @@ export function StudentSubscriptionTab() {
                     {p.is_premium
                       ? !premiumEnabled
                         ? 'Premium purchases are temporarily paused.'
-                        : automaticEnabled || manualEnabled
-                          ? 'Contact the library office to have this plan activated on your account.'
-                          : 'Payment options are not currently available.'
+                        : hasPremium
+                          ? 'You already have Premium access.'
+                          : !verified
+                            ? 'Verify your student identity to unlock payment.'
+                            : 'Payment options are not currently available.'
                       : 'Included with every account.'}
                   </p>
                 )}
@@ -606,7 +666,7 @@ export function StudentSubscriptionTab() {
       )}
 
       {verified && !hasPremium && premiumEnabled && selectedPlanInfo && (
-        <section className="card payment-student-card" aria-labelledby="manual-payment-title">
+        <section id="premium-checkout" className="card payment-student-card" aria-labelledby="manual-payment-title">
           <div className="payment-section-heading">
             <div>
               <h3 id="manual-payment-title">Choose a payment method</h3>
@@ -872,7 +932,7 @@ export function StudentSubscriptionTab() {
         <h3 id="plan-rules-heading">How premium access works</h3>
         <ul className="plan-rules">
           <li>Verification confirms you are a registered FUW student. It never checks your email.</li>
-          <li>Manual transfers require library approval. Automatic payments activate only after server-side provider verification.</li>
+          <li>Wallet payments activate access immediately. Manual transfers require library approval. Automatic payments activate only after server-side provider verification.</li>
           <li>Premium requires both: a verified identity <em>and</em> an active plan.</li>
           <li>Catalogue browsing, previews and study tools stay free and open to everyone.</li>
         </ul>

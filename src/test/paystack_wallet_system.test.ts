@@ -187,7 +187,7 @@ describe('Insufficient Balance Calculations (Section 22)', () => {
 describe('Centralized Ledger Entry Types (Section 16)', () => {
   it('verifies all mandatory ledger entry types exist in DB migration', () => {
     const migration = readFileSync(
-      resolve(__dirname, '../../supabase/migrations/20261006130000_wallet_ledger_entry_types.sql'),
+      resolve(__dirname, '../../supabase/migrations/20261006130500_wallet_ledger_entry_types.sql'),
       'utf8'
     );
     expect(migration).toContain('wallet_funding');

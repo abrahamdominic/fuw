@@ -10,8 +10,11 @@ import { requireSupabase } from './supabase';
 export type BlockReason =
   | 'unverified'
   | 'unsubmitted'
+  | 'processing'
   | 'pending'
   | 'rejected'
+  | 'action_required'
+  | 'verification_unavailable'
   | 'no-plan'
   | 'signed-out'
   | 'feature-disabled';
@@ -48,8 +51,11 @@ async function allowedNow(): Promise<boolean> {
 const MESSAGES: Record<BlockReason, string> = {
   'signed-out': 'Sign in to read this material.',
   unsubmitted: 'Verify your student identity to unlock downloads.',
-  pending: 'Your verification is still being reviewed by the library.',
+  processing: 'We’re checking your document. Downloads unlock once verification passes.',
+  pending: 'Your verification is being reviewed by the library.',
   rejected: 'Your verification was not approved. Submit it again to continue.',
+  action_required: 'Upload a clearer document to finish verification.',
+  verification_unavailable: 'Verification could not be completed yet. Retry in a moment.',
   unverified: 'Only verified students can download this material.',
   'no-plan': 'Downloading needs an active premium plan. Ask the library to activate one.',
   'feature-disabled': 'This Premium feature is temporarily unavailable.'
@@ -91,15 +97,21 @@ export async function checkDocumentAccess(input: {
   }
 
   const key: BlockReason =
-    input.verificationStatus === 'pending'
-      ? 'pending'
-      : input.verificationStatus === 'rejected'
-        ? 'rejected'
-        : input.verificationStatus === 'verified'
-          ? 'no-plan'
-          : input.verificationStatus === 'unsubmitted'
-            ? 'unsubmitted'
-            : 'unverified';
+    input.verificationStatus === 'processing'
+      ? 'processing'
+      : input.verificationStatus === 'pending'
+        ? 'pending'
+        : input.verificationStatus === 'rejected'
+          ? 'rejected'
+          : input.verificationStatus === 'action_required'
+            ? 'action_required'
+            : input.verificationStatus === 'verification_unavailable'
+              ? 'verification_unavailable'
+              : input.verificationStatus === 'verified'
+                ? 'no-plan'
+                : input.verificationStatus === 'unsubmitted'
+                  ? 'unsubmitted'
+                  : 'unverified';
 
   return { allowed: false, reason: key, message: MESSAGES[key] };
 }

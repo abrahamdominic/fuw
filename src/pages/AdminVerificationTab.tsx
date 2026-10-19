@@ -199,7 +199,29 @@ export function AdminVerificationTab() {
                     <dt>Submitted</dt>
                     <dd>{new Date(row.created_at).toLocaleDateString('en-NG')}</dd>
                   </div>
+                  <div>
+                    <dt>Document</dt>
+                    <dd>
+                      {row.document_type === 'admission_letter'
+                        ? 'Admission letter'
+                        : row.document_type === 'student_id'
+                          ? 'Student ID card'
+                          : 'Not recorded'}
+                    </dd>
+                  </div>
+                  {row.decision_code && (
+                    <div>
+                      <dt>Auto-check outcome</dt>
+                      <dd className="verify-pill is-pending">{row.decision_code}</dd>
+                    </div>
+                  )}
                 </dl>
+                {row.checks && row.checks.length > 0 && (
+                  <p className="verify-admin-note">
+                    {row.checks.filter((c) => c.outcome === 'fail').length} check(s) failed,{' '}
+                    {row.checks.filter((c) => c.outcome === 'soft_fail').length} flagged.
+                  </p>
+                )}
                 {row.student_note && <p className="verify-admin-note">Student said: {row.student_note}</p>}
                 {row.reviewer_note && (
                   <p className="verify-admin-note">

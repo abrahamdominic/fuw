@@ -12,8 +12,11 @@ import type { BlockReason } from '../lib/premium';
 const ICONS: Record<BlockReason, React.ReactNode> = {
   'signed-out': <ShieldAlert size={30} />,
   unsubmitted: <BadgeCheck size={30} />,
+  processing: <ShieldAlert size={30} />,
   pending: <ShieldAlert size={30} />,
   rejected: <ShieldAlert size={30} />,
+  action_required: <ShieldAlert size={30} />,
+  verification_unavailable: <ShieldAlert size={30} />,
   unverified: <BadgeCheck size={30} />,
   'no-plan': <Crown size={30} />,
   'feature-disabled': <ShieldAlert size={30} />
@@ -22,8 +25,11 @@ const ICONS: Record<BlockReason, React.ReactNode> = {
 const TITLES: Record<BlockReason, string> = {
   'signed-out': 'Sign in to continue',
   unsubmitted: 'Verify your student identity',
+  processing: 'Verification in progress',
   pending: 'Verification in progress',
   rejected: 'Verification not approved',
+  action_required: 'A clearer document is needed',
+  verification_unavailable: 'Verification temporarily unavailable',
   unverified: 'Verified students only',
   'no-plan': 'Premium plan required',
   'feature-disabled': 'Premium feature unavailable'
@@ -49,15 +55,28 @@ export function PremiumGateModal({ open, reason, message, onClose }: Props) {
       case 'signed-out':
         return { label: 'Sign in', target: '/login' };
       case 'pending':
+      case 'processing':
         return { label: 'View status', target: '/student/verification' };
       case 'no-plan':
       case 'feature-disabled':
         return { label: 'See plans', target: '/student/subscription' };
+      case 'action_required':
+      case 'verification_unavailable':
       case 'unsubmitted':
       case 'unverified':
       case 'rejected':
       default:
-        return { label: reason === 'rejected' ? 'Submit again' : 'Start verification', target: '/student/verification' };
+        return {
+          label:
+            reason === 'rejected'
+              ? 'Submit again'
+              : reason === 'action_required'
+                ? 'Upload a clearer copy'
+                : reason === 'verification_unavailable'
+                  ? 'Retry verification'
+                  : 'Start verification',
+          target: '/student/verification'
+        };
     }
   })();
 

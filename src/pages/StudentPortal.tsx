@@ -3804,7 +3804,7 @@ function StudentMessagesTab() {
         const data = await fetchMessages(activeConvId);
         const decryptedList: DecryptedMessage[] = await Promise.all(
           data.map(async (m) => {
-            const { text, isEncrypted } = await decryptMessage(m.body, activeConvId);
+            const { text, isEncrypted } = await decryptMessage(m.body, activeConvId, m.sender_id);
             return { ...m, decryptedBody: text, isEncrypted };
           })
         );
@@ -3832,7 +3832,7 @@ function StudentMessagesTab() {
         },
         async (payload) => {
           const row = payload.new as any;
-          const { text, isEncrypted } = await decryptMessage(row.body, activeConvId);
+          const { text, isEncrypted } = await decryptMessage(row.body, activeConvId, row.sender_id);
           const withDecrypted: DecryptedMessage = { ...row, decryptedBody: text, isEncrypted };
           setMessages((prev) =>
             prev.some((m) => m.id === row.id) ? prev : [...prev, withDecrypted]
@@ -4218,7 +4218,7 @@ function StudentMessagesTab() {
                 <div className="thread-subject" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span>{activeConv?.is_direct ? (activeConv.peer?.display_name || peerOf(activeConv!)) : (activeConv?.subject || 'Message to Admin')}</span>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', padding: '2px 8px', borderRadius: '12px', background: 'rgba(16, 185, 129, 0.12)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', fontWeight: 600 }}>
-                    <Lock size={11} /> End-to-End Encrypted
+                    <Lock size={11} /> Client-Side Encrypted
                   </span>
                 </div>
                 <div className="thread-sub">

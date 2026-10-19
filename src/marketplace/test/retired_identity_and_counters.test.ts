@@ -36,7 +36,7 @@ const MIGRATIONS = join(ROOT, 'supabase/migrations');
 const SRC = join(ROOT, 'src');
 
 const RETIREMENT = '20261006130000_retire_marketplace_profiles.sql';
-const PRODUCT_VIEWS = '20261006131000_marketplace_product_view_count.sql';
+const PRODUCT_VIEWS = '20261006131500_marketplace_product_view_count.sql';
 const ACCOMMODATION_VIEWS = '20261006120000_accommodation_view_count.sql';
 
 /** Every TypeScript/TSX source file, so a reference anywhere is caught. */

@@ -932,16 +932,9 @@ export const CheckoutPage: React.FC = () => {
                   <span>{formatNaira(estimatedEscrowFeeKobo)}</span>
                 </div>
 
-                {escrowPreview?.is_premium && (escrowPreview?.credit_applied_kobo ?? 0) > 0 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#047857', fontWeight: 600 }}>
-                    <span>Premium Escrow Credit</span>
-                    <span>-{formatNaira(escrowPreview.credit_applied_kobo)}</span>
-                  </div>
-                )}
-
                 {escrowPreview?.is_premium && (escrowPreview?.discount_applied_kobo ?? 0) > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: '#047857', fontWeight: 600 }}>
-                    <span>Premium 50% Escrow Discount</span>
+                    <span>Premium 5% Escrow Discount</span>
                     <span>-{formatNaira(escrowPreview.discount_applied_kobo)}</span>
                   </div>
                 )}
